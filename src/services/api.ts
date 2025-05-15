@@ -43,6 +43,7 @@ const API_BASE_URL = 'http://34.131.33.60/api/v1/agent';
 // Create axios instance
 const api = axios.create({
   baseURL: API_BASE_URL,
+  withCredentials: true,
   headers: {
     'Content-Type': 'application/json',
   },

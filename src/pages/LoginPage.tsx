@@ -126,7 +126,7 @@ const LoginPage: React.FC = () => {
           </div>
           <h2 className="mt-4 text-2xl font-bold text-gray-900">Welcome to CarePay</h2>
           <p className="mt-2 text-gray-600">
-            {otpSent ? 'Enter the OTP sent to your phone' : 'Sign in to access your healthcare chat'}
+            {otpSent ? 'Enter the OTP sent to your phone' : 'Sign in for your loan enquiry'}
           </p>
         </div>
 

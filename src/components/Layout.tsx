@@ -1,7 +1,8 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { LogOut, Activity } from 'lucide-react';
+import Modal from './Modal';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -11,6 +12,16 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   const { isAuthenticated, logout, doctorName, sessionCount } = useAuth();
   const location = useLocation();
   const isLoginPage = location.pathname === '/login';
+  const [isLogoutModalOpen, setIsLogoutModalOpen] = useState(false);
+
+  const handleLogoutClick = () => {
+    setIsLogoutModalOpen(true);
+  };
+
+  const handleConfirmLogout = () => {
+    setIsLogoutModalOpen(false);
+    logout();
+  };
 
   return (
     <div className="min-h-screen flex flex-col">
@@ -19,7 +30,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
           <div className="flex items-center">
             <Activity className="h-8 w-8 text-primary-600" />
-            <h1 className="ml-2 text-xl font-semibold text-gray-900">CarePay HealthChat</h1>
+            <h1 className="ml-2 text-xl font-semibold text-gray-900">CarePay loan assistant</h1>
           </div>
           
           {isAuthenticated && !isLoginPage && (
@@ -33,7 +44,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                 Sessions: {sessionCount}/10
               </div>
               <button 
-                onClick={logout}
+                onClick={handleLogoutClick}
                 className="inline-flex items-center text-sm font-medium text-gray-700 hover:text-primary-600"
               >
                 <LogOut className="h-5 w-5 mr-1" />
@@ -57,6 +68,16 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
           </p>
         </div>
       </footer>
+
+      {/* Logout Confirmation Modal */}
+      <Modal
+        isOpen={isLogoutModalOpen}
+        onClose={() => setIsLogoutModalOpen(false)}
+        onConfirm={handleConfirmLogout}
+        title="Confirm logout"
+      >
+        Are you sure you want to logout?
+      </Modal>
     </div>
   );
 };

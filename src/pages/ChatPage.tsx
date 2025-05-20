@@ -75,7 +75,11 @@ const ChatPage: React.FC = () => {
         setMessages([
           {
             id: 'welcome',
-            text: "Hello! I'm here to assist you with your healthcare loan application. Let's get started.\n\nFirst, could you please provide me with the following details?\n1. Your full name\n2. Your phone number\n3. The cost of the treatment you are seeking\n4. Your monthly income",
+            text: `Hello! I'm here to assist you with your patient's medical loan. Let's get started. First, kindly provide me with the following details?
+            1. Patient's full name
+            2. Patient's phone number (linked to their PAN)
+            3. The cost of the treatment
+            4. Monthly income of your patient. **Example input format: name: John Doe phone number: 1234567890 treatment cost: 10000 monthly income: 50000**`,
             sender: 'agent',
             timestamp: new Date(),
           },
@@ -160,7 +164,7 @@ const ChatPage: React.FC = () => {
       <div className="p-4 bg-primary-600 text-white flex justify-between items-center">
         <div className="flex items-center">
           <Robot className="h-5 w-5 mr-2" />
-          <h2 className="font-semibold">HealthCare Assistant</h2>
+          <h2 className="font-semibold">Medical loan assistant</h2>
           {sessionDetails?.status && (
             <span className="ml-2 px-2 py-0.5 text-xs bg-primary-700 rounded-full">
               {sessionDetails.status}
@@ -172,7 +176,7 @@ const ChatPage: React.FC = () => {
           className="btn text-sm bg-white text-primary-700 hover:bg-gray-100 py-1"
         >
           <Plus className="h-4 w-4 mr-1" />
-          New Chat
+          New Enquiry
         </button>
       </div>
       

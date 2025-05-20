@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { LogOut, Activity } from 'lucide-react';
+import { LogOut } from 'lucide-react';
 import Modal from './Modal';
 
 interface LayoutProps {

@@ -173,7 +173,7 @@ const ChatPage: React.FC = () => {
         </div>
         <button
           onClick={startNewSession}
-          className="btn text-sm bg-white text-primary-700 hover:bg-gray-100 py-1"
+          className="btn text-sm bg-white text-primary-700 hover:bg-gray-100 py-1 flex items-center"
         >
           <Plus className="h-4 w-4 mr-1" />
           New Enquiry

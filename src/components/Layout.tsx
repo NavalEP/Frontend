@@ -29,8 +29,11 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
       <header className="bg-white shadow-sm">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
           <div className="flex items-center">
-            <Activity className="h-8 w-8 text-primary-600" />
-            <h1 className="ml-2 text-xl font-semibold text-gray-900">CarePay loan assistant</h1>
+            <img 
+              src="/images/carepay_logo.webp" 
+              alt="CarePay" 
+              className="h-10 w-auto object-contain"
+            />
           </div>
           
           {isAuthenticated && !isLoginPage && (
@@ -64,7 +67,6 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
       <footer className="bg-white border-t border-gray-200 py-4">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <p className="text-center text-sm text-gray-500">
-            &copy; {new Date().getFullYear()} CarePay Healthcare Services. All rights reserved.
           </p>
         </div>
       </footer>

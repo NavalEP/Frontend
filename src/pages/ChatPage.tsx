@@ -12,10 +12,12 @@ interface Message {
 }
 
 interface SessionDetails {
-  fullName: string | null;
   phoneNumber: string;
-  bureau_decision_details: string | null;
   status?: string;
+  history?: Array<{
+    type: string;
+    content: string;
+  }>;
 }
 
 const ChatPage: React.FC = () => {
@@ -28,17 +30,52 @@ const ChatPage: React.FC = () => {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const { incrementSessionCount, phoneNumber } = useAuth();
   
+  // Helper function to get consistent welcome message text
+  const getWelcomeMessageText = (): string => {
+    return `Hello! I'm here to assist you with your patient's medical loan. Let's get started. First, kindly provide me with the following details?
+    1. Patient's full name \n\
+    2. Patient's phone number (linked to their PAN) \n\
+    3. The cost of the treatment \n\
+    4. Monthly income of your patient. \n\
+    **Example input format: name: John Doe phone number: 1234567890 treatment cost: 10000 monthly income: 50000**`;
+  };
+
+  // Helper function to format welcome message from API response
+  const formatWelcomeMessage = (content: string): string => {
+    // If content already has formatting, return it as is
+    if (content.includes('1. Patient') || content.includes('**Example input format**')) {
+      return content;
+    }
+    
+    // Otherwise, return the standard welcome message
+    return getWelcomeMessageText();
+  };
+  
   // Scroll to bottom when messages change
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
   
-  // Initialize chat with welcome message
+  // Initialize chat with welcome message or retrieve existing session
   useEffect(() => {
-    if (!sessionId) {
+    if (!phoneNumber) return;
+
+    // Check if there's a saved session ID for this user in localStorage
+    const userSessionKey = `session_id_${phoneNumber}`;
+    const savedSessionId = localStorage.getItem(userSessionKey);
+    
+    if (savedSessionId) {
+      // Restore the existing session
+      setSessionId(savedSessionId);
+      setMessages([]); // Clear messages until we load them from session details
+      
+      // Also set current_session_id for compatibility with existing code
+      localStorage.setItem('current_session_id', savedSessionId);
+    } else {
+      // Create a new session if no existing session
       startNewSession();
     }
-  }, []);
+  }, [phoneNumber]);
 
   // Fetch session details when sessionId changes
   useEffect(() => {
@@ -51,11 +88,73 @@ const ChatPage: React.FC = () => {
     if (!sessionId) return;
     
     try {
+      // Show loading indicator when fetching existing session
+      if (messages.length === 0) {
+        setIsLoading(true);
+        setMessages([{
+          id: `loading-session-${Date.now()}`,
+          text: "Loading chat history...",
+          sender: 'agent',
+          timestamp: new Date(),
+        }]);
+      }
+      
       const response = await getSessionDetails(sessionId);
-      setSessionDetails(response.data.data);
+      if (response.data) {
+        setSessionDetails({
+          phoneNumber: response.data.phoneNumber,
+          status: response.data.status,
+          history: response.data.history
+        });
+        
+        // If we have history, convert it to our message format
+        if (response.data.history && response.data.history.length > 0) {
+          const historyMessages: Message[] = response.data.history.map((item, index) => {
+            // Format the first agent message to match welcome message format
+            if (index === 0 && item.type === 'AIMessage') {
+              return {
+                id: `history-${index}`,
+                text: formatWelcomeMessage(item.content),
+                sender: 'agent',
+                timestamp: new Date(response.data.created_at),
+              };
+            }
+            
+            return {
+              id: `history-${index}`,
+              text: item.content,
+              sender: item.type === 'HumanMessage' ? 'user' : 'agent',
+              timestamp: new Date(response.data.created_at),
+            };
+          });
+          
+          // Replace any loading messages and show the actual conversation history
+          setMessages(historyMessages);
+        } else if (messages.length === 1 && messages[0].id.startsWith('loading-session')) {
+          // If there's no history but we were showing a loading message, show welcome message
+          setMessages([
+            {
+              id: 'welcome',
+              text: getWelcomeMessageText(),
+              sender: 'agent',
+              timestamp: new Date(),
+            },
+          ]);
+        }
+      } else {
+        // Session not found or empty, start a new session
+        if (messages.length === 1 && messages[0].id.startsWith('loading-session')) {
+          startNewSession();
+        }
+      }
     } catch (err) {
       console.error('Error fetching session details:', err);
-      // Don't show error to user as this is not critical
+      // If error occurred while loading session, start a new one
+      if (messages.length === 1 && messages[0].id.startsWith('loading-session')) {
+        startNewSession();
+      }
+    } finally {
+      setIsLoading(false);
     }
   };
   
@@ -64,23 +163,33 @@ const ChatPage: React.FC = () => {
     setError(null);
     setSessionDetails(null);
     
+    // Clear existing session from localStorage when starting new session
+    localStorage.removeItem('current_session_id');
+    
+    if (phoneNumber) {
+      localStorage.removeItem(`session_id_${phoneNumber}`);
+    }
+    
     try {
       const response = await createSession();
       if (response.data.status === 'success') {
         const newSessionId = response.data.session_id;
         setSessionId(newSessionId);
+        
+        // Save the session ID to localStorage with user's phone number as part of the key
+        if (phoneNumber) {
+          localStorage.setItem(`session_id_${phoneNumber}`, newSessionId);
+        }
+        
+        // Also set current_session_id for compatibility
+        localStorage.setItem('current_session_id', newSessionId);
         incrementSessionCount();
         
         // Add welcome message
         setMessages([
           {
             id: 'welcome',
-            text: `Hello! I'm here to assist you with your patient's medical loan. Let's get started. First, kindly provide me with the following details?
-            1. Patient's full name \n\
-            2. Patient's phone number (linked to their PAN) \n\
-            3. The cost of the treatment \n\
-            4. Monthly income of your patient. \n\
-            **Example input format: name: John Doe phone number: 1234567890 treatment cost: 10000 monthly income: 50000**`,
+            text: getWelcomeMessageText(),
             sender: 'agent',
             timestamp: new Date(),
           },
@@ -145,6 +254,12 @@ const ChatPage: React.FC = () => {
         
         // Fetch updated session details after message exchange
         fetchSessionDetails();
+      } else if (response.data.message === 'Session not found' || response.data.status === 'error') {
+        // Session expired or invalid, start a new one
+        setError('Your session has expired. Starting a new session...');
+        setTimeout(() => {
+          startNewSession();
+        }, 2000);
       } else {
         console.error('API response not successful:', response.data);
         throw new Error('Failed to get response from agent');
@@ -182,15 +297,11 @@ const ChatPage: React.FC = () => {
       </div>
       
       {/* Session details */}
-      {sessionDetails && (
+      {sessionDetails && sessionDetails.phoneNumber && (
         <div className="px-4 py-2 bg-gray-50 border-b border-gray-200 text-sm">
-          {sessionDetails.fullName && (
-            <p className="text-gray-700">Name: {sessionDetails.fullName}</p>
-          )}
-          {sessionDetails.bureau_decision_details && (
-            <p className="text-gray-700 mt-1">
-              Decision: {sessionDetails.bureau_decision_details}
-            </p>
+          <p className="text-gray-700">Phone: {sessionDetails.phoneNumber}</p>
+          {sessionDetails.status && (
+            <p className="text-gray-700 mt-1">Status: {sessionDetails.status}</p>
           )}
         </div>
       )}

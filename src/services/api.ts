@@ -22,19 +22,20 @@ interface MessageResponse {
   status: string;
   session_id: string;
   response: string;
+  message?: string;
 }
 
 interface SessionDetailsResponse {
   status: string;
   session_id: string;
-  data: {
-    fullName: string | null;
-    phoneNumber: string;
-    bureau_decision_details: string | null;
-    status?: string;
-  };
+  phoneNumber: string;
+  bureau_decision_details: string | null;
   created_at: string;
-  updated_at?: string;
+  updated_at: string;
+  history: Array<{
+    type: string;
+    content: string;
+  }>;
 }
 
 // Base URL for API

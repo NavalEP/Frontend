@@ -102,6 +102,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const logout = () => {
+    // Clear user-specific session ID if phone number exists
+    if (phoneNumber) {
+      localStorage.removeItem(`session_id_${phoneNumber}`);
+    }
+    
+    // Clear current session ID
+    localStorage.removeItem('current_session_id');
+    
     // Clear all auth data
     localStorage.removeItem('token');
     localStorage.removeItem('phoneNumber');

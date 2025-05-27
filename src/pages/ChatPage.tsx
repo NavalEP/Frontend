@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { createSession, sendMessage, getSessionDetails } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import ChatMessage from '../components/ChatMessage';
+import StructuredInputForm from '../components/StructuredInputForm';
 import { SendHorizonal, Plus, Notebook as Robot } from 'lucide-react';
 
 interface Message {
@@ -27,17 +28,13 @@ const ChatPage: React.FC = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [sessionDetails, setSessionDetails] = useState<SessionDetails | null>(null);
+  const [showStructuredForm, setShowStructuredForm] = useState(true);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const { incrementSessionCount, phoneNumber } = useAuth();
   
   // Helper function to get consistent welcome message text
   const getWelcomeMessageText = (): string => {
-    return `Hello! I'm here to assist you with your patient's medical loan. Let's get started. First, kindly provide me with the following details?
-    1. Patient's full name \n\
-    2. Patient's phone number (linked to their PAN) \n\
-    3. The cost of the treatment \n\
-    4. Monthly income of your patient. \n\
-    **Example input format: name: John Doe phone number: 1234567890 treatment cost: 10000 monthly income: 50000**`;
+    return `Hello! I'm here to assist you with your patient's medical loan. Let's get started by providing the patient information using the form below.`;
   };
 
   // Helper function to format welcome message from API response
@@ -130,6 +127,19 @@ const ChatPage: React.FC = () => {
           
           // Replace any loading messages and show the actual conversation history
           setMessages(historyMessages);
+          
+          // Check if patient information has already been submitted
+          const hasPatientInfo = historyMessages.some(msg => 
+            msg.sender === 'user' && 
+            msg.text.includes('name:') && 
+            msg.text.includes('phone number:') && 
+            msg.text.includes('treatment cost:') && 
+            msg.text.includes('monthly income:')
+          );
+          
+          if (hasPatientInfo) {
+            setShowStructuredForm(false);
+          }
         } else if (messages.length === 1 && messages[0].id.startsWith('loading-session')) {
           // If there's no history but we were showing a loading message, show welcome message
           setMessages([
@@ -158,10 +168,106 @@ const ChatPage: React.FC = () => {
     }
   };
   
+  // Check if we should show structured form based on conversation state
+  const shouldShowStructuredForm = () => {
+    // Show structured form if:
+    // 1. We have only the welcome message
+    // 2. Or we have no messages yet
+    // 3. And no previous patient information has been submitted
+    return showStructuredForm && (
+      messages.length <= 1 || 
+      !messages.some(msg => 
+        msg.sender === 'user' && 
+        msg.text.includes('name:') && 
+        msg.text.includes('phone number:') && 
+        msg.text.includes('treatment cost:') && 
+        msg.text.includes('monthly income:')
+      )
+    );
+  };
+
+  const handleStructuredFormSubmit = (formattedMessage: string) => {
+    setShowStructuredForm(false);
+    // Simulate form submission as a regular message
+    handleMessageSubmit(formattedMessage);
+  };
+
+  const handleMessageSubmit = async (messageText: string) => {
+    if (!messageText.trim() || !sessionId) return;
+    
+    // Add user message to chat
+    const userMessage: Message = {
+      id: `user-${Date.now()}`,
+      text: messageText,
+      sender: 'user',
+      timestamp: new Date(),
+    };
+    
+    setMessages(prevMessages => [...prevMessages, userMessage]);
+    setInputMessage('');
+    setIsLoading(true);
+    setError(null);
+    
+    // Add loading message
+    const loadingMessage: Message = {
+      id: `loading-${Date.now()}`,
+      text: "I'm analyzing your request. This might take up to 1-2 minutes. Please wait...",
+      sender: 'agent',
+      timestamp: new Date(),
+    };
+    setMessages(prevMessages => [...prevMessages, loadingMessage]);
+    
+    try {
+      const response = await sendMessage(sessionId, messageText);
+      console.log('API Response:', response.data);
+      
+      // Remove loading message
+      setMessages(prevMessages => prevMessages.filter(msg => msg.id !== loadingMessage.id));
+      
+      if (response.data.status === 'success') {
+        // Add agent response to chat
+        const agentMessage: Message = {
+          id: `agent-${Date.now()}`,
+          text: response.data.response || 'Sorry, I could not process your request.',
+          sender: 'agent',
+          timestamp: new Date(),
+        };
+        
+        console.log('Adding agent message:', agentMessage);
+        setMessages(prevMessages => [...prevMessages, agentMessage]);
+        
+        // Fetch updated session details after message exchange
+        fetchSessionDetails();
+      } else if (response.data.message === 'Session not found' || response.data.status === 'error') {
+        // Session expired or invalid, start a new one
+        setError('Your session has expired. Starting a new session...');
+        setTimeout(() => {
+          startNewSession();
+        }, 2000);
+      } else {
+        console.error('API response not successful:', response.data);
+        throw new Error('Failed to get response from agent');
+      }
+    } catch (err) {
+      // Remove loading message in case of error
+      setMessages(prevMessages => prevMessages.filter(msg => msg.id !== loadingMessage.id));
+      console.error('Error sending message:', err);
+      setError(err instanceof Error ? err.message : 'Failed to send message. Please try again.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleSendMessage = async (e: React.FormEvent) => {
+    e.preventDefault();
+    await handleMessageSubmit(inputMessage);
+  };
+
   const startNewSession = async () => {
     setIsLoading(true);
     setError(null);
     setSessionDetails(null);
+    setShowStructuredForm(true); // Reset to show structured form for new session
     
     // Clear existing session from localStorage when starting new session
     localStorage.removeItem('current_session_id');
@@ -200,75 +306,6 @@ const ChatPage: React.FC = () => {
     } catch (err) {
       console.error('Error creating session:', err);
       setError('Failed to start new chat session. Please try again.');
-    } finally {
-      setIsLoading(false);
-    }
-  };
-  
-  const handleSendMessage = async (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    if (!inputMessage.trim() || !sessionId) return;
-    
-    // Add user message to chat
-    const userMessage: Message = {
-      id: `user-${Date.now()}`,
-      text: inputMessage,
-      sender: 'user',
-      timestamp: new Date(),
-    };
-    
-    const currentMessage = inputMessage.trim();
-    setMessages(prevMessages => [...prevMessages, userMessage]);
-    setInputMessage('');
-    setIsLoading(true);
-    setError(null);
-    
-    // Add loading message
-    const loadingMessage: Message = {
-      id: `loading-${Date.now()}`,
-      text: "I'm analyzing your request. This might take up to 1-2 minutes. Please wait...",
-      sender: 'agent',
-      timestamp: new Date(),
-    };
-    setMessages(prevMessages => [...prevMessages, loadingMessage]);
-    
-    try {
-      const response = await sendMessage(sessionId, currentMessage);
-      console.log('API Response:', response.data);
-      
-      // Remove loading message
-      setMessages(prevMessages => prevMessages.filter(msg => msg.id !== loadingMessage.id));
-      
-      if (response.data.status === 'success') {
-        // Add agent response to chat
-        const agentMessage: Message = {
-          id: `agent-${Date.now()}`,
-          text: response.data.response || 'Sorry, I could not process your request.',
-          sender: 'agent',
-          timestamp: new Date(),
-        };
-        
-        console.log('Adding agent message:', agentMessage);
-        setMessages(prevMessages => [...prevMessages, agentMessage]);
-        
-        // Fetch updated session details after message exchange
-        fetchSessionDetails();
-      } else if (response.data.message === 'Session not found' || response.data.status === 'error') {
-        // Session expired or invalid, start a new one
-        setError('Your session has expired. Starting a new session...');
-        setTimeout(() => {
-          startNewSession();
-        }, 2000);
-      } else {
-        console.error('API response not successful:', response.data);
-        throw new Error('Failed to get response from agent');
-      }
-    } catch (err) {
-      // Remove loading message in case of error
-      setMessages(prevMessages => prevMessages.filter(msg => msg.id !== loadingMessage.id));
-      console.error('Error sending message:', err);
-      setError(err instanceof Error ? err.message : 'Failed to send message. Please try again.');
     } finally {
       setIsLoading(false);
     }
@@ -328,29 +365,38 @@ const ChatPage: React.FC = () => {
         <div ref={messagesEndRef} />
       </div>
       
-      {/* Message input */}
+      {/* Message input area */}
       <div className="p-4 border-t border-gray-200">
-        <form onSubmit={handleSendMessage} className="flex space-x-2">
-          <input
-            type="text"
-            value={inputMessage}
-            onChange={(e) => setInputMessage(e.target.value)}
-            placeholder="Type your message..."
-            className="input flex-1"
-            disabled={isLoading || !sessionId}
+        {shouldShowStructuredForm() ? (
+          <StructuredInputForm 
+            onSubmit={handleStructuredFormSubmit}
+            isLoading={isLoading}
           />
-          <button
-            type="submit"
-            className="btn btn-primary"
-            disabled={isLoading || !inputMessage.trim() || !sessionId}
-          >
-            <SendHorizonal className="h-5 w-5" />
-          </button>
-        </form>
-        <p className="mt-2 text-xs text-gray-500 text-center">
-          {phoneNumber && `Connected as: ${phoneNumber}`}
-          {sessionId && ` • Session ID: ${sessionId.substring(0, 8)}...`}
-        </p>
+        ) : (
+          <>
+            <form onSubmit={handleSendMessage} className="flex space-x-2">
+              <input
+                type="text"
+                value={inputMessage}
+                onChange={(e) => setInputMessage(e.target.value)}
+                placeholder="Type your message..."
+                className="input flex-1"
+                disabled={isLoading || !sessionId}
+              />
+              <button
+                type="submit"
+                className="btn btn-primary"
+                disabled={isLoading || !inputMessage.trim() || !sessionId}
+              >
+                <SendHorizonal className="h-5 w-5" />
+              </button>
+            </form>
+            <p className="mt-2 text-xs text-gray-500 text-center">
+              {phoneNumber && `Connected as: ${phoneNumber}`}
+              {sessionId && ` • Session ID: ${sessionId.substring(0, 8)}...`}
+            </p>
+          </>
+        )}
       </div>
     </div>
   );

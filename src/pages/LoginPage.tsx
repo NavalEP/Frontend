@@ -10,6 +10,7 @@ const LoginPage: React.FC = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [countdown, setCountdown] = useState(0);
+  const [consentAccepted, setConsentAccepted] = useState(true);
   const { login } = useAuth();
   
   // Countdown timer for resend
@@ -33,6 +34,11 @@ const LoginPage: React.FC = () => {
     // Validation
     if (!validatePhoneNumber(cleanPhoneNumber)) {
       setError('Please enter a valid 10-digit phone number');
+      return;
+    }
+    
+    if (!consentAccepted) {
+      setError('Please accept the terms and conditions to proceed');
       return;
     }
     
@@ -158,10 +164,43 @@ const LoginPage: React.FC = () => {
                 />
               </div>
             </div>
+            
+            {/* Consent Section */}
+            <div className="space-y-3 p-4 bg-gray-50 rounded-lg">
+              <div className="flex items-start space-x-3">
+                <input
+                  id="consent"
+                  type="checkbox"
+                  checked={consentAccepted}
+                  onChange={(e) => setConsentAccepted(e.target.checked)}
+                  className="mt-1 h-4 w-4 accent-primary-600 focus:ring-primary-500 border-gray-300 rounded"
+                />
+                <div className="flex-1">
+                  <label htmlFor="consent" className="text-sm text-gray-700">
+                    <p className="mb-2">I consent to the following:</p>
+                    <div className="space-y-2 text-xs text-gray-600">
+                      <p>1. I confirm this number is linked to my Aadhaar, PAN, and income account. I authorize CareCoin Technologies Pvt Ltd and its partners to fetch my credit information from CIBIL, Experian, Equifax, etc.</p>
+                      <p>2. I also consent to the collection, storage, and use of my Aadhaar, employment, and other details needed to process my application, as per applicable laws.</p>
+                      <p>3. I accept the{' '}
+                        <a 
+                          href="https://carepay.money/patient/termspatient" 
+                          target="_blank" 
+                          rel="noopener noreferrer"
+                          className="text-primary-600 hover:text-primary-500 underline"
+                        >
+                          Terms & Conditions
+                        </a>
+                      </p>
+                    </div>
+                  </label>
+                </div>
+              </div>
+            </div>
+            
             <button
               type="submit"
               className="btn btn-primary w-full"
-              disabled={isLoading || phoneNumber.length !== 10}
+              disabled={isLoading || phoneNumber.length !== 10 || !consentAccepted}
             >
               {isLoading ? 'Sending...' : 'Send OTP'}
             </button>

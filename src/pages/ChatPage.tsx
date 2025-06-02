@@ -476,12 +476,12 @@ const ChatPage: React.FC = () => {
   );
 
   return (
-    <div className="flex flex-col h-[calc(100vh-12rem)] max-h-[calc(100vh-12rem)] bg-white rounded-lg shadow-md overflow-hidden">
-      {/* Chat header */}
-      <div className="p-4 bg-primary-600 text-white flex justify-between items-center">
+    <div className="flex flex-col h-full bg-white rounded-lg shadow-md overflow-hidden">
+      {/* Chat header - Fixed */}
+      <div className="p-4 bg-primary-600 text-white flex justify-between items-center flex-shrink-0">
         <div className="flex items-center">
           <Robot className="h-5 w-5 mr-2" />
-          <h2 className="font-semibold">Medical loan assistant</h2>
+          <h2 className="font-semibold text-sm sm:text-base">Medical loan assistant</h2>
         </div>
         <div className="flex space-x-2">
           <button
@@ -489,30 +489,30 @@ const ChatPage: React.FC = () => {
             className="btn text-sm bg-white text-primary-700 hover:bg-gray-100 py-1 flex items-center"
           >
             <History className="h-4 w-4 mr-1" />
-            Enquiry History
+            <span className="hidden sm:inline">Enquiry History</span>
           </button>
           <button
             onClick={startNewSession}
             className="btn text-sm bg-white text-primary-700 hover:bg-gray-100 py-1 flex items-center"
           >
             <Plus className="h-4 w-4 mr-1" />
-            New Enquiry
+            <span className="hidden sm:inline">New Enquiry</span>
           </button>
         </div>
       </div>
 
-      {/* Main content area with history sidebar */}
+      {/* Main content area with history sidebar - Fixed height */}
       <div className="flex flex-1 overflow-hidden relative">
         {/* Chat History Sidebar Overlay */}
         {showHistory && (
           <div className="absolute inset-0 z-10 bg-black bg-opacity-50" onClick={() => setShowHistory(false)}>
             {/* History Sidebar Content */}
             <div
-              className="w-80 h-full bg-white shadow-lg transform transition-transform duration-300 ease-in-out flex flex-col"
+              className="w-[85vw] sm:w-80 h-full bg-white shadow-lg transform transition-transform duration-300 ease-in-out flex flex-col"
               onClick={e => e.stopPropagation()}
             >
-              {/* Header */}
-              <div className="p-4 border-b">
+              {/* Header - Fixed */}
+              <div className="p-4 border-b flex-shrink-0">
                 <h3 className="font-semibold mb-2">Enquiry History</h3>
                 <div className="relative">
                   <input
@@ -524,7 +524,7 @@ const ChatPage: React.FC = () => {
                   />
                 </div>
               </div>
-              {/* History items */}
+              {/* History items - Scrollable */}
               <div className="overflow-y-auto flex-1">
                 {filteredChatHistory.length === 0 ? (
                   <p className="p-4 text-gray-500">
@@ -536,10 +536,10 @@ const ChatPage: React.FC = () => {
                       key={session.id}
                       data-session-id={session.id}
                       onClick={() => handleHistoryItemClick(session)}
-                      className="history-item p-4 border-b hover:bg-gray-50 cursor-pointer transition-colors duration-200"
+                      className="history-item p-4 border-b hover:bg-gray-50 cursor-pointer transition-colors duration-200 active:bg-gray-100"
                     >
-                      <h4 className="font-medium">{session.title}</h4>
-                      <p className="text-sm text-gray-500 truncate">{session.lastMessage}</p>
+                      <h4 className="font-medium text-sm sm:text-base">{session.title}</h4>
+                      <p className="text-xs sm:text-sm text-gray-500 truncate">{session.lastMessage}</p>
                       <p className="text-xs text-gray-400 mt-1">
                         {new Date(session.timestamp).toLocaleString()}
                       </p>
@@ -551,11 +551,11 @@ const ChatPage: React.FC = () => {
           </div>
         )}
 
-        {/* Chat content area */}
-        <div className="flex-1 flex flex-col">
-          {/* Session details */}
+        {/* Chat content area - Fixed height */}
+        <div className="flex-1 flex flex-col h-full">
+          {/* Session details - Fixed */}
           {sessionDetails && sessionDetails.phoneNumber && (
-            <div className="px-4 py-2 bg-gray-50 border-b border-gray-200 text-sm">
+            <div className="px-4 py-2 bg-gray-50 border-b border-gray-200 text-xs sm:text-sm flex-shrink-0">
               <p className="text-gray-700">Phone: {sessionDetails.phoneNumber}</p>
               {sessionDetails.status && (
                 <p className="text-gray-700 mt-1">Status: {sessionDetails.status}</p>
@@ -563,30 +563,32 @@ const ChatPage: React.FC = () => {
             </div>
           )}
           
-          {/* Error message */}
+          {/* Error message - Fixed */}
           {error && (
-            <div className="m-4 p-3 bg-error-50 border border-error-200 text-error-700 rounded-md">
+            <div className="m-4 p-3 bg-error-50 border border-error-200 text-error-700 rounded-md text-sm flex-shrink-0">
               {error}
             </div>
           )}
           
-          {/* Chat messages */}
-          <div className="flex-1 overflow-y-auto p-4 bg-gray-50">
-            {messages.map((message) => (
-              <ChatMessage key={message.id} message={message} />
-            ))}
-            {isLoading && (
-              <div className="flex items-center space-x-2 text-gray-500 animate-pulse p-3">
-                <span className="h-2 w-2 bg-gray-400 rounded-full"></span>
-                <span className="h-2 w-2 bg-gray-400 rounded-full"></span>
-                <span className="h-2 w-2 bg-gray-400 rounded-full"></span>
-              </div>
-            )}
-            <div ref={messagesEndRef} />
+          {/* Chat messages - Scrollable */}
+          <div className="flex-1 overflow-y-auto p-4 bg-gray-50 min-h-0 max-h-[calc(100vh-200px)]">
+            <div className="space-y-4">
+              {messages.map((message) => (
+                <ChatMessage key={message.id} message={message} />
+              ))}
+              {isLoading && (
+                <div className="flex items-center space-x-2 text-gray-500 animate-pulse p-3">
+                  <span className="h-2 w-2 bg-gray-400 rounded-full"></span>
+                  <span className="h-2 w-2 bg-gray-400 rounded-full"></span>
+                  <span className="h-2 w-2 bg-gray-400 rounded-full"></span>
+                </div>
+              )}
+              <div ref={messagesEndRef} />
+            </div>
           </div>
           
-          {/* Message input area */}
-          <div className="p-4 border-t border-gray-200">
+          {/* Message input area - Fixed */}
+          <div className="p-4 border-t border-gray-200 bg-white flex-shrink-0">
             {shouldShowStructuredForm() ? (
               <StructuredInputForm 
                 onSubmit={handleStructuredFormSubmit}
@@ -600,12 +602,12 @@ const ChatPage: React.FC = () => {
                     value={inputMessage}
                     onChange={(e) => setInputMessage(e.target.value)}
                     placeholder="Type your message..."
-                    className="input flex-1"
+                    className="input flex-1 text-sm sm:text-base"
                     disabled={isLoading || !sessionId}
                   />
                   <button
                     type="submit"
-                    className="btn btn-primary"
+                    className="btn btn-primary p-2 sm:p-3"
                     disabled={isLoading || !inputMessage.trim() || !sessionId}
                   >
                     <SendHorizonal className="h-5 w-5" />

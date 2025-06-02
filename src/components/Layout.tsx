@@ -24,9 +24,9 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   };
 
   return (
-    <div className="min-h-screen flex flex-col">
+    <div className="min-h-screen flex flex-col safe-top safe-bottom">
       {/* Header */}
-      <header className="bg-white shadow-sm">
+      <header className="bg-white shadow-sm sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
           <div className="flex items-center">
             <img 
@@ -37,21 +37,20 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
           </div>
           
           {isAuthenticated && !isLoginPage && (
-            <div className="flex items-center">
+            <div className="flex items-center space-x-2">
               {doctorName && (
-                <span className="text-sm text-gray-700 mr-4">
+                <span className="text-sm text-gray-700">
                   Dr. {doctorName.replace('_', ' ')}
                 </span>
               )}
-              <div className="text-sm text-gray-700 mr-4">
-                Sessions: {sessionCount}/10
+              <div className="text-sm text-gray-700">
+                {sessionCount}/10
               </div>
               <button 
                 onClick={handleLogoutClick}
                 className="inline-flex items-center text-sm font-medium text-gray-700 hover:text-primary-600"
               >
-                <LogOut className="h-5 w-5 mr-1" />
-                Logout
+                <LogOut className="h-5 w-5" />
               </button>
             </div>
           )}
@@ -59,24 +58,16 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
       </header>
 
       {/* Main content */}
-      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <main className="flex-1 w-full mx-auto px-0 sm:px-4 sm:px-6 lg:px-8 h-[calc(100vh-4rem)]">
         {children}
       </main>
-
-      {/* Footer */}
-      <footer className="bg-white border-t border-gray-200 py-4">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <p className="text-center text-sm text-gray-500">
-          </p>
-        </div>
-      </footer>
 
       {/* Logout Confirmation Modal */}
       <Modal
         isOpen={isLogoutModalOpen}
         onClose={() => setIsLogoutModalOpen(false)}
         onConfirm={handleConfirmLogout}
-        title="Confirm logout"
+        title="Confirm Logout"
       >
         Are you sure you want to logout?
       </Modal>

@@ -36,8 +36,9 @@ const ChatPage: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [sessionDetails, setSessionDetails] = useState<SessionDetails | null>(null);
   const [showStructuredForm, setShowStructuredForm] = useState(true);
-  const [showHistory, setShowHistory] = useState(false);
+  const [showHistory, setShowHistory] = useState(true);
   const [chatHistory, setChatHistory] = useState<ChatSession[]>([]);
+  const [searchQuery, setSearchQuery] = useState('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const { incrementSessionCount, phoneNumber } = useAuth();
   
@@ -468,6 +469,12 @@ const ChatPage: React.FC = () => {
     }
   };
 
+  // Filter chat history based on search query
+  const filteredChatHistory = chatHistory.filter(session => 
+    session.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    session.lastMessage.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
   return (
     <div className="flex flex-col h-[calc(100vh-12rem)] max-h-[calc(100vh-12rem)] bg-white rounded-lg shadow-md overflow-hidden">
       {/* Chat header */}
@@ -482,7 +489,7 @@ const ChatPage: React.FC = () => {
             className="btn text-sm bg-white text-primary-700 hover:bg-gray-100 py-1 flex items-center"
           >
             <History className="h-4 w-4 mr-1" />
-            History
+            Enquiry History
           </button>
           <button
             onClick={startNewSession}
@@ -499,18 +506,32 @@ const ChatPage: React.FC = () => {
         {/* Chat History Sidebar Overlay */}
         {showHistory && (
           <div className="absolute inset-0 z-10 bg-black bg-opacity-50" onClick={() => setShowHistory(false)}>
-            <div 
-              className="w-80 h-full bg-white shadow-lg transform transition-transform duration-300 ease-in-out"
+            {/* History Sidebar Content */}
+            <div
+              className="w-80 h-full bg-white shadow-lg transform transition-transform duration-300 ease-in-out flex flex-col"
               onClick={e => e.stopPropagation()}
             >
+              {/* Header */}
               <div className="p-4 border-b">
-                <h3 className="font-semibold">Chat History</h3>
+                <h3 className="font-semibold mb-2">Enquiry History</h3>
+                <div className="relative">
+                  <input
+                    type="text"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    placeholder="Search chat history..."
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                  />
+                </div>
               </div>
-              <div className="overflow-y-auto h-[calc(100%-4rem)]">
-                {chatHistory.length === 0 ? (
-                  <p className="p-4 text-gray-500">No chat history available</p>
+              {/* History items */}
+              <div className="overflow-y-auto flex-1">
+                {filteredChatHistory.length === 0 ? (
+                  <p className="p-4 text-gray-500">
+                    {searchQuery ? 'No matching chats found' : 'No chat history available'}
+                  </p>
                 ) : (
-                  chatHistory.map((session) => (
+                  filteredChatHistory.map((session) => (
                     <div
                       key={session.id}
                       data-session-id={session.id}

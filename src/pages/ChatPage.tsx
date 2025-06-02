@@ -3,7 +3,7 @@ import { createSession, sendMessage, getSessionDetails } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import ChatMessage from '../components/ChatMessage';
 import StructuredInputForm from '../components/StructuredInputForm';
-import { SendHorizonal, Plus, Notebook as Robot } from 'lucide-react';
+import { SendHorizonal, Plus, Notebook as Robot, History } from 'lucide-react';
 
 interface Message {
   id: string;
@@ -21,6 +21,13 @@ interface SessionDetails {
   }>;
 }
 
+interface ChatSession {
+  id: string;
+  title: string;
+  timestamp: Date;
+  lastMessage: string;
+}
+
 const ChatPage: React.FC = () => {
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
@@ -29,6 +36,8 @@ const ChatPage: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [sessionDetails, setSessionDetails] = useState<SessionDetails | null>(null);
   const [showStructuredForm, setShowStructuredForm] = useState(true);
+  const [showHistory, setShowHistory] = useState(false);
+  const [chatHistory, setChatHistory] = useState<ChatSession[]>([]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const { incrementSessionCount, phoneNumber } = useAuth();
   
@@ -57,19 +66,15 @@ const ChatPage: React.FC = () => {
   useEffect(() => {
     if (!phoneNumber) return;
 
-    // Check if there's a saved session ID for this user in localStorage
     const userSessionKey = `session_id_${phoneNumber}`;
-    const savedSessionId = localStorage.getItem(userSessionKey);
+    const savedSessionData = localStorage.getItem(userSessionKey);
     
-    if (savedSessionId) {
-      // Restore the existing session
-      setSessionId(savedSessionId);
-      setMessages([]); // Clear messages until we load them from session details
-      
-      // Also set current_session_id for compatibility with existing code
-      localStorage.setItem('current_session_id', savedSessionId);
+    if (savedSessionData && !isSessionExpired(savedSessionData)) {
+      const data = JSON.parse(savedSessionData);
+      setSessionId(data.id);
+      setMessages([]);
+      localStorage.setItem('current_session_id', data.id);
     } else {
-      // Create a new session if no existing session
       startNewSession();
     }
   }, [phoneNumber]);
@@ -81,6 +86,133 @@ const ChatPage: React.FC = () => {
     }
   }, [sessionId]);
   
+  // Load chat history from localStorage
+  useEffect(() => {
+    if (phoneNumber) {
+      const savedHistory = localStorage.getItem(`chat_history_${phoneNumber}`);
+      if (savedHistory) {
+        setChatHistory(JSON.parse(savedHistory));
+      }
+    }
+  }, [phoneNumber]);
+
+  // Save chat history to localStorage
+  const saveChatHistory = (newSession: ChatSession) => {
+    if (!phoneNumber) return;
+    
+    const updatedHistory = [newSession, ...chatHistory.filter(session => session.id !== newSession.id)].slice(0, 30);
+    setChatHistory(updatedHistory);
+    localStorage.setItem(`chat_history_${phoneNumber}`, JSON.stringify(updatedHistory));
+  };
+
+  // Load a specific chat session
+  const loadChatSession = async (sessionId: string) => {
+    try {
+      setIsLoading(true);
+      setError(null);
+      setSessionId(sessionId);
+      setShowHistory(false);
+      
+      // Clear current messages while loading
+      setMessages([{
+        id: `loading-session-${Date.now()}`,
+        text: "Loading chat history...",
+        sender: 'agent',
+        timestamp: new Date(),
+      }]);
+
+      const response = await getSessionDetails(sessionId);
+      
+      if (response.data) {
+        setSessionDetails({
+          phoneNumber: response.data.phoneNumber,
+          status: response.data.status,
+          history: response.data.history
+        });
+        
+        // Convert history to messages
+        if (response.data.history && response.data.history.length > 0) {
+          const historyMessages: Message[] = response.data.history.map((item, index) => {
+            // Format the first agent message to match welcome message format
+            if (index === 0 && item.type === 'AIMessage') {
+              return {
+                id: `history-${index}`,
+                text: formatWelcomeMessage(item.content),
+                sender: 'agent',
+                timestamp: new Date(response.data.created_at),
+              };
+            }
+            
+            return {
+              id: `history-${index}`,
+              text: item.content,
+              sender: item.type === 'HumanMessage' ? 'user' : 'agent',
+              timestamp: new Date(response.data.created_at),
+            };
+          });
+          
+          setMessages(historyMessages);
+          
+          // Find the first user message to set as title if not already set
+          const firstUserMessage = historyMessages.find(msg => msg.sender === 'user');
+          if (firstUserMessage) {
+            const existingSession = chatHistory.find(s => s.id === sessionId);
+            if (!existingSession || existingSession.title === 'New Chat') {
+              const newSession: ChatSession = {
+                id: sessionId,
+                title: generateChatTitle(firstUserMessage.text),
+                timestamp: new Date(response.data.created_at),
+                lastMessage: firstUserMessage.text
+              };
+              saveChatHistory(newSession);
+            }
+          }
+          
+          // Always set showStructuredForm to false when loading a previous chat
+          setShowStructuredForm(false);
+        } else {
+          // If no history found, show welcome message
+          setMessages([{
+            id: 'welcome',
+            text: getWelcomeMessageText(),
+            sender: 'agent',
+            timestamp: new Date(),
+          }]);
+          setShowStructuredForm(true);
+        }
+      } else {
+        throw new Error('Session not found');
+      }
+    } catch (err) {
+      console.error('Error loading session:', err);
+      setError('Failed to load chat session. Please try again.');
+      // Reset to new session on error
+      startNewSession();
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Modify the chat history item click handler to show loading state
+  const handleHistoryItemClick = (session: ChatSession) => {
+    // Add visual feedback for the clicked item
+    const historyItems = document.querySelectorAll('.history-item');
+    historyItems.forEach(item => item.classList.remove('bg-gray-100'));
+    const clickedItem = document.querySelector(`[data-session-id="${session.id}"]`);
+    if (clickedItem) {
+      clickedItem.classList.add('bg-gray-100');
+    }
+    
+    loadChatSession(session.id);
+  };
+
+  // Generate chat title from first user message
+  const generateChatTitle = (message: string): string => {
+    const maxLength = 30;
+    if (message.length <= maxLength) return message;
+    return message.substring(0, maxLength) + '...';
+  };
+
   const fetchSessionDetails = async () => {
     if (!sessionId) return;
     
@@ -170,10 +302,6 @@ const ChatPage: React.FC = () => {
   
   // Check if we should show structured form based on conversation state
   const shouldShowStructuredForm = () => {
-    // Show structured form if:
-    // 1. We have only the welcome message
-    // 2. Or we have no messages yet
-    // 3. And no previous patient information has been submitted
     return showStructuredForm && (
       messages.length <= 1 || 
       !messages.some(msg => 
@@ -207,6 +335,22 @@ const ChatPage: React.FC = () => {
     setInputMessage('');
     setIsLoading(true);
     setError(null);
+    
+    // Save chat session if it's the first message
+    const isFirstMessage = messages.length === 0 || (messages.length === 1 && messages[0].sender === 'agent');
+    const newSession: ChatSession = {
+      id: sessionId,
+      title: isFirstMessage ? generateChatTitle(messageText) : chatHistory.find(s => s.id === sessionId)?.title || 'New Chat',
+      timestamp: new Date(),
+      lastMessage: messageText
+    };
+    
+    // Update chat history and keep only last 30 chats
+    const updatedHistory = [newSession, ...chatHistory.filter(session => session.id !== sessionId)].slice(0, 30);
+    setChatHistory(updatedHistory);
+    if (phoneNumber) {
+      localStorage.setItem(`chat_history_${phoneNumber}`, JSON.stringify(updatedHistory));
+    }
     
     // Add loading message
     const loadingMessage: Message = {
@@ -284,7 +428,11 @@ const ChatPage: React.FC = () => {
         
         // Save the session ID to localStorage with user's phone number as part of the key
         if (phoneNumber) {
-          localStorage.setItem(`session_id_${phoneNumber}`, newSessionId);
+          const sessionData = {
+            id: newSessionId,
+            expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString() // 30 days
+          };
+          localStorage.setItem(`session_id_${phoneNumber}`, JSON.stringify(sessionData));
         }
         
         // Also set current_session_id for compatibility
@@ -311,6 +459,15 @@ const ChatPage: React.FC = () => {
     }
   };
 
+  const isSessionExpired = (sessionData: string): boolean => {
+    try {
+      const data = JSON.parse(sessionData);
+      return new Date(data.expiresAt) < new Date();
+    } catch {
+      return true;
+    }
+  };
+
   return (
     <div className="flex flex-col h-[calc(100vh-12rem)] max-h-[calc(100vh-12rem)] bg-white rounded-lg shadow-md overflow-hidden">
       {/* Chat header */}
@@ -318,85 +475,129 @@ const ChatPage: React.FC = () => {
         <div className="flex items-center">
           <Robot className="h-5 w-5 mr-2" />
           <h2 className="font-semibold">Medical loan assistant</h2>
-          {sessionDetails?.status && (
-            <span className="ml-2 px-2 py-0.5 text-xs bg-primary-700 rounded-full">
-              {sessionDetails.status}
-            </span>
-          )}
         </div>
-        <button
-          onClick={startNewSession}
-          className="btn text-sm bg-white text-primary-700 hover:bg-gray-100 py-1 flex items-center"
-        >
-          <Plus className="h-4 w-4 mr-1" />
-          New Enquiry
-        </button>
+        <div className="flex space-x-2">
+          <button
+            onClick={() => setShowHistory(!showHistory)}
+            className="btn text-sm bg-white text-primary-700 hover:bg-gray-100 py-1 flex items-center"
+          >
+            <History className="h-4 w-4 mr-1" />
+            History
+          </button>
+          <button
+            onClick={startNewSession}
+            className="btn text-sm bg-white text-primary-700 hover:bg-gray-100 py-1 flex items-center"
+          >
+            <Plus className="h-4 w-4 mr-1" />
+            New Enquiry
+          </button>
+        </div>
       </div>
-      
-      {/* Session details */}
-      {sessionDetails && sessionDetails.phoneNumber && (
-        <div className="px-4 py-2 bg-gray-50 border-b border-gray-200 text-sm">
-          <p className="text-gray-700">Phone: {sessionDetails.phoneNumber}</p>
-          {sessionDetails.status && (
-            <p className="text-gray-700 mt-1">Status: {sessionDetails.status}</p>
-          )}
-        </div>
-      )}
-      
-      {/* Error message */}
-      {error && (
-        <div className="m-4 p-3 bg-error-50 border border-error-200 text-error-700 rounded-md">
-          {error}
-        </div>
-      )}
-      
-      {/* Chat messages */}
-      <div className="flex-1 overflow-y-auto p-4 bg-gray-50">
-        {messages.map((message) => (
-          <ChatMessage key={message.id} message={message} />
-        ))}
-        {isLoading && (
-          <div className="flex items-center space-x-2 text-gray-500 animate-pulse p-3">
-            <span className="h-2 w-2 bg-gray-400 rounded-full"></span>
-            <span className="h-2 w-2 bg-gray-400 rounded-full"></span>
-            <span className="h-2 w-2 bg-gray-400 rounded-full"></span>
+
+      {/* Main content area with history sidebar */}
+      <div className="flex flex-1 overflow-hidden relative">
+        {/* Chat History Sidebar Overlay */}
+        {showHistory && (
+          <div className="absolute inset-0 z-10 bg-black bg-opacity-50" onClick={() => setShowHistory(false)}>
+            <div 
+              className="w-80 h-full bg-white shadow-lg transform transition-transform duration-300 ease-in-out"
+              onClick={e => e.stopPropagation()}
+            >
+              <div className="p-4 border-b">
+                <h3 className="font-semibold">Chat History</h3>
+              </div>
+              <div className="overflow-y-auto h-[calc(100%-4rem)]">
+                {chatHistory.length === 0 ? (
+                  <p className="p-4 text-gray-500">No chat history available</p>
+                ) : (
+                  chatHistory.map((session) => (
+                    <div
+                      key={session.id}
+                      data-session-id={session.id}
+                      onClick={() => handleHistoryItemClick(session)}
+                      className="history-item p-4 border-b hover:bg-gray-50 cursor-pointer transition-colors duration-200"
+                    >
+                      <h4 className="font-medium">{session.title}</h4>
+                      <p className="text-sm text-gray-500 truncate">{session.lastMessage}</p>
+                      <p className="text-xs text-gray-400 mt-1">
+                        {new Date(session.timestamp).toLocaleString()}
+                      </p>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
           </div>
         )}
-        <div ref={messagesEndRef} />
-      </div>
-      
-      {/* Message input area */}
-      <div className="p-4 border-t border-gray-200">
-        {shouldShowStructuredForm() ? (
-          <StructuredInputForm 
-            onSubmit={handleStructuredFormSubmit}
-            isLoading={isLoading}
-          />
-        ) : (
-          <>
-            <form onSubmit={handleSendMessage} className="flex space-x-2">
-              <input
-                type="text"
-                value={inputMessage}
-                onChange={(e) => setInputMessage(e.target.value)}
-                placeholder="Type your message..."
-                className="input flex-1"
-                disabled={isLoading || !sessionId}
+
+        {/* Chat content area */}
+        <div className="flex-1 flex flex-col">
+          {/* Session details */}
+          {sessionDetails && sessionDetails.phoneNumber && (
+            <div className="px-4 py-2 bg-gray-50 border-b border-gray-200 text-sm">
+              <p className="text-gray-700">Phone: {sessionDetails.phoneNumber}</p>
+              {sessionDetails.status && (
+                <p className="text-gray-700 mt-1">Status: {sessionDetails.status}</p>
+              )}
+            </div>
+          )}
+          
+          {/* Error message */}
+          {error && (
+            <div className="m-4 p-3 bg-error-50 border border-error-200 text-error-700 rounded-md">
+              {error}
+            </div>
+          )}
+          
+          {/* Chat messages */}
+          <div className="flex-1 overflow-y-auto p-4 bg-gray-50">
+            {messages.map((message) => (
+              <ChatMessage key={message.id} message={message} />
+            ))}
+            {isLoading && (
+              <div className="flex items-center space-x-2 text-gray-500 animate-pulse p-3">
+                <span className="h-2 w-2 bg-gray-400 rounded-full"></span>
+                <span className="h-2 w-2 bg-gray-400 rounded-full"></span>
+                <span className="h-2 w-2 bg-gray-400 rounded-full"></span>
+              </div>
+            )}
+            <div ref={messagesEndRef} />
+          </div>
+          
+          {/* Message input area */}
+          <div className="p-4 border-t border-gray-200">
+            {shouldShowStructuredForm() ? (
+              <StructuredInputForm 
+                onSubmit={handleStructuredFormSubmit}
+                isLoading={isLoading}
               />
-              <button
-                type="submit"
-                className="btn btn-primary"
-                disabled={isLoading || !inputMessage.trim() || !sessionId}
-              >
-                <SendHorizonal className="h-5 w-5" />
-              </button>
-            </form>
-            <p className="mt-2 text-xs text-gray-500 text-center">
-              {phoneNumber && `Connected as: ${phoneNumber}`}
-              {sessionId && ` • Session ID: ${sessionId.substring(0, 8)}...`}
-            </p>
-          </>
-        )}
+            ) : (
+              <>
+                <form onSubmit={handleSendMessage} className="flex space-x-2">
+                  <input
+                    type="text"
+                    value={inputMessage}
+                    onChange={(e) => setInputMessage(e.target.value)}
+                    placeholder="Type your message..."
+                    className="input flex-1"
+                    disabled={isLoading || !sessionId}
+                  />
+                  <button
+                    type="submit"
+                    className="btn btn-primary"
+                    disabled={isLoading || !inputMessage.trim() || !sessionId}
+                  >
+                    <SendHorizonal className="h-5 w-5" />
+                  </button>
+                </form>
+                <p className="mt-2 text-xs text-gray-500 text-center">
+                  {phoneNumber && `Connected as: ${phoneNumber}`}
+                  {sessionId && ` • Session ID: ${sessionId.substring(0, 8)}...`}
+                </p>
+              </>
+            )}
+          </div>
+        </div>
       </div>
     </div>
   );

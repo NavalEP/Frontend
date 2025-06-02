@@ -32,7 +32,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
             <img 
               src="/images/carepay_logo.webp" 
               alt="CarePay" 
-              className="h-10 w-auto object-contain"
+              className="h-6 w-auto object-contain"
             />
           </div>
           

@@ -95,7 +95,7 @@ const ChatMessage: React.FC<ChatMessageProps> = ({ message }) => {
     >
       <div 
         className={`
-          max-w-[80%] p-2 rounded-lg shadow-sm
+          max-w-[70%] p-2 rounded-lg shadow-sm
           ${isUser 
             ? 'bg-primary-600 text-white rounded-br-none' 
             : 'bg-white border border-gray-200 rounded-bl-none'

@@ -36,6 +36,7 @@ interface SessionDetailsResponse {
     type: string;
     content: string;
   }>;
+  userId: string;
 }
 
 // Base URL for API

@@ -3,7 +3,7 @@ import { createSession, sendMessage, getSessionDetails } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import ChatMessage from '../components/ChatMessage';
 import StructuredInputForm from '../components/StructuredInputForm';
-import { SendHorizonal, Plus, Notebook as Robot, History } from 'lucide-react';
+import { SendHorizonal, Plus, Notebook as Robot, History, X } from 'lucide-react';
 
 interface Message {
   id: string;
@@ -19,6 +19,9 @@ interface SessionDetails {
     type: string;
     content: string;
   }>;
+  created_at?: string;
+  updated_at?: string;
+  userId?: string;
 }
 
 interface ChatSession {
@@ -41,6 +44,9 @@ const ChatPage: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const { incrementSessionCount, phoneNumber } = useAuth();
+  const [showOfferButton, setShowOfferButton] = useState(false);
+  const [showIframePopup, setShowIframePopup] = useState(false);
+  const [patientInfoSubmitted, setPatientInfoSubmitted] = useState(false);
   
   // Helper function to get consistent welcome message text
   const getWelcomeMessageText = (): string => {
@@ -128,7 +134,10 @@ const ChatPage: React.FC = () => {
         setSessionDetails({
           phoneNumber: response.data.phoneNumber,
           status: response.data.status,
-          history: response.data.history
+          history: response.data.history,
+          created_at: response.data.created_at,
+          updated_at: response.data.updated_at,
+          userId: response.data.userId
         });
         
         // Convert history to messages
@@ -231,10 +240,18 @@ const ChatPage: React.FC = () => {
       
       const response = await getSessionDetails(sessionId);
       if (response.data) {
+        // Store userId in localStorage when we get it
+        if (response.data.userId) {
+          localStorage.setItem('userId', response.data.userId);
+        }
+
         setSessionDetails({
           phoneNumber: response.data.phoneNumber,
           status: response.data.status,
-          history: response.data.history
+          history: response.data.history,
+          created_at: response.data.created_at,
+          updated_at: response.data.updated_at,
+          userId: response.data.userId
         });
         
         // If we have history, convert it to our message format
@@ -272,6 +289,7 @@ const ChatPage: React.FC = () => {
           
           if (hasPatientInfo) {
             setShowStructuredForm(false);
+            setPatientInfoSubmitted(true);
           }
         } else if (messages.length === 1 && messages[0].id.startsWith('loading-session')) {
           // If there's no history but we were showing a loading message, show welcome message
@@ -317,6 +335,7 @@ const ChatPage: React.FC = () => {
 
   const handleStructuredFormSubmit = (formattedMessage: string) => {
     setShowStructuredForm(false);
+    setPatientInfoSubmitted(true);
     // Simulate form submission as a regular message
     handleMessageSubmit(formattedMessage);
   };
@@ -399,6 +418,7 @@ const ChatPage: React.FC = () => {
     setError(null);
     setSessionDetails(null);
     setShowStructuredForm(true); // Reset to show structured form for new session
+    setPatientInfoSubmitted(false);
     
     // Clear existing session from localStorage when starting new session
     localStorage.removeItem('current_session_id');
@@ -460,6 +480,31 @@ const ChatPage: React.FC = () => {
     session.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
     session.lastMessage.toLowerCase().includes(searchQuery.toLowerCase())
   );
+
+  // Function to handle opening the iframe popup
+  const handleOpenIframe = () => {
+    const userId = localStorage.getItem('userId');
+    if (!userId) {
+      setError('User ID not found. Please try again.');
+      return;
+    }
+    setShowIframePopup(true);
+  };
+
+  // Function to handle closing the iframe popup
+  const handleCloseIframe = () => {
+    console.log('handleCloseIframe triggered');
+    setShowIframePopup(false);
+  };
+
+  useEffect(() => {
+    // Show offer button if patient info has been submitted and the last message is from the agent
+    if (patientInfoSubmitted && messages.length > 0 && messages[messages.length - 1].sender === 'agent') {
+      setShowOfferButton(true);
+    } else {
+      setShowOfferButton(false);
+    }
+  }, [messages, patientInfoSubmitted]);
 
   return (
     <div className="flex flex-col h-full bg-white rounded-lg shadow-md overflow-hidden">
@@ -549,6 +594,25 @@ const ChatPage: React.FC = () => {
             </div>
           )}
           
+          {/* Offer button - Conditionally rendered */}
+          {showOfferButton && (
+            <div className="px-4 py-2 flex justify-center flex-shrink-0">
+              <button
+                onClick={handleOpenIframe}
+                className="bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-4 rounded-lg flex items-center shadow-md transition-all duration-300 transform hover:scale-105"
+              >
+                <img 
+                  src="https://carepay.money/static/media/Cards%202.f655246b233e2a166c74.gif" 
+                  alt="Credit Card" 
+                  className="h-8 w-8 mr-2" 
+                  style={{ width: '32px', height: '32px' }}
+                />
+                <span className="text-sm sm:text-base">No cost EMI on credit cards</span>
+                <span className="ml-auto text-sm sm:text-base font-semibold">⚡ Quick process</span>
+              </button>
+            </div>
+          )}
+          
           {/* Error message - Fixed */}
           {error && (
             <div className="m-4 p-3 bg-error-50 border border-error-200 text-error-700 rounded-md text-sm flex-shrink-0">
@@ -608,6 +672,68 @@ const ChatPage: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {/* Iframe Popup Modal */}
+      {showIframePopup && (
+        <div className="fixed inset-0 bg-white z-50">
+          <div className="absolute top-4 right-4 z-50">
+            <button
+              onClick={handleCloseIframe}
+              className="bg-white rounded-full p-2 shadow-lg"
+              style={{
+                width: '40px',
+                height: '40px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center'
+              }}
+            >
+              <svg 
+                className="w-6 h-6 text-gray-600" 
+                fill="none" 
+                stroke="currentColor" 
+                viewBox="0 0 24 24"
+              >
+                <path 
+                  strokeLinecap="round" 
+                  strokeLinejoin="round" 
+                  strokeWidth={2} 
+                  d="M6 18L18 6M6 6l12 12" 
+                />
+              </svg>
+            </button>
+          </div>
+          <iframe
+            src={`https://carepay.money/patient/razorpayoffer/${localStorage.getItem('userId')}`}
+            title="Razorpay Offer"
+            className="w-full h-full"
+            style={{ 
+              overflow: 'hidden',
+              border: 'none',
+              WebkitOverflowScrolling: 'touch',
+              msOverflowStyle: 'none',
+              scrollbarWidth: 'none',
+              width: '100vw',
+              height: '100vh',
+              position: 'fixed',
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              transform: 'scale(1)',
+              transformOrigin: '0 0',
+              WebkitTransform: 'scale(1)',
+              WebkitTransformOrigin: '0 0',
+              touchAction: 'manipulation',
+              WebkitTouchCallout: 'none',
+              WebkitUserSelect: 'none',
+              userSelect: 'none'
+            }}
+            scrolling="no"
+            onClick={(e) => e.stopPropagation()}
+          ></iframe>
+        </div>
+      )}
     </div>
   );
 };

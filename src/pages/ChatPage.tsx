@@ -3,7 +3,7 @@ import { createSession, sendMessage, getSessionDetails } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import ChatMessage from '../components/ChatMessage';
 import StructuredInputForm from '../components/StructuredInputForm';
-import { SendHorizonal, Plus, Notebook as Robot, History, X } from 'lucide-react';
+import { SendHorizonal, Plus, Notebook as Robot, History} from 'lucide-react';
 
 interface Message {
   id: string;
@@ -48,10 +48,7 @@ const ChatPage: React.FC = () => {
   const [showIframePopup, setShowIframePopup] = useState(false);
   const [patientInfoSubmitted, setPatientInfoSubmitted] = useState(false);
   
-  // Helper function to get consistent welcome message text
-  const getWelcomeMessageText = (): string => {
-    return `Hello! I'm here to assist you with your patient's medical loan. Let's get started by providing the patient information using the form below.`;
-  };
+  
 
   // Helper function to format welcome message from API response
   const formatWelcomeMessage = (content: string): string => {
@@ -60,8 +57,8 @@ const ChatPage: React.FC = () => {
       return content;
     }
     
-    // Otherwise, return the standard welcome message
-    return getWelcomeMessageText();
+    // Return the API content as is
+    return content;
   };
   
   // Scroll to bottom when messages change
@@ -73,17 +70,8 @@ const ChatPage: React.FC = () => {
   useEffect(() => {
     if (!phoneNumber) return;
 
-    const userSessionKey = `session_id_${phoneNumber}`;
-    const savedSessionData = localStorage.getItem(userSessionKey);
-    
-    if (savedSessionData && !isSessionExpired(savedSessionData)) {
-      const data = JSON.parse(savedSessionData);
-      setSessionId(data.id);
-      setMessages([]);
-      localStorage.setItem('current_session_id', data.id);
-    } else {
-      startNewSession();
-    }
+    // Always start a new session when user enters after login
+    startNewSession();
   }, [phoneNumber]);
 
   // Fetch session details when sessionId changes
@@ -181,13 +169,8 @@ const ChatPage: React.FC = () => {
           // Always set showStructuredForm to false when loading a previous chat
           setShowStructuredForm(false);
         } else {
-          // If no history found, show welcome message
-          setMessages([{
-            id: 'welcome',
-            text: getWelcomeMessageText(),
-            sender: 'agent',
-            timestamp: new Date(),
-          }]);
+          // If no history found, don't show any message - let API provide the first message
+          setMessages([]);
           setShowStructuredForm(true);
         }
       } else {
@@ -292,15 +275,8 @@ const ChatPage: React.FC = () => {
             setPatientInfoSubmitted(true);
           }
         } else if (messages.length === 1 && messages[0].id.startsWith('loading-session')) {
-          // If there's no history but we were showing a loading message, show welcome message
-          setMessages([
-            {
-              id: 'welcome',
-              text: getWelcomeMessageText(),
-              sender: 'agent',
-              timestamp: new Date(),
-            },
-          ]);
+          // If there's no history but we were showing a loading message, clear messages
+          setMessages([]);
         }
       } else {
         // Session not found or empty, start a new session
@@ -446,15 +422,7 @@ const ChatPage: React.FC = () => {
         localStorage.setItem('current_session_id', newSessionId);
         incrementSessionCount();
         
-        // Add welcome message
-        setMessages([
-          {
-            id: 'welcome',
-            text: getWelcomeMessageText(),
-            sender: 'agent',
-            timestamp: new Date(),
-          },
-        ]);
+        // Don't add any welcome message - let the API provide the first message through fetchSessionDetails
       } else {
         throw new Error('Failed to create session');
       }
@@ -463,15 +431,6 @@ const ChatPage: React.FC = () => {
       setError('Failed to start new chat session. Please try again.');
     } finally {
       setIsLoading(false);
-    }
-  };
-
-  const isSessionExpired = (sessionData: string): boolean => {
-    try {
-      const data = JSON.parse(sessionData);
-      return new Date(data.expiresAt) < new Date();
-    } catch {
-      return true;
     }
   };
 

@@ -9,6 +9,17 @@ import { useEffect } from 'react';
 function App() {
   const { isAuthenticated } = useAuth();
   
+  // Utility function to store doctor data persistently
+  const storeDoctorDataPersistently = (id: string, name: string) => {
+    // Store in multiple places to ensure persistence
+    localStorage.setItem('doctorId', id);
+    localStorage.setItem('doctorId_backup', id);
+    localStorage.setItem('doctorName', name);
+    localStorage.setItem('doctorName_backup', name);
+    sessionStorage.setItem('doctorId', id);
+    sessionStorage.setItem('doctorName', name);
+  };
+  
   // Check URL for doctor params on initial load
   useEffect(() => {
     const url = new URL(window.location.href);
@@ -16,9 +27,8 @@ function App() {
     const doctorName = url.searchParams.get('doctor_name');
     
     if (doctorId && doctorName) {
-      // Store doctor info in sessionStorage
-      sessionStorage.setItem('doctorId', doctorId);
-      sessionStorage.setItem('doctorName', doctorName);
+      // Store doctor info persistently - never allow them to be lost
+      storeDoctorDataPersistently(doctorId, doctorName);
       
       // Clean URL if needed
       if (window.history.replaceState) {

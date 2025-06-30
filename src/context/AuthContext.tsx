@@ -26,24 +26,103 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [sessionCount, setSessionCount] = useState<number>(0);
   const navigate = useNavigate();
 
+  // Utility functions to handle persistent doctor data storage
+  const storeDoctorData = (id: string | null, name: string | null) => {
+    if (id) {
+      localStorage.setItem('doctorId', id);
+      localStorage.setItem('doctorId_backup', id); // Backup storage
+      sessionStorage.setItem('doctorId', id); // Additional backup
+    }
+    if (name) {
+      localStorage.setItem('doctorName', name);
+      localStorage.setItem('doctorName_backup', name); // Backup storage
+      sessionStorage.setItem('doctorName', name); // Additional backup
+    }
+  };
+
+  const retrieveDoctorData = (): { doctorId: string | null; doctorName: string | null } => {
+    const doctorId = 
+      localStorage.getItem('doctorId') || 
+      localStorage.getItem('doctorId_backup') || 
+      sessionStorage.getItem('doctorId') || 
+      null;
+    
+    const doctorName = 
+      localStorage.getItem('doctorName') || 
+      localStorage.getItem('doctorName_backup') || 
+      sessionStorage.getItem('doctorName') || 
+      null;
+    
+    return { doctorId, doctorName };
+  };
+
   useEffect(() => {
     // Check local storage for existing auth state
     const storedToken = localStorage.getItem('token');
     const storedPhone = localStorage.getItem('phoneNumber');
-    const storedDoctorId = sessionStorage.getItem('doctorId') || localStorage.getItem('doctorId');
-    const storedDoctorName = sessionStorage.getItem('doctorName') || localStorage.getItem('doctorName');
+    const { doctorId, doctorName } = retrieveDoctorData();
     const storedSessionCount = localStorage.getItem('sessionCount');
+
+    // Always set doctorId and doctorName if they exist in storage, regardless of token status
+    if (doctorId) setDoctorId(doctorId);
+    if (doctorName) setDoctorName(doctorName);
 
     if (storedToken) {
       setToken(storedToken);
       setPhoneNumber(storedPhone);
       setIsAuthenticated(true);
       
-      if (storedDoctorId) setDoctorId(storedDoctorId);
-      if (storedDoctorName) setDoctorName(storedDoctorName);
       if (storedSessionCount) setSessionCount(parseInt(storedSessionCount, 10));
     }
   }, []);
+
+  // Periodic check to ensure token validity and sync with localStorage
+  useEffect(() => {
+    const checkTokenValidity = () => {
+      const storedToken = localStorage.getItem('token');
+      
+      // If user is marked as authenticated but token is missing, log them out
+      if (isAuthenticated && !storedToken) {
+        console.log('Token missing from localStorage, logging out user');
+        logout();
+      }
+    };
+
+    // Check immediately and then every 30 seconds
+    checkTokenValidity();
+    const interval = setInterval(checkTokenValidity, 30000);
+
+    return () => clearInterval(interval);
+  }, [isAuthenticated]);
+
+  // Periodic check to ensure doctor data is never lost
+  useEffect(() => {
+    const checkDoctorDataIntegrity = () => {
+      const { doctorId: storedDoctorId, doctorName: storedDoctorName } = retrieveDoctorData();
+      
+      // If we have stored doctor data but state is null, restore it
+      if (storedDoctorId && !doctorId) {
+        console.log('Restoring doctorId from storage:', storedDoctorId);
+        setDoctorId(storedDoctorId);
+      }
+      
+      if (storedDoctorName && !doctorName) {
+        console.log('Restoring doctorName from storage:', storedDoctorName);
+        setDoctorName(storedDoctorName);
+      }
+      
+      // Ensure backup storage is always in sync
+      if (storedDoctorId || storedDoctorName) {
+        storeDoctorData(storedDoctorId, storedDoctorName);
+      }
+    };
+
+    // Check immediately and then every 10 seconds
+    checkDoctorDataIntegrity();
+    const interval = setInterval(checkDoctorDataIntegrity, 10000);
+
+    return () => clearInterval(interval);
+  }, [doctorId, doctorName]);
 
   // Auto logout after 10 sessions
   useEffect(() => {
@@ -64,35 +143,42 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     localStorage.setItem('token', token);
     localStorage.setItem('phoneNumber', phone_number);
     
+    // Handle doctorId and doctorName - never allow them to be null
+    let finalDoctorId = doctorId;
+    let finalDoctorName = doctorName;
+    
     if (doctor_id) {
-      localStorage.setItem('doctorId', doctor_id);
-      setDoctorId(doctor_id);
+      finalDoctorId = doctor_id;
     } else {
-      // Try to get from sessionStorage
-      const storedDoctorId = sessionStorage.getItem('doctorId');
-      if (storedDoctorId) {
-        localStorage.setItem('doctorId', storedDoctorId);
-        setDoctorId(storedDoctorId);
+      // Get existing doctor data if not provided in login response
+      const existing = retrieveDoctorData();
+      if (existing.doctorId) {
+        finalDoctorId = existing.doctorId;
       }
     }
     
     if (doctor_name) {
-      localStorage.setItem('doctorName', doctor_name);
-      setDoctorName(doctor_name);
+      finalDoctorName = doctor_name;
     } else {
-      // Try to get from sessionStorage
-      const storedDoctorName = sessionStorage.getItem('doctorName');
-      if (storedDoctorName) {
-        localStorage.setItem('doctorName', storedDoctorName);
-        setDoctorName(storedDoctorName);
+      // Get existing doctor data if not provided in login response
+      const existing = retrieveDoctorData();
+      if (existing.doctorName) {
+        finalDoctorName = existing.doctorName;
       }
     }
+    
+    // Store doctor data with backup mechanisms
+    storeDoctorData(finalDoctorId, finalDoctorName);
+    
+    // Update state
+    if (finalDoctorId) setDoctorId(finalDoctorId);
+    if (finalDoctorName) setDoctorName(finalDoctorName);
     
     // Reset session count
     localStorage.setItem('sessionCount', '0');
     setSessionCount(0);
     
-    // Update state
+    // Update auth state
     setToken(token);
     setPhoneNumber(phone_number);
     setIsAuthenticated(true);
@@ -110,20 +196,26 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     // Clear current session ID
     localStorage.removeItem('current_session_id');
     
-    // Clear all auth data
+    // Clear auth data but preserve doctorId and doctorName
     localStorage.removeItem('token');
     localStorage.removeItem('phoneNumber');
-    localStorage.removeItem('doctorId');
-    localStorage.removeItem('doctorName');
     localStorage.removeItem('sessionCount');
     
-    // Update state
+    // Get doctor data before clearing state to ensure it persists
+    const { doctorId: persistedDoctorId, doctorName: persistedDoctorName } = retrieveDoctorData();
+    
+    // Update state but preserve doctorId and doctorName
     setToken(null);
     setPhoneNumber(null);
-    setDoctorId(null);
-    setDoctorName(null);
     setIsAuthenticated(false);
     setSessionCount(0);
+    
+    // Restore doctor data - never allow them to be null
+    if (persistedDoctorId) setDoctorId(persistedDoctorId);
+    if (persistedDoctorName) setDoctorName(persistedDoctorName);
+    
+    // Ensure doctor data is stored again after logout
+    storeDoctorData(persistedDoctorId, persistedDoctorName);
     
     // Navigate to login
     navigate('/login');

@@ -13,6 +13,13 @@ interface VerifyOtpResponse {
   doctor_name?: string;
 }
 
+interface DoctorStaffLoginResponse {
+  message: string;
+  token: string;
+  doctor_id: string;
+  doctor_name: string;
+}
+
 interface SessionResponse {
   status: string;
   session_id: string;
@@ -148,6 +155,33 @@ export const verifyOtp = async (
     if (response.data.token) {
       localStorage.setItem('token', response.data.token);
     }
+    return response;
+  } catch (error) {
+    throw error;
+  }
+};
+
+export const doctorStaffLogin = async (
+  doctorCode: string, 
+  password: string
+): Promise<AxiosResponse<DoctorStaffLoginResponse>> => {
+  try {
+    const response = await api.post('/login/doctor-staff/', {
+      doctor_code: doctorCode.trim(),
+      password: password
+    });
+    
+    if (response.data.token) {
+      localStorage.setItem('token', response.data.token);
+      // Store doctor info if provided
+      if (response.data.doctor_id) {
+        localStorage.setItem('doctorId', response.data.doctor_id);
+      }
+      if (response.data.doctor_name) {
+        localStorage.setItem('doctorName', response.data.doctor_name);
+      }
+    }
+    
     return response;
   } catch (error) {
     throw error;

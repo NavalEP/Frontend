@@ -8,7 +8,7 @@ interface AuthContextType {
   doctorId: string | null;
   doctorName: string | null;
   sessionCount: number;
-  login: (tokenData: { token: string; phone_number: string; doctor_id?: string; doctor_name?: string }) => void;
+  login: (tokenData: { token: string; phone_number?: string; doctor_id?: string; doctor_name?: string }) => void;
   logout: () => void;
   incrementSessionCount: () => void;
 }
@@ -69,7 +69,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     if (storedToken) {
       setToken(storedToken);
-      setPhoneNumber(storedPhone);
+      if (storedPhone) setPhoneNumber(storedPhone);
       setIsAuthenticated(true);
       
       if (storedSessionCount) setSessionCount(parseInt(storedSessionCount, 10));
@@ -136,12 +136,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   }, [sessionCount]);
 
-  const login = (tokenData: { token: string; phone_number: string; doctor_id?: string; doctor_name?: string }) => {
+  const login = (tokenData: { token: string; phone_number?: string; doctor_id?: string; doctor_name?: string }) => {
     const { token, phone_number, doctor_id, doctor_name } = tokenData;
     
     // Save to localStorage
     localStorage.setItem('token', token);
-    localStorage.setItem('phoneNumber', phone_number);
+    if (phone_number) {
+      localStorage.setItem('phoneNumber', phone_number);
+    }
     
     // Handle doctorId and doctorName - never allow them to be null
     let finalDoctorId = doctorId;
@@ -180,7 +182,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     
     // Update auth state
     setToken(token);
-    setPhoneNumber(phone_number);
+    if (phone_number) setPhoneNumber(phone_number);
     setIsAuthenticated(true);
     
     // Navigate to chat
@@ -191,6 +193,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     // Clear user-specific session ID if phone number exists
     if (phoneNumber) {
       localStorage.removeItem(`session_id_${phoneNumber}`);
+    }
+    
+    // Clear doctor-specific session ID if doctorId exists
+    if (doctorId) {
+      localStorage.removeItem(`session_id_doctor_${doctorId}`);
     }
     
     // Clear current session ID
@@ -217,8 +224,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     // Ensure doctor data is stored again after logout
     storeDoctorData(persistedDoctorId, persistedDoctorName);
     
-    // Navigate to login
-    navigate('/login');
+    // Navigate to appropriate login page based on user type
+    if (persistedDoctorId) {
+      // If doctor data exists, navigate to doctor login
+      navigate('/doctor-login');
+    } else {
+      // Otherwise navigate to patient login
+      navigate('/login');
+    }
   };
 
   const incrementSessionCount = () => {

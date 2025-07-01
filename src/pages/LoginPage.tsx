@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { sendOtp, verifyOtp } from '../services/api';
 import { useAuth } from '../context/AuthContext';
-import { MessageSquare, LockKeyhole, Smartphone } from 'lucide-react';
+import { MessageSquare, LockKeyhole, Smartphone, Stethoscope } from 'lucide-react';
+import { Link } from 'react-router-dom';
 
 const LoginPage: React.FC = () => {
   const [phoneNumber, setPhoneNumber] = useState('');
@@ -249,6 +250,19 @@ const LoginPage: React.FC = () => {
             </div>
           </form>
         )}
+
+        <div className="mt-6 text-center">
+          <p className="text-xs text-gray-500">
+            Are you a doctor or medical staff?{' '}
+            <Link 
+              to="/doctor-login" 
+              className="text-primary-600 hover:text-primary-500 underline flex items-center justify-center gap-1 mt-2"
+            >
+              <Stethoscope className="h-3 w-3" />
+              Staff Login
+            </Link>
+          </p>
+        </div>
       </div>
     </div>
   );

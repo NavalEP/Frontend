@@ -1,5 +1,6 @@
 import { Routes, Route, Navigate } from 'react-router-dom';
 import LoginPage from './pages/LoginPage';
+import DoctorStaffLoginPage from './pages/DoctorStaffLoginPage';
 import ChatPage from './pages/ChatPage';
 import ProtectedRoute from './components/ProtectedRoute';
 import { useAuth } from './context/AuthContext';
@@ -43,6 +44,9 @@ function App() {
       <Routes>
         <Route path="/login" element={
           isAuthenticated ? <Navigate to="/chat" /> : <LoginPage />
+        } />
+        <Route path="/doctor-login" element={
+          isAuthenticated ? <Navigate to="/chat" /> : <DoctorStaffLoginPage />
         } />
         <Route path="/chat" element={
           <ProtectedRoute>

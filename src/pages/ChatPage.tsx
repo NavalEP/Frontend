@@ -13,7 +13,7 @@ interface Message {
 }
 
 interface SessionDetails {
-  phoneNumber: string;
+  phoneNumber?: string;
   status?: string;
   history?: Array<{
     type: string;
@@ -43,13 +43,11 @@ const ChatPage: React.FC = () => {
   const [chatHistory, setChatHistory] = useState<ChatSession[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const { incrementSessionCount, phoneNumber } = useAuth();
+  const { incrementSessionCount, doctorId, doctorName } = useAuth();
   const [showOfferButton, setShowOfferButton] = useState(false);
   const [showIframePopup, setShowIframePopup] = useState(false);
   const [patientInfoSubmitted, setPatientInfoSubmitted] = useState(false);
   
-  
-
   // Helper function to format welcome message from API response
   const formatWelcomeMessage = (content: string): string => {
     // If content already has formatting, return it as is
@@ -68,11 +66,9 @@ const ChatPage: React.FC = () => {
   
   // Initialize chat with welcome message or retrieve existing session
   useEffect(() => {
-    if (!phoneNumber) return;
-
-    // Always start a new session when user enters after login
+    // Start a new session when doctor enters after login
     startNewSession();
-  }, [phoneNumber]);
+  }, []);
 
   // Fetch session details when sessionId changes
   useEffect(() => {
@@ -81,23 +77,23 @@ const ChatPage: React.FC = () => {
     }
   }, [sessionId]);
   
-  // Load chat history from localStorage
+  // Load chat history from localStorage using doctorId instead of phoneNumber
   useEffect(() => {
-    if (phoneNumber) {
-      const savedHistory = localStorage.getItem(`chat_history_${phoneNumber}`);
+    if (doctorId) {
+      const savedHistory = localStorage.getItem(`chat_history_doctor_${doctorId}`);
       if (savedHistory) {
         setChatHistory(JSON.parse(savedHistory));
       }
     }
-  }, [phoneNumber]);
+  }, [doctorId]);
 
-  // Save chat history to localStorage
+  // Save chat history to localStorage using doctorId
   const saveChatHistory = (newSession: ChatSession) => {
-    if (!phoneNumber) return;
+    if (!doctorId) return;
     
     const updatedHistory = [newSession, ...chatHistory.filter(session => session.id !== newSession.id)].slice(0, 30);
     setChatHistory(updatedHistory);
-    localStorage.setItem(`chat_history_${phoneNumber}`, JSON.stringify(updatedHistory));
+    localStorage.setItem(`chat_history_doctor_${doctorId}`, JSON.stringify(updatedHistory));
   };
 
   // Load a specific chat session
@@ -344,8 +340,8 @@ const ChatPage: React.FC = () => {
     // Update chat history and keep only last 30 chats
     const updatedHistory = [newSession, ...chatHistory.filter(session => session.id !== sessionId)].slice(0, 30);
     setChatHistory(updatedHistory);
-    if (phoneNumber) {
-      localStorage.setItem(`chat_history_${phoneNumber}`, JSON.stringify(updatedHistory));
+    if (doctorId) {
+      localStorage.setItem(`chat_history_doctor_${doctorId}`, JSON.stringify(updatedHistory));
     }
     
     try {
@@ -399,8 +395,8 @@ const ChatPage: React.FC = () => {
     // Clear existing session from localStorage when starting new session
     localStorage.removeItem('current_session_id');
     
-    if (phoneNumber) {
-      localStorage.removeItem(`session_id_${phoneNumber}`);
+    if (doctorId) {
+      localStorage.removeItem(`session_id_doctor_${doctorId}`);
     }
     
     try {
@@ -409,13 +405,13 @@ const ChatPage: React.FC = () => {
         const newSessionId = response.data.session_id;
         setSessionId(newSessionId);
         
-        // Save the session ID to localStorage with user's phone number as part of the key
-        if (phoneNumber) {
+        // Save the session ID to localStorage with doctor's ID as part of the key
+        if (doctorId) {
           const sessionData = {
             id: newSessionId,
             expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString() // 30 days
           };
-          localStorage.setItem(`session_id_${phoneNumber}`, JSON.stringify(sessionData));
+          localStorage.setItem(`session_id_doctor_${doctorId}`, JSON.stringify(sessionData));
         }
         
         // Also set current_session_id for compatibility
@@ -546,7 +542,6 @@ const ChatPage: React.FC = () => {
           {/* Session details - Fixed */}
           {sessionDetails && sessionDetails.phoneNumber && (
             <div className="px-4 py-2 bg-gray-50 border-b border-gray-200 text-xs sm:text-sm flex-shrink-0">
-              <p className="text-gray-700">Phone: {sessionDetails.phoneNumber}</p>
               {sessionDetails.status && (
                 <p className="text-gray-700 mt-1">Status: {sessionDetails.status}</p>
               )}
@@ -623,7 +618,7 @@ const ChatPage: React.FC = () => {
                   </button>
                 </form>
                 <p className="mt-2 text-xs text-gray-500 text-center">
-                  {phoneNumber && `Connected as: ${phoneNumber}`}
+                  {doctorName && `Logged in as: Dr. ${doctorName}`}
                   {sessionId && ` • Session ID: ${sessionId.substring(0, 8)}...`}
                 </p>
               </>

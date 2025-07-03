@@ -3,7 +3,7 @@ import { createSession, sendMessage, getSessionDetails } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import ChatMessage from '../components/ChatMessage';
 import StructuredInputForm from '../components/StructuredInputForm';
-import { SendHorizonal, Plus, Notebook as Robot, History} from 'lucide-react';
+import { SendHorizonal, Plus, Notebook as Robot, History, UserCheck} from 'lucide-react';
 
 interface Message {
   id: string;
@@ -580,11 +580,25 @@ const ChatPage: React.FC = () => {
               {messages.map((message) => (
                 <ChatMessage key={message.id} message={message} />
               ))}
-              {isLoading && (
-                <div className="flex items-center space-x-2 text-gray-500 animate-pulse p-3">
-                  <span className="h-2 w-2 bg-gray-400 rounded-full"></span>
-                  <span className="h-2 w-2 bg-gray-400 rounded-full"></span>
-                  <span className="h-2 w-2 bg-gray-400 rounded-full"></span>
+              {isLoading && messages.some(m => m.sender === 'user') && (
+                <div className="relative flex items-center w-auto">
+                  {/* Avatar absolutely positioned, perfectly vertically centered */}
+                  <div className="absolute left-0 top-1/2 -translate-y-1/2 z-20">
+                    <img
+                      src="/images/careeena-avatar.jpg"
+                      alt="Careena"
+                      className="h-20 w-20 rounded-full object-cover border-4 border-white shadow-xl"
+                    />
+                  </div>
+                  {/* Chat bubble */}
+                  <div className="inline-flex items-center w-auto px-4 py-2 bg-white border border-gray-200 rounded-lg shadow ml-[88px]">
+                    <span className="text-gray-400 text-sm font-medium">Careena is typing...</span>
+                    <div className="flex space-x-1 ml-2">
+                      <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"></div>
+                      <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
+                      <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
+                    </div>
+                  </div>
                 </div>
               )}
               <div ref={messagesEndRef} />

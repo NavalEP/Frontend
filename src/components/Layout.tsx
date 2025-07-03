@@ -30,9 +30,9 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
           <div className="flex items-center">
             <img 
-              src="/images/carepay_logo.webp" 
-              alt="CarePay" 
-              className="h-6 w-auto object-contain"
+              src="/images/Careena-Logo-cropped.png" 
+              alt="Careena" 
+              className="h-12 max-h-16 w-auto object-contain ml-2"
             />
           </div>
           
@@ -58,7 +58,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
       </header>
 
       {/* Main content */}
-      <main className="flex-1 w-full mx-auto px-0 sm:px-4 sm:px-6 lg:px-8 h-[calc(100vh-4rem)]">
+      <main className="flex-1 w-full mx-auto px-0 sm:px-4 sm:px-6 lg:px-8 h-[calc(100vh-5rem)]">
         {children}
       </main>
 

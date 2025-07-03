@@ -54,11 +54,14 @@ const DoctorStaffLoginPage: React.FC = () => {
       <div className="p-8 bg-white rounded-xl shadow-md w-full animate-fade-in">
         <div className="text-center mb-8">
           <div className="flex justify-center">
-            <div className="bg-primary-100 p-3 rounded-full">
-              <Stethoscope className="h-8 w-8 text-primary-600" />
-            </div>
+            <img
+              src="/images/careeena-avatar.jpg"
+              alt="Careena Avatar"
+              className="h-44 w-44 rounded-full border-2 border-white shadow-lg mx-auto object-cover"
+            />
           </div>
-          <h2 className="mt-4 text-2xl font-bold text-gray-900">Doctor Staff Login</h2>
+          <h2 className="mt-4 text-2xl font-bold text-gray-900">Welcome to Careena</h2>
+          <div className="text-base font-medium text-gray-700 mt-1">Doctor Staff Login</div>
           <p className="mt-2 text-gray-600">
             Sign in to access patient loan enquiries
           </p>

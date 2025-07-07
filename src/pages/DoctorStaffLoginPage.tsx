@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { doctorStaffLogin } from '../services/api';
 import { useAuth } from '../context/AuthContext';
-import { User, Lock, Stethoscope, MessageSquare } from 'lucide-react';
+import { User, Lock, MessageSquare } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
 const DoctorStaffLoginPage: React.FC = () => {

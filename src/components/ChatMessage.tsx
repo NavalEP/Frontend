@@ -1,6 +1,7 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { User, Bot, Copy, ExternalLink } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
+import { getShortlink } from '../services/api';
 
 interface Message {
   id: string;
@@ -15,6 +16,8 @@ interface ChatMessageProps {
 
 const ChatMessage: React.FC<ChatMessageProps> = ({ message }) => {
   const isUser = message.sender === 'user';
+  const [resolvedUrls, setResolvedUrls] = useState<Record<string, string>>({});
+  const [loadingUrls, setLoadingUrls] = useState<Set<string>>(new Set());
   
   // Function to copy text to clipboard
   const copyToClipboard = (text: string) => {
@@ -33,29 +36,46 @@ const ChatMessage: React.FC<ChatMessageProps> = ({ message }) => {
   
   // Function to make links clickable and copyable
   const renderLink = (url: string, index: number = 0) => {
+    const resolvedUrl = resolvedUrls[url];
+    const isLoading = loadingUrls.has(url);
+    
+    // Determine what URL to display and use
+    const displayUrl = resolvedUrl || url;
+    const targetUrl = resolvedUrl || url;
+    
     return (
       <span key={`link-${index}`} className="inline-flex items-center">
         <a 
-          href={url}
+          href={targetUrl}
           target="_blank"
           rel="noopener noreferrer"
           className="text-blue-600 hover:text-blue-800 underline break-all inline-flex items-center"
           onClick={(e) => {
             e.preventDefault();
-            window.open(url, '_blank');
+            window.open(targetUrl, '_blank');
           }}
         >
-          {url}
-          <ExternalLink className="h-3 w-3 ml-1 inline-block flex-shrink-0" />
+          {isLoading ? (
+            <span className="inline-flex items-center">
+              <span className="animate-spin h-3 w-3 border border-blue-600 border-t-transparent rounded-full mr-1"></span>
+              Resolving...
+            </span>
+          ) : (
+            <>
+              {displayUrl}
+              <ExternalLink className="h-3 w-3 ml-1 inline-block flex-shrink-0" />
+            </>
+          )}
         </a>
         <button
           onClick={(e) => {
             e.stopPropagation();
-            copyToClipboard(url);
+            copyToClipboard(targetUrl);
           }}
           className="ml-1 px-1 rounded-md bg-gray-100 hover:bg-gray-200 text-gray-600 inline-flex items-center flex-shrink-0"
           aria-label="Copy link"
           title="Copy link"
+          disabled={isLoading}
         >
           <Copy className="h-3 w-3" />
         </button>
@@ -89,6 +109,78 @@ const ChatMessage: React.FC<ChatMessageProps> = ({ message }) => {
     return { urls, indices };
   };
 
+  // Function to check if a URL is a short URL (matches your API pattern)
+  const isShortUrl = (url: string): boolean => {
+    // Check if it matches the pattern for short URLs like https://carepay.money/s/E40528y
+    const shortUrlPattern = /^https?:\/\/[^\/]+\/s\/[a-zA-Z0-9]+\/?$/;
+    return shortUrlPattern.test(url);
+  };
+  
+  // Function to extract short code from URL
+  const extractShortCode = (url: string): string | null => {
+    // Extract shortcode from URLs like https://carepay.money/s/E40528y
+    const match = url.match(/\/s\/([a-zA-Z0-9]+)\/?$/);
+    return match ? match[1] : null;
+  };
+  
+  // Function to resolve short URL to long URL
+  const resolveShortUrl = async (shortUrl: string) => {
+    if (resolvedUrls[shortUrl] || loadingUrls.has(shortUrl)) {
+      return;
+    }
+    
+    setLoadingUrls(prev => new Set(prev).add(shortUrl));
+    
+    try {
+      const shortCode = extractShortCode(shortUrl);
+      if (shortCode) {
+        const response = await getShortlink(shortCode);
+        if (response.data.status === 'success' && response.data.long_url) {
+          setResolvedUrls(prev => ({
+            ...prev,
+            [shortUrl]: response.data.long_url
+          }));
+        } else {
+          // If API returns error status, keep original URL
+          console.warn('Short URL resolution failed:', response.data.message);
+          setResolvedUrls(prev => ({
+            ...prev,
+            [shortUrl]: shortUrl
+          }));
+        }
+      } else {
+        // If we can't extract short code, keep original URL
+        setResolvedUrls(prev => ({
+          ...prev,
+          [shortUrl]: shortUrl
+        }));
+      }
+    } catch (error) {
+      console.error('Error resolving short URL:', error);
+      // Keep the original URL if resolution fails
+      setResolvedUrls(prev => ({
+        ...prev,
+        [shortUrl]: shortUrl
+      }));
+    } finally {
+      setLoadingUrls(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(shortUrl);
+        return newSet;
+      });
+    }
+  };
+  
+  // Effect to resolve short URLs when message changes
+  useEffect(() => {
+    const urls = extractUrls(message.text).urls;
+    urls.forEach(url => {
+      if (isShortUrl(url)) {
+        resolveShortUrl(url);
+      }
+    });
+  }, [message.text]);
+
   return (
     <div 
       className={`flex mb-2 ${isUser ? 'justify-end' : 'justify-start'} animate-slide-up`}
@@ -120,6 +212,15 @@ const ChatMessage: React.FC<ChatMessageProps> = ({ message }) => {
                   strong: ({node, ...props}) => <strong className="font-bold" {...props} />,
                   a: ({node, href, ...props}) => {
                     if (href && /^https?:\/\//.test(href)) {
+                      const isShort = isShortUrl(href);
+                      const resolvedUrl = resolvedUrls[href];
+                      const isLoading = loadingUrls.has(href);
+                      
+                      if (isShort && !resolvedUrl && !isLoading) {
+                        // Trigger resolution for short URLs that haven't been resolved yet
+                        resolveShortUrl(href);
+                      }
+                      
                       return renderLink(href);
                     }
                     return <a {...props} href={href} />;

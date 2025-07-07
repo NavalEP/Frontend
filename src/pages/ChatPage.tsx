@@ -3,7 +3,7 @@ import { createSession, sendMessage, getSessionDetails } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import ChatMessage from '../components/ChatMessage';
 import StructuredInputForm from '../components/StructuredInputForm';
-import { SendHorizonal, Plus, Notebook as Robot, History, UserCheck} from 'lucide-react';
+import { SendHorizonal, Plus, Notebook as Robot, History} from 'lucide-react';
 
 interface Message {
   id: string;

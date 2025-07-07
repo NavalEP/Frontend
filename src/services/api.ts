@@ -46,6 +46,12 @@ interface SessionDetailsResponse {
   userId: string;
 }
 
+interface ShortlinkResponse {
+  status: string;
+  long_url: string;
+  message?: string;
+}
+
 // Base URL for API
 const API_BASE_URL = 'https://loanbot.carepay.money/api/v1/agent';
 
@@ -216,6 +222,16 @@ export const getSessionDetails = async (
 ): Promise<AxiosResponse<SessionDetailsResponse>> => {
   try {
     return await api.get(`/session-details/${sessionId}/`);
+  } catch (error) {
+    throw error;
+  }
+};
+
+export const getShortlink = async (
+  shortCode: string
+): Promise<AxiosResponse<ShortlinkResponse>> => {
+  try {
+    return await api.get(`/s/${shortCode}/`);
   } catch (error) {
     throw error;
   }

@@ -145,64 +145,64 @@ const StructuredInputForm: React.FC<StructuredInputFormProps> = ({ onSubmit, isL
   };
 
   return (
-    <div className="bg-white rounded-lg border border-gray-200 p-6 mb-4">
-      <div className="mb-6">
-        <h3 className="text-lg font-semibold text-gray-900 mb-2">Patient Information</h3>
-        <p className="text-sm text-gray-600">Please provide all the required patient details below to proceed with the loan enquiry.</p>
+    <div className="bg-white rounded-lg border border-gray-200 p-3 mb-2">
+      <div className="mb-3">
+        <h3 className="text-sm font-semibold text-gray-900 mb-1">Patient Information</h3>
+        <p className="text-xs text-gray-600">Please provide patient details for loan enquiry.</p>
       </div>
 
-      <form onSubmit={handleSubmit} className="space-y-4">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <form onSubmit={handleSubmit} className="space-y-2">
+        <div className="grid grid-cols-1 gap-2">
           {fields.map((field) => {
             const Icon = field.icon;
             return (
-              <div key={field.key} className="space-y-2">
-                <label className="block text-sm font-medium text-gray-700">
+              <div key={field.key} className="space-y-1">
+                <label className="block text-xs font-medium text-gray-700">
                   {field.label}
                 </label>
                 <div className="relative">
-                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                    <Icon className="h-5 w-5 text-gray-400" />
+                  <div className="absolute inset-y-0 left-0 pl-2 flex items-center pointer-events-none">
+                    <Icon className="h-4 w-4 text-gray-400" />
                   </div>
                   <input
                     type={field.type}
                     placeholder={field.placeholder}
                     value={formData[field.key]}
                     onChange={(e) => handleInputChange(field.key, e.target.value)}
-                    className={`input pl-10 ${errors[field.key] ? 'border-red-500 focus:ring-red-500 focus:border-red-500' : ''}`}
+                    className={`w-full px-2 py-1.5 pl-8 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-primary-500 focus:border-primary-500 ${errors[field.key] ? 'border-red-500 focus:ring-red-500 focus:border-red-500' : ''}`}
                     disabled={isLoading}
                   />
                 </div>
                 {errors[field.key] && (
-                  <p className="text-sm text-red-600">{errors[field.key]}</p>
+                  <p className="text-xs text-red-600">{errors[field.key]}</p>
                 )}
               </div>
             );
           })}
         </div>
 
-        <div className="pt-4 border-t border-gray-200">
+        <div className="pt-2 border-t border-gray-200">
           <button
             type="submit"
             disabled={isLoading || !isFormComplete()}
-            className="btn btn-primary w-full flex items-center justify-center"
+            className="w-full bg-primary-600 hover:bg-primary-700 text-white py-2 px-3 rounded-md font-medium text-sm flex items-center justify-center transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {isLoading ? (
               <>
-                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-white mr-2"></div>
                 Processing...
               </>
             ) : (
               <>
-                <Send className="h-4 w-4 mr-2" />
-                Submit Patient Information
+                <Send className="h-3 w-3 mr-2" />
+                Submit Information
               </>
             )}
           </button>
         </div>
 
         <div className="text-xs text-gray-500 text-center">
-          <p>All fields are required. Please ensure the information is accurate for loan processing.</p>
+          <p>All fields required for loan processing.</p>
         </div>
       </form>
     </div>

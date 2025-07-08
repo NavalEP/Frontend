@@ -18,6 +18,7 @@ body {
   min-width: 320px;
   min-height: 100vh;
   background-color: #f8fafc;
+  overflow: hidden;
 }
 
 @layer components {
@@ -43,5 +44,169 @@ body {
 
   .card {
     @apply bg-white rounded-lg shadow-md p-6;
+  }
+}
+
+/* WhatsApp/Telegram style animations */
+@keyframes messageSlideIn {
+  0% {
+    opacity: 0;
+    transform: translateY(10px) scale(0.95);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes typingIndicator {
+  0%, 60%, 100% {
+    transform: translateY(0);
+  }
+  30% {
+    transform: translateY(-4px);
+  }
+}
+
+@keyframes pulseGlow {
+  0%, 100% {
+    box-shadow: 0 0 5px rgba(79, 70, 229, 0.3);
+  }
+  50% {
+    box-shadow: 0 0 20px rgba(79, 70, 229, 0.6);
+  }
+}
+
+/* Custom scrollbar for chat */
+.chat-scrollbar::-webkit-scrollbar {
+  width: 6px;
+}
+
+.chat-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.chat-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(156, 163, 175, 0.5);
+  border-radius: 3px;
+}
+
+.chat-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: rgba(156, 163, 175, 0.7);
+}
+
+/* Message bubble animations */
+.message-bubble {
+  animation: messageSlideIn 0.3s ease-out;
+}
+
+.message-bubble:hover {
+  transform: translateY(-1px);
+  transition: transform 0.2s ease;
+}
+
+/* Typing indicator animation */
+.typing-dot {
+  animation: typingIndicator 1.4s infinite ease-in-out;
+}
+
+.typing-dot:nth-child(2) {
+  animation-delay: 0.2s;
+}
+
+.typing-dot:nth-child(3) {
+  animation-delay: 0.4s;
+}
+
+/* Online status pulse */
+.online-status {
+  animation: pulseGlow 2s infinite;
+}
+
+/* Input focus effects */
+.chat-input:focus {
+  outline: none !important;
+  box-shadow: none !important;
+  border: none !important;
+  ring: none !important;
+}
+
+.chat-input {
+  outline: none !important;
+  box-shadow: none !important;
+  border: none !important;
+}
+
+/* Button hover effects */
+.chat-button:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+/* History item hover effects */
+.history-item:hover {
+  background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
+}
+
+/* WhatsApp-style chat container */
+.whatsapp-chat-container {
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  position: relative;
+}
+
+.whatsapp-messages-area {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  position: relative;
+  min-height: 0;
+  max-height: calc(100vh - 4.5rem - 3rem - 4rem);
+}
+
+.whatsapp-header {
+  flex-shrink: 0;
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+.whatsapp-input-area {
+  flex-shrink: 0;
+  position: sticky;
+  bottom: 0;
+  z-index: 10;
+}
+
+/* Responsive design improvements */
+@media (max-width: 640px) {
+  .message-bubble {
+    max-width: 85% !important;
+  }
+  
+  .chat-header {
+    padding: 0.75rem 1rem;
+  }
+  
+  .chat-input-container {
+    padding: 0.75rem 1rem;
+  }
+}
+
+/* Dark mode support */
+@media (prefers-color-scheme: dark) {
+  .chat-bg {
+    background-color: #1a1a1a;
+  }
+  
+  .message-bubble-user {
+    background-color: #2563eb;
+  }
+  
+  .message-bubble-agent {
+    background-color: #374151;
+    color: #f9fafb;
   }
 }

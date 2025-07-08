@@ -8,7 +8,7 @@ import Layout from './components/Layout';
 import { useEffect } from 'react';
 
 function App() {
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, isInitialized } = useAuth();
   
   // Utility function to store doctor data persistently
   const storeDoctorDataPersistently = (id: string, name: string) => {
@@ -43,17 +43,25 @@ function App() {
     <Layout>
       <Routes>
         <Route path="/login" element={
-          isAuthenticated ? <Navigate to="/chat" /> : <LoginPage />
+          !isInitialized ? <div className="flex items-center justify-center h-screen">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600"></div>
+          </div> : isAuthenticated ? <Navigate to="/chat" /> : <LoginPage />
         } />
         <Route path="/doctor-login" element={
-          isAuthenticated ? <Navigate to="/chat" /> : <DoctorStaffLoginPage />
+          !isInitialized ? <div className="flex items-center justify-center h-screen">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600"></div>
+          </div> : isAuthenticated ? <Navigate to="/chat" /> : <DoctorStaffLoginPage />
         } />
         <Route path="/chat" element={
           <ProtectedRoute>
             <ChatPage />
           </ProtectedRoute>
         } />
-        <Route path="/" element={<Navigate to={isAuthenticated ? "/chat" : "/login"} />} />
+        <Route path="/" element={
+          !isInitialized ? <div className="flex items-center justify-center h-screen">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600"></div>
+          </div> : <Navigate to={isAuthenticated ? "/chat" : "/login"} />
+        } />
         <Route path="*" element={<Navigate to="/" />} />
       </Routes>
     </Layout>

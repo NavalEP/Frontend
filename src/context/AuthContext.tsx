@@ -8,6 +8,7 @@ interface AuthContextType {
   doctorId: string | null;
   doctorName: string | null;
   sessionCount: number;
+  isInitialized: boolean;
   login: (tokenData: { token: string; phone_number?: string; doctor_id?: string; doctor_name?: string }) => void;
   logout: () => void;
   incrementSessionCount: () => void;
@@ -24,6 +25,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [doctorId, setDoctorId] = useState<string | null>(null);
   const [doctorName, setDoctorName] = useState<string | null>(null);
   const [sessionCount, setSessionCount] = useState<number>(0);
+  const [isInitialized, setIsInitialized] = useState<boolean>(false);
   const navigate = useNavigate();
 
   // Utility functions to handle persistent doctor data storage
@@ -67,13 +69,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (doctorId) setDoctorId(doctorId);
     if (doctorName) setDoctorName(doctorName);
 
-    if (storedToken) {
+    if (storedToken && storedToken.trim() !== '') {
       setToken(storedToken);
       if (storedPhone) setPhoneNumber(storedPhone);
       setIsAuthenticated(true);
       
       if (storedSessionCount) setSessionCount(parseInt(storedSessionCount, 10));
+    } else if (storedToken === '') {
+      // If token is empty string, remove it
+      localStorage.removeItem('token');
     }
+    
+    // Mark as initialized after checking localStorage
+    setIsInitialized(true);
   }, []);
 
   // Periodic check to ensure token validity and sync with localStorage
@@ -81,16 +89,22 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const checkTokenValidity = () => {
       const storedToken = localStorage.getItem('token');
       
-      // If user is marked as authenticated but token is missing, log them out
+      // Only log out if user is authenticated AND token is missing AND we're not in the middle of a request
       if (isAuthenticated && !storedToken) {
-        console.log('Token missing from localStorage, logging out user');
-        logout();
+        // Add a small delay to prevent race conditions during page refresh
+        setTimeout(() => {
+          const tokenAfterDelay = localStorage.getItem('token');
+          if (!tokenAfterDelay) {
+            console.log('Token still missing after delay, logging out user');
+            logout();
+          }
+        }, 1000);
       }
     };
 
-    // Check immediately and then every 30 seconds
+    // Check immediately and then every 60 seconds (increased from 30 to reduce frequency)
     checkTokenValidity();
-    const interval = setInterval(checkTokenValidity, 30000);
+    const interval = setInterval(checkTokenValidity, 60000);
 
     return () => clearInterval(interval);
   }, [isAuthenticated]);
@@ -245,6 +259,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     doctorId,
     doctorName,
     sessionCount,
+    isInitialized,
     login,
     logout,
     incrementSessionCount

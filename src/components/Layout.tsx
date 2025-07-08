@@ -12,6 +12,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   const { isAuthenticated, logout, doctorName, sessionCount } = useAuth();
   const location = useLocation();
   const isLoginPage = location.pathname === '/login';
+  const isChatPage = location.pathname === '/chat';
   const [isLogoutModalOpen, setIsLogoutModalOpen] = useState(false);
 
   const handleLogoutClick = () => {
@@ -25,8 +26,9 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
 
   return (
     <div className="min-h-screen flex flex-col safe-top safe-bottom">
-      {/* Header */}
-      <header className="bg-white shadow-sm sticky top-0 z-50">
+      {/* Header - Hide on chat page */}
+      {!isChatPage && (
+        <header className="bg-white shadow-sm sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
           <div className="flex items-center">
             <img 
@@ -56,9 +58,10 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
           )}
         </div>
       </header>
+      )}
 
       {/* Main content */}
-      <main className="flex-1 w-full mx-auto px-0 sm:px-4 sm:px-6 lg:px-8 h-[calc(100vh-5rem)]">
+      <main className={`flex-1 w-full mx-auto px-0 sm:px-4 sm:px-6 lg:px-8 ${isChatPage ? 'h-screen' : 'h-[calc(100vh-5rem)]'}`}>
         {children}
       </main>
 

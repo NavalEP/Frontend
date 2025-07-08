@@ -485,36 +485,7 @@ const ChatPage: React.FC = () => {
     session.lastMessage.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  // Helper function to format doctor name based on length
-  const formatDoctorName = (name: string): string => {
-    if (!name) return '';
-    
-    // Remove "Dr." prefix if present and trim
-    const cleanName = name.replace(/^Dr\.\s*/i, '').trim();
-    
-    // If name is short (10 characters or less), return as is
-    if (cleanName.length <= 10) {
-      return `Dr. ${cleanName}`;
-    }
-    
-    // If name is medium length (11-20 characters), truncate to first name + last initial
-    if (cleanName.length <= 20) {
-      const parts = cleanName.split(' ');
-      if (parts.length >= 2) {
-        return `Dr. ${parts[0]} ${parts[parts.length - 1][0]}.`;
-      }
-      return `Dr. ${cleanName.substring(0, 8)}...`;
-    }
-    
-    // For very long names, use first name + last initial
-    const parts = cleanName.split(' ');
-    if (parts.length >= 2) {
-      return `Dr. ${parts[0]} ${parts[parts.length - 1][0]}.`;
-    }
-    
-    // Fallback for single long names
-    return `Dr. ${cleanName.substring(0, 6)}...`;
-  };
+
 
   // Function to handle opening the iframe popup
   const handleOpenIframe = () => {

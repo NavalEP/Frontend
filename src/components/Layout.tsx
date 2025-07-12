@@ -27,41 +27,31 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   return (
     <div className="min-h-screen flex flex-col safe-top safe-bottom">
       {/* Header - Hide on chat page */}
-      {!isChatPage && (
-        <header className="bg-white shadow-sm sticky top-0 z-50">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+      <header className="bg-white sticky top-0 z-50 mb-6">
+        <div
+          className={`${
+            isAuthenticated && !isLoginPage
+              ? 'h-12'
+              : 'h-16'
+          } flex items-center justify-between px-4`}
+        >
           <div className="flex items-center">
             <img 
               src="/images/Careena-Logo-cropped.png" 
               alt="Careena" 
-              className="h-12 max-h-16 w-auto object-contain ml-2"
+              className={`${
+                isAuthenticated && !isLoginPage
+                  ? 'h-8 max-h-8'
+                  : 'h-12 max-h-16'
+              } w-auto object-contain ml-2`}
             />
           </div>
           
-          {isAuthenticated && !isLoginPage && (
-            <div className="flex items-center space-x-2">
-              {doctorName && (
-                <span className="text-sm text-gray-700">
-                  Dr. {doctorName.replace('_', ' ')}
-                </span>
-              )}
-              <div className="text-sm text-gray-700">
-                {sessionCount}/10
-              </div>
-              <button 
-                onClick={handleLogoutClick}
-                className="inline-flex items-center text-sm font-medium text-gray-700 hover:text-primary-600"
-              >
-                <LogOut className="h-5 w-5" />
-              </button>
-            </div>
-          )}
         </div>
       </header>
-      )}
 
       {/* Main content */}
-      <main className={`flex-1 w-full mx-auto px-0 sm:px-4 sm:px-6 lg:px-8 ${isChatPage ? 'h-screen' : 'h-[calc(100vh-5rem)]'}`}>
+      <main className={`flex-1 w-full mx-auto px-0 ${isChatPage ? 'h-screen' : 'h-[calc(100vh-5rem)]'}`}>
         {children}
       </main>
 

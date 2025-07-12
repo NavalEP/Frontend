@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { setLogoutCallback } from '../services/api';
 
 interface AuthContextType {
   isAuthenticated: boolean;
@@ -251,6 +252,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const incrementSessionCount = () => {
     setSessionCount(prevCount => prevCount + 1);
   };
+
+  // Register logout callback with API service for token expiration handling
+  useEffect(() => {
+    setLogoutCallback(logout);
+  }, []);
 
   const value = {
     isAuthenticated,

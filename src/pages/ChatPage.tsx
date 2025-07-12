@@ -68,42 +68,17 @@ const ChatPage: React.FC = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
   
-  // Initialize chat with welcome message or retrieve existing session
+  // Initialize chat with a fresh new session (always start new session on login)
   useEffect(() => {
     const initializeSession = async () => {
       if (!doctorId) return;
       
-      // Check if there's an existing session for this doctor
-      const existingSessionData = localStorage.getItem(`session_id_doctor_${doctorId}`);
-      const currentSessionId = localStorage.getItem('current_session_id');
+      // Always clear any existing session data to ensure fresh start
+      localStorage.removeItem(`session_id_doctor_${doctorId}`);
+      localStorage.removeItem('current_session_id');
       
-      if (existingSessionData && currentSessionId) {
-        try {
-          // Try to load the existing session
-          const sessionData = JSON.parse(existingSessionData);
-          const expiresAt = new Date(sessionData.expiresAt);
-          
-          // Check if session is still valid (not expired)
-          if (expiresAt > new Date()) {
-            console.log('Loading existing session:', currentSessionId);
-            await loadChatSession(currentSessionId);
-            return;
-          } else {
-            console.log('Session expired, starting new session');
-            // Clear expired session data
-            localStorage.removeItem(`session_id_doctor_${doctorId}`);
-            localStorage.removeItem('current_session_id');
-          }
-        } catch (error) {
-          console.log('Error loading existing session, starting new session:', error);
-          // Clear invalid session data
-          localStorage.removeItem(`session_id_doctor_${doctorId}`);
-          localStorage.removeItem('current_session_id');
-        }
-      }
-      
-      // If no valid existing session, start a new one
-      console.log('Starting new session');
+      // Always start a new session for fresh login
+      console.log('Starting new session for fresh login');
       await startNewSession();
     };
     
@@ -214,7 +189,16 @@ const ChatPage: React.FC = () => {
       }
     } catch (err) {
       console.error('Error loading session:', err);
-      setError('Failed to load chat session. Please try again.');
+      const errorMessage = err instanceof Error ? err.message : 'Failed to load chat session. Please try again.';
+      
+      // Check if it's a token expiration error
+      if (errorMessage.toLowerCase().includes('session has expired') || 
+          errorMessage.toLowerCase().includes('token has expired')) {
+        // Don't handle here since AuthContext will handle logout
+        return;
+      }
+      
+      setError(errorMessage);
       // Reset to new session on error
       startNewSession();
     } finally {
@@ -322,6 +306,15 @@ const ChatPage: React.FC = () => {
       }
     } catch (err) {
       console.error('Error fetching session details:', err);
+      const errorMessage = err instanceof Error ? err.message : 'Failed to fetch session details';
+      
+      // Check if it's a token expiration error
+      if (errorMessage.toLowerCase().includes('session has expired') || 
+          errorMessage.toLowerCase().includes('token has expired')) {
+        // Don't handle here since AuthContext will handle logout
+        return;
+      }
+      
       // If error occurred while loading session, start a new one
       if (messages.length === 1 && messages[0].id.startsWith('loading-session')) {
         startNewSession();
@@ -415,7 +408,16 @@ const ChatPage: React.FC = () => {
       }
     } catch (err) {
       console.error('Error sending message:', err);
-      setError(err instanceof Error ? err.message : 'Failed to send message. Please try again.');
+      const errorMessage = err instanceof Error ? err.message : 'Failed to send message. Please try again.';
+      
+      // Check if it's a token expiration error
+      if (errorMessage.toLowerCase().includes('session has expired') || 
+          errorMessage.toLowerCase().includes('token has expired')) {
+        // Don't set error message since AuthContext will handle logout
+        return;
+      }
+      
+      setError(errorMessage);
     } finally {
       setIsLoading(false);
     }
@@ -473,7 +475,16 @@ const ChatPage: React.FC = () => {
       }
     } catch (err) {
       console.error('Error creating session:', err);
-      setError('Failed to start new chat session. Please try again.');
+      const errorMessage = err instanceof Error ? err.message : 'Failed to start new chat session. Please try again.';
+      
+      // Check if it's a token expiration error
+      if (errorMessage.toLowerCase().includes('session has expired') || 
+          errorMessage.toLowerCase().includes('token has expired')) {
+        // Don't handle here since AuthContext will handle logout
+        return;
+      }
+      
+      setError(errorMessage);
     } finally {
       setIsLoading(false);
     }
@@ -554,50 +565,6 @@ const ChatPage: React.FC = () => {
 
     return (
     <div className="whatsapp-chat-container bg-[#E5DDD5]">
-      {/* WhatsApp-style Header - Fixed */}
-      <div className="whatsapp-header bg-primary-600 text-white flex items-center justify-between px-4 py-3 shadow-lg chat-header" style={{ height: '4.5rem' }}>
-        <div className="flex items-center space-x-3">
-          {showHistory && (
-            <button
-              onClick={() => setShowHistory(false)}
-              className="p-1 hover:bg-primary-700 rounded-full transition-colors"
-            >
-              <ArrowLeft className="h-5 w-5" />
-            </button>
-          )}
-          <div className="flex items-center space-x-3">
-            <div className="relative">
-              <img
-                src="/images/careeena-avatar.jpg"
-                alt="Careena"
-                className="h-10 w-10 rounded-full object-cover shadow-md"
-              />
-              <div className="absolute -bottom-1 -right-1 h-4 w-4 bg-green-500 border-2 border-white rounded-full online-status"></div>
-            </div>
-            <div>
-              <h2 className="font-semibold text-lg">Medical Loan Assistant</h2>
-              <p className="text-xs text-white opacity-80">Online • Ready to help</p>
-            </div>
-          </div>
-        </div>
-        <div className="flex items-center space-x-2">
-          <button
-            onClick={() => setShowHistory(!showHistory)}
-            className="p-2 hover:bg-primary-700 rounded-full transition-colors chat-button"
-            title="Chat History"
-          >
-            <History className="h-5 w-5" />
-          </button>
-          <button
-            onClick={handleNewSessionClick}
-            className="p-2 hover:bg-primary-700 rounded-full transition-colors chat-button"
-            title="New Chat"
-          >
-            <Plus className="h-5 w-5" />
-          </button>
-        </div>
-      </div>
-
       {/* Company Logo and Doctor Info Bar */}
       <div className="bg-white shadow-sm border-b border-gray-200 flex items-center justify-between px-4 py-2 flex-shrink-0" style={{ height: '3rem' }}>
         <div className="flex items-center flex-shrink-0">
@@ -620,6 +587,73 @@ const ChatPage: React.FC = () => {
           <button 
             onClick={handleLogoutClick}
             className="inline-flex items-center text-sm font-medium text-gray-700 hover:text-red-600 transition-colors p-1 rounded-full hover:bg-gray-100 flex-shrink-0"
+          >
+            <LogOut className="h-4 w-4" />
+          </button>
+        </div>
+      </div>
+
+      {/* WhatsApp-style Header - Mobile Responsive */}
+      <div className="whatsapp-header bg-primary-600 text-white flex items-center justify-between px-4 py-2 sm:py-3 chat-header min-h-[3.5rem] sm:min-h-[4.5rem]">
+        <div className="flex items-center space-x-2 sm:space-x-3 min-w-0 flex-1">
+          {showHistory && (
+            <button
+              onClick={() => setShowHistory(false)}
+              className="p-1 hover:bg-primary-700 rounded-full transition-colors flex-shrink-0"
+            >
+              <ArrowLeft className="h-4 w-4 sm:h-5 sm:w-5" />
+            </button>
+          )}
+          <div className="flex items-center space-x-2 sm:space-x-3 min-w-0 flex-1">
+            <div className="relative flex-shrink-0">
+              <img
+                src="/images/careeena-avatar.jpg"
+                alt="Careena"
+                className="h-8 w-8 sm:h-10 sm:w-10 rounded-full object-cover shadow-md"
+              />
+              <div className="absolute -bottom-1 -right-1 h-3 w-3 sm:h-4 sm:w-4 bg-green-500 border-2 border-white rounded-full online-status"></div>
+            </div>
+            <div className="min-w-0 flex-1">
+              <h2 className="font-semibold text-base sm:text-lg truncate">Medical Loan Assistant</h2>
+              <p className="text-xs text-white opacity-80 hidden sm:block">Online • Ready to help</p>
+            </div>
+          </div>
+        </div>
+        <div className="flex items-center space-x-1 sm:space-x-2 flex-shrink-0">
+          <button
+            onClick={() => setShowHistory(!showHistory)}
+            className="p-1.5 sm:p-2 hover:bg-primary-700 rounded-full transition-colors chat-button"
+            title="Chat History"
+          >
+            <History className="h-4 w-4 sm:h-5 sm:w-5" />
+          </button>
+          <button
+            onClick={handleNewSessionClick}
+            className="flex items-center space-x-1 p-1.5 sm:p-2 hover:bg-primary-700 rounded-full transition-colors chat-button"
+            title="New Inquiry"
+          >
+            <Plus className="h-4 w-4 sm:h-5 sm:w-5" />
+            <span className="text-xs sm:hidden">New Inquiry</span>
+          </button>
+        </div>
+      </div>
+
+      {/* Doctor Info Bar below Medical Loan Assistant */}
+      <div className="flex items-center justify-between px-4 py-2 bg-white border-b border-gray-200">
+        <div className="flex items-center space-x-2">
+          {doctorName && (
+            <span className="text-xs text-gray-700 font-medium truncate max-w-[120px] sm:max-w-[150px] md:max-w-[200px] lg:max-w-[250px]">
+              Dr. {doctorName.replace('_', ' ')}
+            </span>
+          )}
+        </div>
+        <div className="flex items-center space-x-2">
+          <div className="text-xs text-gray-700 bg-gray-100 px-2 py-1 rounded-full flex-shrink-0">
+            {sessionCount}/10
+          </div>
+          <button
+            onClick={handleLogoutClick}
+            className="inline-flex items-center text-xs font-medium text-gray-700 hover:text-red-600 transition-colors p-1 rounded-full hover:bg-gray-100 flex-shrink-0"
           >
             <LogOut className="h-4 w-4" />
           </button>

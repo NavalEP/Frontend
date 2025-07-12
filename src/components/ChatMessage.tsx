@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { User, Bot, Copy, ExternalLink } from 'lucide-react';
+import { Copy, ExternalLink } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import { getShortlink } from '../services/api';
 

@@ -53,7 +53,7 @@ interface ShortlinkResponse {
 }
 
 // Base URL for API
-const API_BASE_URL = 'https://loanbot.carepay.money/api/v1/agent';
+const API_BASE_URL = 'http://localhost:8000/api/v1/agent';
 
 // Create axios instance
 const api = axios.create({

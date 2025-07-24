@@ -871,11 +871,9 @@ const ChatPage: React.FC = () => {
             title="Razorpay Offer"
             className="w-full h-full"
             style={{ 
-              overflow: 'hidden',
+              overflow: 'auto',
               border: 'none',
               WebkitOverflowScrolling: 'touch',
-              msOverflowStyle: 'none',
-              scrollbarWidth: 'none',
               width: '100vw',
               height: '100vh',
               position: 'fixed',
@@ -892,7 +890,7 @@ const ChatPage: React.FC = () => {
               WebkitUserSelect: 'none',
               userSelect: 'none'
             }}
-            scrolling="no"
+            scrolling="auto"
             onClick={(e) => e.stopPropagation()}
           ></iframe>
         </div>

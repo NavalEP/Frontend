@@ -52,8 +52,23 @@ interface ShortlinkResponse {
   message?: string;
 }
 
+interface DocumentUploadResponse {
+  status: string;
+  data?: {
+    document_url?: string;
+    gcs_path?: string;
+    agent_result?: {
+      status: string;
+      message?: string;
+      data?: any;
+    };
+    message?: string;
+  };
+  message?: string;
+}
+
 // Base URL for API
-const API_BASE_URL = 'https://loanbot.carepay.money/api/v1/agent';
+const API_BASE_URL = 'http://localhost:8000/api/v1/agent';
 
 // Create axios instance
 const api = axios.create({
@@ -267,6 +282,25 @@ export const getShortlink = async (
 ): Promise<AxiosResponse<ShortlinkResponse>> => {
   try {
     return await api.get(`/s/${shortCode}/`);
+  } catch (error) {
+    throw error;
+  }
+};
+
+export const uploadDocument = async (
+  file: File,
+  sessionId: string
+): Promise<AxiosResponse<DocumentUploadResponse>> => {
+  try {
+    const formData = new FormData();
+    formData.append('document', file);
+    formData.append('session_id', sessionId);
+ 
+    return await api.post('/documents/upload/', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    });
   } catch (error) {
     throw error;
   }

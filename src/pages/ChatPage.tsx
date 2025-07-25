@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { createSession, sendMessage, getSessionDetails } from '../services/api';
+import { createSession, sendMessage, getSessionDetails, uploadDocument } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import ChatMessage from '../components/ChatMessage';
 import StructuredInputForm from '../components/StructuredInputForm';
+import FileUpload from '../components/FileUpload';
 import Modal from '../components/Modal';
 import { SendHorizonal, Plus, Notebook as Robot, History, ArrowLeft, Search, LogOut } from 'lucide-react';
 
@@ -51,6 +52,9 @@ const ChatPage: React.FC = () => {
   const [isLogoutModalOpen, setIsLogoutModalOpen] = useState(false);
   const [isNewSessionModalOpen, setIsNewSessionModalOpen] = useState(false);
   const [selectedOption, setSelectedOption] = useState<string | undefined>(undefined);
+  const [showFileUpload, setShowFileUpload] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
   
   // Helper function to format welcome message from API response
   const formatWelcomeMessage = (content: string): string => {
@@ -563,6 +567,107 @@ const ChatPage: React.FC = () => {
     }
   }, [messages, patientInfoSubmitted]);
 
+  // Check if agent is asking for Aadhaar upload
+  const shouldShowFileUpload = () => {
+    if (messages.length === 0) return false;
+    
+    const lastMessage = messages[messages.length - 1];
+    if (lastMessage.sender !== 'agent') return false;
+    
+    const aadhaarKeywords = [
+      'upload aadhaar',
+      'aadhaar card',
+      'verify your identity',
+      'upload document',
+      'upload a clear photo'
+    ];
+    
+    return aadhaarKeywords.some(keyword => 
+      lastMessage.text.toLowerCase().includes(keyword.toLowerCase())
+    );
+  };
+
+  // Handle file upload
+  const handleFileUpload = async (file: File) => {
+    if (!sessionId) {
+      setUploadError('No active session. Please try again.');
+      return;
+    }
+
+    setIsUploading(true);
+    setUploadError(null);
+    const uploadMessageId = `upload-${Date.now()}`;
+
+    try {
+      // Add user message showing file upload
+      const uploadMessage: Message = {
+        id: uploadMessageId,
+        text: `📎 Uploading ${file.name}...`,
+        sender: 'user',
+        timestamp: new Date(),
+      };
+      
+      setMessages(prevMessages => [...prevMessages, uploadMessage]);
+
+      // Upload file to backend
+      const response = await uploadDocument(file, sessionId);
+      
+      if (response.data.status === 'success') {
+        // Update upload message to show success
+        setMessages(prevMessages => 
+          prevMessages.map(msg => 
+            msg.id === uploadMessageId 
+              ? { ...msg, text: `✅ ${file.name} uploaded successfully!` }
+              : msg
+          )
+        );
+
+        // Hide upload interface
+        setShowFileUpload(false);
+
+        // Show success message from backend
+        const successMessage = response.data.data?.message || 'Aadhaar card processed successfully.';
+        const successAgentMessage: Message = {
+          id: `success-${Date.now()}`,
+          text: successMessage,
+          sender: 'agent',
+          timestamp: new Date(),
+        };
+        
+        setMessages(prevMessages => [...prevMessages, successAgentMessage]);
+
+        // Send a message to the agent to continue the process
+        setTimeout(async () => {
+          await handleMessageSubmit('Aadhaar upload completed successfully. Please continue with the remaining loan application process.');
+        }, 1000); // Small delay to show the success message first
+
+      } else {
+        throw new Error(response.data.message || 'Upload failed');
+      }
+    } catch (error) {
+      console.error('Upload error:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Upload failed. Please try again.';
+      
+      // Update upload message to show error
+      setMessages(prevMessages => 
+        prevMessages.map(msg => 
+          msg.id === uploadMessageId 
+            ? { ...msg, text: `❌ Upload failed: ${errorMessage}` }
+            : msg
+        )
+      );
+      
+      setUploadError(errorMessage);
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
+  // Update useEffect to check for file upload trigger
+  useEffect(() => {
+    setShowFileUpload(shouldShowFileUpload());
+  }, [messages]);
+
     return (
     <div className="whatsapp-chat-container bg-[#E5DDD5]">
       {/* Company Logo and Doctor Info Bar */}
@@ -651,7 +756,7 @@ const ChatPage: React.FC = () => {
           <div className="text-xs text-gray-700 bg-gray-100 px-2 py-1 rounded-full flex-shrink-0">
             {sessionCount}/10
           </div>
-          <button
+          <button 
             onClick={handleLogoutClick}
             className="inline-flex items-center text-xs font-medium text-gray-700 hover:text-red-600 transition-colors p-1 rounded-full hover:bg-gray-100 flex-shrink-0"
           >
@@ -809,7 +914,27 @@ const ChatPage: React.FC = () => {
                 onSubmit={handleStructuredFormSubmit}
                 isLoading={isLoading}
               />
+            ) : showFileUpload ? (
+              /* File Upload Interface */
+              <div className="space-y-3">
+                <div className="text-sm text-gray-600 mb-2">
+                  Please upload your Aadhaar card to continue:
+                </div>
+                <FileUpload
+                  onFileSelect={() => {}} // We handle this in the upload function
+                  onUpload={handleFileUpload}
+                  isUploading={isUploading}
+                  acceptedTypes={['image/jpeg', 'image/png', 'image/jpg', 'application/pdf']}
+                  maxSize={10}
+                />
+                {uploadError && (
+                  <div className="text-sm text-red-600 bg-red-50 p-2 rounded">
+                    {uploadError}
+                  </div>
+                )}
+              </div>
             ) : (
+              /* Regular Message Input */
               <>
                 <form onSubmit={handleSendMessage} className="flex items-end space-x-2">
                   <div className="flex-1 bg-gray-100 rounded-full px-3 py-1.5">

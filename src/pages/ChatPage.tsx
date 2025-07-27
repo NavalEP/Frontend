@@ -51,6 +51,7 @@ const ChatPage: React.FC = () => {
   const [isLogoutModalOpen, setIsLogoutModalOpen] = useState(false);
   const [isNewSessionModalOpen, setIsNewSessionModalOpen] = useState(false);
   const [selectedOption, setSelectedOption] = useState<string | undefined>(undefined);
+  const [disabledOptions, setDisabledOptions] = useState<Record<string, boolean>>({});
   
   // Helper function to format welcome message from API response
   const formatWelcomeMessage = (content: string): string => {
@@ -429,9 +430,20 @@ const ChatPage: React.FC = () => {
   };
 
   // Handle button option clicks
-  const handleButtonClick = async (option: string) => {
-    console.log('Button clicked, sending:', option);
+  const handleButtonClick = async (option: string, messageId: string) => {
+    console.log('Button clicked, sending:', option, 'for message:', messageId);
     setSelectedOption(option);
+    
+    // Disable ALL options for this specific message when any option is selected
+    setDisabledOptions(prev => {
+      const newDisabledOptions = {
+        ...prev,
+        [messageId]: true
+      };
+      console.log('Updated disabled options:', newDisabledOptions);
+      return newDisabledOptions;
+    });
+    
     await handleMessageSubmit(option);
   };
 
@@ -442,6 +454,7 @@ const ChatPage: React.FC = () => {
     setShowStructuredForm(true); // Reset to show structured form for new session
     setPatientInfoSubmitted(false);
     setSelectedOption(undefined); // Clear selected option for new session
+    setDisabledOptions({}); // Clear disabled options for new session
     
     // Clear existing session from localStorage when starting new session
     localStorage.removeItem('current_session_id');
@@ -775,6 +788,7 @@ const ChatPage: React.FC = () => {
                   message={message} 
                   onButtonClick={handleButtonClick}
                   selectedOption={selectedOption}
+                  disabledOptions={disabledOptions[message.id] || false}
                 />
               ))}
               {isLoading && messages.some(m => m.sender === 'user') && (

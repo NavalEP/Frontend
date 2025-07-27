@@ -12,11 +12,12 @@ interface Message {
 
 interface ChatMessageProps {
   message: Message;
-  onButtonClick?: (option: string) => void;
+  onButtonClick?: (option: string, messageId: string) => void;
   selectedOption?: string;
+  disabledOptions?: boolean;
 }
 
-const ChatMessage: React.FC<ChatMessageProps> = ({ message, onButtonClick, selectedOption }) => {
+const ChatMessage: React.FC<ChatMessageProps> = ({ message, onButtonClick, selectedOption, disabledOptions }) => {
   const isUser = message.sender === 'user';
   const [resolvedUrls, setResolvedUrls] = useState<Record<string, string>>({});
   const [loadingUrls, setLoadingUrls] = useState<Set<string>>(new Set());
@@ -128,9 +129,9 @@ const ChatMessage: React.FC<ChatMessageProps> = ({ message, onButtonClick, selec
     if (onButtonClick) {
       // If we have option numbers, send the number; otherwise send the option text
       if (questionData?.optionNumbers && questionData.optionNumbers[index]) {
-        onButtonClick(questionData.optionNumbers[index]);
+        onButtonClick(questionData.optionNumbers[index], message.id);
       } else {
-        onButtonClick(option);
+        onButtonClick(option, message.id);
       }
     }
   };
@@ -488,18 +489,27 @@ const ChatMessage: React.FC<ChatMessageProps> = ({ message, onButtonClick, selec
                   ? questionData.optionNumbers[index] 
                   : option;
                 const isSelected = selectedOption === optionValue;
+                const isDisabled = disabledOptions || false;
                 
                 return (
                   <button
                     key={index}
-                    onClick={() => handleButtonClick(option, index)}
+                    onClick={() => !isDisabled && handleButtonClick(option, index)}
+                    disabled={isDisabled}
                     className={`w-full text-left px-3 py-2 border rounded-lg font-medium transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-1 hover:shadow-sm chat-button text-sm ${
                       isSelected 
                         ? 'bg-blue-50 border-blue-200 text-blue-700 shadow-sm' 
+                        : isDisabled
+                        ? 'bg-gray-100 border-gray-200 text-gray-400 cursor-not-allowed opacity-60'
                         : 'bg-gray-50 hover:bg-gray-100 border-gray-200 text-gray-800'
                     }`}
                   >
                     {option}
+                    {isDisabled && (
+                      <span className="ml-2 text-xs text-gray-400">
+                        {isSelected ? "(Selected)" : "(Answered)"}
+                      </span>
+                    )}
                   </button>
                 );
               })}

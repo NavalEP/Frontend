@@ -52,6 +52,64 @@ interface ShortlinkResponse {
   message?: string;
 }
 
+interface DocumentUploadResponse {
+  status: string;
+  data?: {
+    document_url?: string;
+    gcs_path?: string;
+    agent_result?: {
+      status: string;
+      message?: string;
+      data?: any;
+    };
+    message?: string;
+    ocr_result?: {
+      name: string;
+      aadhaar_number?: string;
+      dob: string;
+      gender: string;
+      address: string;
+      pincode: string;
+      father_name: string;
+      husband_name?: string | null;
+    };
+  };
+  message?: string;
+}
+
+interface PanCardUploadResponse {
+  status: string;
+  message: string;
+  data?: {
+    ocr_result?: {
+      pan_card_number: string;
+      person_name: string;
+      date_of_birth: string;
+      gender: string;
+      father_name: string;
+    };
+    pan_details_saved: boolean;
+  };
+}
+
+interface Treatment {
+  id: number;
+  name: string;
+  category: string;
+  created_at: string | null;
+  updated_at: string | null;
+}
+
+interface TreatmentSearchResponse {
+  status: string;
+  data: {
+    treatments: Treatment[];
+    total_count: number;
+    search_query: string;
+    category_filter: string | null;
+  };
+}
+
 // Base URL for API
 const API_BASE_URL = 'https://loanbot.carepay.money/api/v1/agent';
 
@@ -267,6 +325,65 @@ export const getShortlink = async (
 ): Promise<AxiosResponse<ShortlinkResponse>> => {
   try {
     return await api.get(`/s/${shortCode}/`);
+  } catch (error) {
+    throw error;
+  }
+};
+
+export const uploadDocument = async (
+  file: File,
+  sessionId: string
+): Promise<AxiosResponse<DocumentUploadResponse>> => {
+  try {
+    const formData = new FormData();
+    formData.append('document', file);
+    formData.append('session_id', sessionId);
+ 
+    return await api.post('/documents/upload/', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    });
+  } catch (error) {
+    throw error;
+  }
+};
+
+export const uploadPanCard = async (
+  file: File,
+  sessionId: string
+): Promise<AxiosResponse<PanCardUploadResponse>> => {
+  try {
+    const formData = new FormData();
+    formData.append('document', file);
+    formData.append('session_id', sessionId);
+ 
+    return await api.post('/documents/upload-pan/', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    });
+  } catch (error) {
+    throw error;
+  }
+};
+
+export const searchTreatments = async (
+  searchQuery: string,
+  limit: number = 10,
+  category?: string
+): Promise<AxiosResponse<TreatmentSearchResponse>> => {
+  try {
+    const params: Record<string, string | number> = {
+      q: searchQuery.trim(),
+      limit: limit
+    };
+    
+    if (category && category.trim()) {
+      params.category = category.trim();
+    }
+    
+    return await api.get('/treatments/search/', { params });
   } catch (error) {
     throw error;
   }

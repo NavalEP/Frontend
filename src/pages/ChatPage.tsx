@@ -1,16 +1,21 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { createSession, sendMessage, getSessionDetails } from '../services/api';
+import { createSession, sendMessage, getSessionDetails, uploadDocument, uploadPanCard } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import ChatMessage from '../components/ChatMessage';
 import StructuredInputForm from '../components/StructuredInputForm';
+
+import PanCardUpload from '../components/PanCardUpload';
+import AadhaarUpload from '../components/AadhaarUpload';
 import Modal from '../components/Modal';
-import { SendHorizonal, Plus, Notebook as Robot, History, ArrowLeft, Search, LogOut } from 'lucide-react';
+import { SendHorizonal, Plus, Notebook as Robot, History, ArrowLeft, Search, LogOut, Upload } from 'lucide-react';
 
 interface Message {
   id: string;
   text: string;
   sender: 'user' | 'agent';
   timestamp: Date;
+  imagePreview?: string; // Base64 image preview for uploaded files
+  fileName?: string; // Original file name for uploaded files
 }
 
 interface SessionDetails {
@@ -46,12 +51,33 @@ const ChatPage: React.FC = () => {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const { incrementSessionCount, doctorId, doctorName, logout, sessionCount } = useAuth();
   const [showOfferButton, setShowOfferButton] = useState(false);
+
+  // Utility function to create image preview
+  const createImagePreview = (file: File): Promise<string> => {
+    return new Promise((resolve) => {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        resolve(e.target?.result as string);
+      };
+      reader.readAsDataURL(file);
+    });
+  };
   const [showIframePopup, setShowIframePopup] = useState(false);
   const [patientInfoSubmitted, setPatientInfoSubmitted] = useState(false);
   const [isLogoutModalOpen, setIsLogoutModalOpen] = useState(false);
   const [isNewSessionModalOpen, setIsNewSessionModalOpen] = useState(false);
   const [selectedOption, setSelectedOption] = useState<string | undefined>(undefined);
   const [disabledOptions, setDisabledOptions] = useState<Record<string, boolean>>({});
+
+  const [isUploading, setIsUploading] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+  const [uploadSuccess, setUploadSuccess] = useState<string | null>(null);
+  const [showUploadModal, setShowUploadModal] = useState(false);
+  const [selectedDocumentType, setSelectedDocumentType] = useState<'aadhaar' | 'pan' | null>(null);
+
+  const [showLinkIframe, setShowLinkIframe] = useState(false);
+  const [linkIframeUrl, setLinkIframeUrl] = useState<string>('');
+  const fileInputRef = useRef<HTMLInputElement>(null);
   
   // Helper function to format welcome message from API response
   const formatWelcomeMessage = (content: string): string => {
@@ -69,18 +95,78 @@ const ChatPage: React.FC = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
   
-  // Initialize chat with a fresh new session (always start new session on login)
+  // Initialize chat session - restore existing or start new
   useEffect(() => {
     const initializeSession = async () => {
       if (!doctorId) return;
       
-      // Always clear any existing session data to ensure fresh start
-      localStorage.removeItem(`session_id_doctor_${doctorId}`);
-      localStorage.removeItem('current_session_id');
+      // Check if there's an existing session for this doctor
+      const existingSessionData = localStorage.getItem(`session_id_doctor_${doctorId}`);
+      const currentSessionId = localStorage.getItem('current_session_id');
       
-      // Always start a new session for fresh login
-      console.log('Starting new session for fresh login');
-      await startNewSession();
+      if (existingSessionData && currentSessionId) {
+        try {
+          // Try to restore existing session
+          const sessionData = JSON.parse(existingSessionData);
+          const sessionId = sessionData.id;
+          
+          // Check if session is still valid (not expired)
+          if (sessionData.expiresAt && new Date(sessionData.expiresAt) > new Date()) {
+            console.log('Restoring existing session:', sessionId);
+            setSessionId(sessionId);
+            
+            // Load session details and chat history
+            const response = await getSessionDetails(sessionId);
+            if (response.data) {
+              setSessionDetails({
+                phoneNumber: response.data.phoneNumber,
+                status: response.data.status,
+                history: response.data.history,
+                created_at: response.data.created_at,
+                updated_at: response.data.updated_at,
+                userId: response.data.userId
+              });
+              
+              // Convert history to messages
+              if (response.data.history && response.data.history.length > 0) {
+                const historyMessages: Message[] = response.data.history.map((item, index) => {
+                  if (index === 0 && item.type === 'AIMessage') {
+                    return {
+                      id: `history-${index}`,
+                      text: formatWelcomeMessage(item.content),
+                      sender: 'agent',
+                      timestamp: new Date(response.data.created_at),
+                    };
+                  }
+                  
+                  return {
+                    id: `history-${index}`,
+                    text: item.content,
+                    sender: item.type === 'HumanMessage' ? 'user' : 'agent',
+                    timestamp: new Date(response.data.created_at),
+                  };
+                });
+                
+                setMessages(historyMessages);
+                setShowStructuredForm(false); // Don't show structured form for existing sessions
+                setPatientInfoSubmitted(true); // Mark as submitted since we have history
+              }
+            }
+          } else {
+            // Session expired, start new session
+            console.log('Session expired, starting new session');
+            await startNewSession();
+          }
+        } catch (error) {
+          console.error('Error restoring session:', error);
+          // If restoration fails, start new session
+          await startNewSession();
+        }
+      } else {
+        // No existing session, start new session
+        console.log('No existing session, starting new session');
+        await startNewSession();
+      }
     };
     
     initializeSession();
@@ -430,9 +516,12 @@ const ChatPage: React.FC = () => {
   };
 
   // Handle button option clicks
-  const handleButtonClick = async (option: string, messageId: string) => {
-    console.log('Button clicked, sending:', option, 'for message:', messageId);
-    setSelectedOption(option);
+  const handleButtonClick = async (optionText: string, optionValue: string, messageId: string) => {
+    console.log('Button clicked, option text:', optionText, 'option value:', optionValue, 'for message:', messageId);
+    setSelectedOption(optionValue);
+    
+    // Set the input message to the selected option text (not the number)
+    setInputMessage(optionText);
     
     // Disable ALL options for this specific message when any option is selected
     setDisabledOptions(prev => {
@@ -444,7 +533,19 @@ const ChatPage: React.FC = () => {
       return newDisabledOptions;
     });
     
-    await handleMessageSubmit(option);
+    // Send the option text (like "Yes" or "No") to the API as the user's message
+    await handleMessageSubmit(optionText);
+  };
+
+  // Handle treatment selection
+  const handleTreatmentSelect = async (treatmentName: string, messageId: string) => {
+    console.log('Treatment selected:', treatmentName, 'for message:', messageId);
+    
+    // Set the input message to the selected treatment name
+    setInputMessage(treatmentName);
+    
+    // Send the treatment name to the API as the user's message
+    await handleMessageSubmit(treatmentName);
   };
 
   const startNewSession = async () => {
@@ -501,6 +602,21 @@ const ChatPage: React.FC = () => {
     } finally {
       setIsLoading(false);
     }
+  };
+
+  // Function to clear session data (for logout or manual new session)
+  const clearSessionData = () => {
+    localStorage.removeItem('current_session_id');
+    if (doctorId) {
+      localStorage.removeItem(`session_id_doctor_${doctorId}`);
+    }
+    setSessionId(null);
+    setSessionDetails(null);
+    setMessages([]);
+    setShowStructuredForm(true);
+    setPatientInfoSubmitted(false);
+    setSelectedOption(undefined);
+    setDisabledOptions({});
   };
 
   // Filter chat history based on search query
@@ -564,7 +680,8 @@ const ChatPage: React.FC = () => {
 
   const handleConfirmNewSession = () => {
     setIsNewSessionModalOpen(false);
-    startNewSession();
+    clearSessionData(); // Clear existing session data
+    startNewSession(); // Start fresh new session
   };
 
   useEffect(() => {
@@ -575,6 +692,255 @@ const ChatPage: React.FC = () => {
       setShowOfferButton(false);
     }
   }, [messages, patientInfoSubmitted]);
+
+  // // Check if agent is asking for Aadhaar upload
+  // const shouldShowFileUpload = () => {
+  //   // Always return false to keep text input bar visible
+  //   // Users will use the upload button instead of switching to file upload interface
+  //   return false;
+  // };
+
+  // Handle file upload
+  const handleFileUpload = async (file: File) => {
+    if (!sessionId) {
+      setUploadError('No active session. Please try again.');
+      return;
+    }
+
+    setIsUploading(true);
+    setUploadError(null);
+    setUploadSuccess(null); // Clear previous success message
+    const uploadMessageId = `upload-${Date.now()}`;
+
+    try {
+      // Create image preview for image files
+      let imagePreview: string | undefined;
+      if (file.type.startsWith('image/')) {
+        imagePreview = await createImagePreview(file);
+      }
+
+      // Add user message showing file upload
+      const uploadMessage: Message = {
+        id: uploadMessageId,
+        text: file.name === 'aadhaar_combined.jpg' 
+          ? `📎 Uploading Aadhaar card (both sides)...`
+          : `📎 Uploading ${file.name}...`,
+        sender: 'user',
+        timestamp: new Date(),
+        imagePreview,
+        fileName: file.name,
+      };
+      
+      setMessages(prevMessages => [...prevMessages, uploadMessage]);
+
+      // Upload file to backend
+      const response = await uploadDocument(file, sessionId);
+      
+      if (response.data.status === 'success') {
+        // Update upload message to show success
+        const successText = file.name === 'aadhaar_combined.jpg' 
+          ? `✅ Aadhaar card (both sides) uploaded successfully!`
+          : `✅ ${file.name} uploaded successfully!`;
+        
+        setMessages(prevMessages => 
+          prevMessages.map(msg => 
+            msg.id === uploadMessageId 
+              ? { ...msg, text: successText }
+              : msg
+          )
+        );
+        setUploadSuccess(successText);
+        
+        // Clear success message after 3 seconds
+        setTimeout(() => {
+          setUploadSuccess(null);
+        }, 3000);
+
+        // Hide upload interface
+
+        // Show OCR results in chat if available
+        if (response.data.data?.ocr_result) {
+          const ocrData = response.data.data.ocr_result;
+          const ocrMessage: Message = {
+            id: `ocr-${Date.now()}`,
+            text: `📋 **Aadhaar Card Details Extracted Successfully!**\n\n**👤 Name:** ${ocrData.name}\n**🆔 Aadhaar Number:** ${ocrData.aadhaar_number}\n**📅 Date of Birth:** ${ocrData.dob}\n**👥 Gender:** ${ocrData.gender}\n**🏠 Address:** ${ocrData.address}\n**📍 Pincode:** ${ocrData.pincode}\n**👨‍👦 Father's Name:** ${ocrData.father_name}${ocrData.husband_name ? `\n**👨‍👩‍👦 Husband's Name:** ${ocrData.husband_name}` : ''}\n\n✅ All details have been automatically extracted and saved from both sides of the Aadhaar card.`,
+            sender: 'agent',
+            timestamp: new Date(),
+          };
+          
+          setMessages(prevMessages => [...prevMessages, ocrMessage]);
+        }
+
+        // Extract success message from API response and send to agent
+        const successMessage = response.data.message || 'Document processed successfully.';
+        
+        // If we have OCR data, send it along with the success message
+        let messageToAgent = successMessage;
+        if (response.data.data?.ocr_result) {
+          const ocrData = response.data.data.ocr_result;
+          const uploadType = file.name === 'aadhaar_combined.jpg' ? 'both sides of the Aadhaar card' : 'the document';
+          messageToAgent = `${successMessage}\n\nExtracted Details from ${uploadType}:\n\n\n\nName: ${ocrData.name}\n\nAadhaar: ${ocrData.aadhaar_number}\n\nDOB: ${ocrData.dob}\n\nGender: ${ocrData.gender}\n\nFather's Name: ${ocrData.father_name}\n\nPincode: ${ocrData.pincode}\n\nAddress: ${ocrData.address}`;
+        }
+        
+        // Send the success message to the agent
+        setTimeout(async () => {
+          await handleMessageSubmit(messageToAgent);
+        }, 1500); // Increased delay to ensure OCR results are shown first
+
+      } else {
+        throw new Error(response.data.message || 'Upload failed');
+      }
+    } catch (error) {
+      console.error('Upload error:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Upload failed. Please try again.';
+      
+      // Update upload message to show error
+      const errorText = file.name === 'aadhaar_combined.jpg' 
+        ? `❌ Aadhaar card upload failed: ${errorMessage}`
+        : `❌ Upload failed: ${errorMessage}`;
+      
+      setMessages(prevMessages => 
+        prevMessages.map(msg => 
+          msg.id === uploadMessageId 
+            ? { ...msg, text: errorText }
+            : msg
+        )
+      );
+      
+      setUploadError(errorMessage);
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
+  // Handle PAN card upload (new function)
+  const handlePanCardUpload = async (file: File) => {
+    if (!sessionId) {
+      setUploadError('No active session. Please try again.');
+      return;
+    }
+
+    setIsUploading(true);
+    setUploadError(null);
+    setUploadSuccess(null); // Clear previous success message
+    const uploadMessageId = `upload-${Date.now()}`;
+
+    try {
+      // Create image preview for image files
+      let imagePreview: string | undefined;
+      if (file.type.startsWith('image/')) {
+        imagePreview = await createImagePreview(file);
+      }
+
+      // Add user message showing file upload
+      const uploadMessage: Message = {
+        id: uploadMessageId,
+        text: `📎 Uploading PAN card: ${file.name}...`,
+        sender: 'user',
+        timestamp: new Date(),
+        imagePreview,
+        fileName: file.name,
+      };
+      
+      setMessages(prevMessages => [...prevMessages, uploadMessage]);
+
+      // Upload PAN card to backend using the new API
+      const response = await uploadPanCard(file, sessionId);
+      
+      if (response.data.status === 'success') {
+        // Update upload message to show success
+        setMessages(prevMessages => 
+          prevMessages.map(msg => 
+            msg.id === uploadMessageId 
+              ? { ...msg, text: `✅ PAN card uploaded successfully!` }
+              : msg
+          )
+        );
+        setUploadSuccess(`✅ PAN card uploaded successfully!`);
+        
+        // Clear success message after 3 seconds
+        setTimeout(() => {
+          setUploadSuccess(null);
+        }, 3000);
+
+        // Hide upload interface
+
+        // Show OCR results in chat if available
+        if (response.data.data?.ocr_result) {
+          const ocrData = response.data.data.ocr_result;
+          const ocrMessage: Message = {
+            id: `ocr-${Date.now()}`,
+            text: `📋 **PAN Card Details Extracted Successfully!**\n\n**🆔 PAN Number:** ${ocrData.pan_card_number}\n**👤 Name:** ${ocrData.person_name}\n**📅 Date of Birth:** ${ocrData.date_of_birth}\n**👥 Gender:** ${ocrData.gender}\n**👨‍👦 Father's Name:** ${ocrData.father_name}\n\n✅ All details have been automatically extracted and saved.`,
+            sender: 'agent',
+            timestamp: new Date(),
+          };
+          
+          setMessages(prevMessages => [...prevMessages, ocrMessage]);
+        }
+
+        // Extract success message from API response and send to agent
+        const successMessage = response.data.message || 'PAN card processed successfully.';
+        
+        // If we have OCR data, send it along with the success message
+        let messageToAgent = successMessage;
+        if (response.data.data?.ocr_result) {
+          const ocrData = response.data.data.ocr_result;
+          messageToAgent = `${successMessage}\n\nExtracted PAN Card Details:\n\n\n\nPAN Number: ${ocrData.pan_card_number}\n\nName: ${ocrData.person_name}\n\nDate of Birth: ${ocrData.date_of_birth}\n\nGender: ${ocrData.gender}\n\nFather's Name: ${ocrData.father_name}`.split('\n').join('\n');
+        }
+        
+        // Send the success message to the agent
+        setTimeout(async () => {
+          await handleMessageSubmit(messageToAgent);
+        }, 1500); // Increased delay to ensure OCR results are shown first
+
+      } else {
+        throw new Error(response.data.message || 'Upload failed');
+      }
+    } catch (error) {
+      console.error('PAN card upload error:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Upload failed. Please try again.';
+      
+      // Update upload message to show error
+      setMessages(prevMessages => 
+        prevMessages.map(msg => 
+          msg.id === uploadMessageId 
+            ? { ...msg, text: `❌ Upload failed: ${errorMessage}` }
+            : msg
+        )
+      );
+      
+      setUploadError(errorMessage);
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
+
+
+  const handleFileInputChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file) {
+      if (selectedDocumentType === 'aadhaar') {
+        handleFileUpload(file);
+      } else if (selectedDocumentType === 'pan') {
+        handlePanCardUpload(file);
+      }
+    }
+    event.target.value = ''; // Clear the input value after selection
+    setSelectedDocumentType(null); // Reset document type selection
+  };
+
+  // Handle link clicks to open in iframe modal
+  const handleLinkClick = (url: string) => {
+    setLinkIframeUrl(url);
+    setShowLinkIframe(true);
+  };
+
+  // Handle closing the link iframe modal
+  const handleCloseLinkIframe = () => {
+    setShowLinkIframe(false);
+    setLinkIframeUrl('');
+  };
 
     return (
     <div className="whatsapp-chat-container bg-[#E5DDD5]">
@@ -609,14 +975,6 @@ const ChatPage: React.FC = () => {
       {/* WhatsApp-style Header - Mobile Responsive */}
       <div className="whatsapp-header bg-primary-600 text-white flex items-center justify-between px-4 py-2 sm:py-3 chat-header min-h-[3.5rem] sm:min-h-[4.5rem]">
         <div className="flex items-center space-x-2 sm:space-x-3 min-w-0 flex-1">
-          {showHistory && (
-            <button
-              onClick={() => setShowHistory(false)}
-              className="p-1 hover:bg-primary-700 rounded-full transition-colors flex-shrink-0"
-            >
-              <ArrowLeft className="h-4 w-4 sm:h-5 sm:w-5" />
-            </button>
-          )}
           <div className="flex items-center space-x-2 sm:space-x-3 min-w-0 flex-1">
             <div className="relative flex-shrink-0">
               <img
@@ -664,7 +1022,7 @@ const ChatPage: React.FC = () => {
           <div className="text-xs text-gray-700 bg-gray-100 px-2 py-1 rounded-full flex-shrink-0">
             {sessionCount}/10
           </div>
-          <button
+          <button 
             onClick={handleLogoutClick}
             className="inline-flex items-center text-xs font-medium text-gray-700 hover:text-red-600 transition-colors p-1 rounded-full hover:bg-gray-100 flex-shrink-0"
           >
@@ -789,6 +1147,8 @@ const ChatPage: React.FC = () => {
                   onButtonClick={handleButtonClick}
                   selectedOption={selectedOption}
                   disabledOptions={disabledOptions[message.id] || false}
+                  onLinkClick={handleLinkClick}
+                  onTreatmentSelect={handleTreatmentSelect}
                 />
               ))}
               {isLoading && messages.some(m => m.sender === 'user') && (
@@ -824,8 +1184,30 @@ const ChatPage: React.FC = () => {
                 isLoading={isLoading}
               />
             ) : (
+              /* Regular Message Input */
               <>
                 <form onSubmit={handleSendMessage} className="flex items-end space-x-2">
+                  {/* File Upload Button */}
+                  <button
+                    type="button"
+                    onClick={() => setShowUploadModal(true)}
+                    className="bg-gray-100 hover:bg-gray-200 text-gray-600 p-2.5 rounded-full transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                    disabled={isLoading || !sessionId}
+                    title="Upload file"
+                  >
+                    <Upload className="h-4 w-4" />
+                  </button>
+                  
+                  {/* Hidden file input */}
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/jpeg,image/png,image/jpg,application/pdf"
+                    onChange={handleFileInputChange}
+                    className="hidden"
+                    disabled={isLoading || !sessionId}
+                  />
+                  
                   <div className="flex-1 bg-gray-100 rounded-full px-3 py-1.5">
                     <input
                       type="text"
@@ -844,11 +1226,177 @@ const ChatPage: React.FC = () => {
                     <SendHorizonal className="h-4 w-4" />
                   </button>
                 </form>
+                
+                {/* File upload status */}
+                {isUploading && (
+                  <div className="mt-2 flex items-center space-x-2 text-sm text-gray-600">
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-primary-600"></div>
+                    <span>Uploading file...</span>
+                  </div>
+                )}
+                
+                {uploadError && (
+                  <div className="mt-2 text-sm text-red-600 bg-red-50 p-2 rounded">
+                    {uploadError}
+                  </div>
+                )}
+                
+                {uploadSuccess && (
+                  <div className="mt-2 text-sm text-green-600 bg-green-50 p-2 rounded">
+                    {uploadSuccess}
+                  </div>
+                )}
               </>
             )}
           </div>
         </div>
       </div>
+
+      {/* Upload Document Modal */}
+      {showUploadModal && (
+        <div 
+          className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
+          onClick={() => {
+            setShowUploadModal(false);
+            setSelectedDocumentType(null);
+          }}
+        >
+          <div 
+            className="bg-white rounded-lg p-6 w-96 max-w-[90vw] mx-4"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold text-gray-900">Upload Document</h3>
+              <button
+                onClick={() => {
+                  setShowUploadModal(false);
+                  setSelectedDocumentType(null);
+                }}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            
+            <div className="space-y-4">
+              <div className="text-sm text-gray-600 mb-4">
+                Select the type of document you want to upload:
+              </div>
+              
+              {/* Aadhaar Card Option */}
+              <button
+                onClick={() => setSelectedDocumentType('aadhaar')}
+                className={`w-full p-4 border-2 rounded-lg text-left transition-colors ${
+                  selectedDocumentType === 'aadhaar'
+                    ? 'border-blue-500 bg-blue-50'
+                    : 'border-gray-200 hover:border-gray-300'
+                }`}
+              >
+                <div className="flex items-center space-x-3">
+                  <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
+                    <svg className="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V8a2 2 0 00-2-2h-5m-4 0V4a2 2 0 114 0v2m-4 0a2 2 0 104 0m-5 8a2 2 0 100-4 2 2 0 000 4zm0 0c1.306 0 2.417.835 2.83 2M9 14a3.001 3.001 0 00-2.83 2M15 11h3m-3 4h2" />
+                    </svg>
+                  </div>
+                  <div>
+                    <div className="font-medium text-gray-900">Aadhaar Card</div>
+                    <div className="text-sm text-gray-500">Both front and back sides</div>
+                  </div>
+                </div>
+              </button>
+              
+              {/* PAN Card Option */}
+              <button
+                onClick={() => setSelectedDocumentType('pan')}
+                className={`w-full p-4 border-2 rounded-lg text-left transition-colors ${
+                  selectedDocumentType === 'pan'
+                    ? 'border-blue-500 bg-blue-50'
+                    : 'border-gray-200 hover:border-gray-300'
+                }`}
+              >
+                <div className="flex items-center space-x-3">
+                  <div className="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center">
+                    <svg className="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    </svg>
+                  </div>
+                  <div>
+                    <div className="font-medium text-gray-900">PAN Card</div>
+                    <div className="text-sm text-gray-500">Front side only</div>
+                  </div>
+                </div>
+              </button>
+              
+              {/* Upload Component */}
+              {selectedDocumentType && (
+                <div className="pt-4">
+                  {selectedDocumentType === 'aadhaar' ? (
+                    <AadhaarUpload
+                      onUpload={async (combinedFile) => {
+                        // Handle combined Aadhaar upload
+                        setShowUploadModal(false);
+                        // Call the Aadhaar upload function with combined file
+                        await handleFileUpload(combinedFile);
+                      }}
+                      isUploading={isUploading}
+                      acceptedTypes={['image/jpeg', 'image/png', 'image/jpg']}
+                      maxSize={10}
+                    />
+                  ) : (
+                    <PanCardUpload
+                      onFileSelect={() => {
+                        // Handle file selection for PAN card
+                        // Don't close modal or upload immediately - let user see preview and click upload button
+                      }}
+                      onUpload={handlePanCardUpload}
+                      isUploading={isUploading}
+                      acceptedTypes={['image/jpeg', 'image/png', 'image/jpg', 'application/pdf']}
+                      maxSize={10}
+                    />
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Link Iframe Modal */}
+      {showLinkIframe && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg shadow-xl w-11/12 max-w-7xl h-[95vh] max-h-[95vh] flex flex-col">
+            {/* Header */}
+            <div className="flex items-center justify-between p-4 border-b border-gray-200">
+              <h3 className="text-lg font-semibold text-gray-900">Application Status</h3>
+              <button
+                onClick={handleCloseLinkIframe}
+                className="text-gray-400 hover:text-gray-600 p-2 rounded-full hover:bg-gray-100 transition-colors"
+              >
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            
+            {/* Iframe Content */}
+            <div className="flex-1 p-4 iframe-container">
+              <iframe
+                src={linkIframeUrl}
+                title="Application Status"
+                className="w-full h-full border-0 rounded-lg iframe-scrollbar"
+                style={{ 
+                  minHeight: '400px',
+                  overflow: 'auto',
+                  WebkitOverflowScrolling: 'touch'
+                }}
+                scrolling="auto"
+              />
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Iframe Popup Modal */}
       {showIframePopup && (
@@ -883,7 +1431,7 @@ const ChatPage: React.FC = () => {
           <iframe
             src={`https://carepay.money/patient/razorpayoffer/${localStorage.getItem('userId')}`}
             title="Razorpay Offer"
-            className="w-full h-full"
+            className="w-full h-full iframe-scrollbar"
             style={{ 
               overflow: 'auto',
               border: 'none',
@@ -902,7 +1450,9 @@ const ChatPage: React.FC = () => {
               touchAction: 'manipulation',
               WebkitTouchCallout: 'none',
               WebkitUserSelect: 'none',
-              userSelect: 'none'
+              userSelect: 'none',
+              scrollbarWidth: 'thin',
+              scrollbarColor: 'rgba(0, 0, 0, 0.2) rgba(0, 0, 0, 0.05)'
             }}
             scrolling="auto"
             onClick={(e) => e.stopPropagation()}

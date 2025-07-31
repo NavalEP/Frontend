@@ -1,26 +1,45 @@
 import React, { useState, useEffect } from 'react';
-import { Copy, ExternalLink } from 'lucide-react';
+import { Copy, ExternalLink, Share2, Search, ArrowDown } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
-import { getShortlink } from '../services/api';
+import { getShortlink, searchTreatments } from '../services/api';
+import { smartShare, isNativeSharingSupported } from '../utils/shareUtils';
 
 interface Message {
   id: string;
   text: string;
   sender: 'user' | 'agent';
   timestamp: Date;
+  imagePreview?: string; // Base64 image preview for uploaded files
+  fileName?: string; // Original file name for uploaded files
 }
 
 interface ChatMessageProps {
   message: Message;
-  onButtonClick?: (option: string, messageId: string) => void;
+  onButtonClick?: (optionText: string, optionValue: string, messageId: string) => void;
   selectedOption?: string;
   disabledOptions?: boolean;
+  onLinkClick?: (url: string) => void;
+  onTreatmentSelect?: (treatmentName: string, messageId: string) => void;
 }
 
-const ChatMessage: React.FC<ChatMessageProps> = ({ message, onButtonClick, selectedOption, disabledOptions }) => {
+const ChatMessage: React.FC<ChatMessageProps> = ({ message, onButtonClick, selectedOption, disabledOptions, onLinkClick, onTreatmentSelect }) => {
   const isUser = message.sender === 'user';
   const [resolvedUrls, setResolvedUrls] = useState<Record<string, string>>({});
   const [loadingUrls, setLoadingUrls] = useState<Set<string>>(new Set());
+  const [showTreatmentSearch, setShowTreatmentSearch] = useState(false);
+  const [treatmentSearchQuery, setTreatmentSearchQuery] = useState('');
+  const [treatmentSearchResults, setTreatmentSearchResults] = useState<any[]>([]);
+  const [isSearchingTreatments, setIsSearchingTreatments] = useState(false);
+  const [selectedTreatment, setSelectedTreatment] = useState<string>('');
+  
+  // Check if this is an OCR result message
+  const isOcrResult = message.text.includes('📋 **Aadhaar Card Details Extracted Successfully!**') || 
+                     message.text.includes('📋 **PAN Card Details Extracted Successfully!**');
+  
+  // Check if this is a treatment name question
+  const isTreatmentNameQuestion = message.text.toLowerCase().includes('what is the name of treatment') || 
+                                 message.text.toLowerCase().includes('treatment name') ||
+                                 message.text.toLowerCase().includes('name of treatment');
   
   // Function to detect if message contains question with options
   const detectQuestionWithOptions = (text: string) => {
@@ -127,14 +146,65 @@ const ChatMessage: React.FC<ChatMessageProps> = ({ message, onButtonClick, selec
   // Function to handle button clicks
   const handleButtonClick = (option: string, index: number) => {
     if (onButtonClick) {
-      // If we have option numbers, send the number; otherwise send the option text
-      if (questionData?.optionNumbers && questionData.optionNumbers[index]) {
-        onButtonClick(questionData.optionNumbers[index], message.id);
-      } else {
-        onButtonClick(option, message.id);
-      }
+      // Determine what value to send to API (number if available, otherwise option text)
+      const optionText = option;
+      const optionValue = questionData?.optionNumbers && questionData.optionNumbers[index] 
+        ? questionData.optionNumbers[index] 
+        : option;
+      
+      // Send both option text (for input field) and option value (for API)
+      onButtonClick(optionText, optionValue, message.id);
     }
   };
+
+  // Function to handle treatment search
+  const handleTreatmentSearch = async (query: string) => {
+    if (!query.trim()) {
+      setTreatmentSearchResults([]);
+      return;
+    }
+
+    setIsSearchingTreatments(true);
+    try {
+      const response = await searchTreatments(query, 10);
+      if (response.data.status === 'success') {
+        setTreatmentSearchResults(response.data.data.treatments);
+      } else {
+        setTreatmentSearchResults([]);
+      }
+    } catch (error) {
+      console.error('Error searching treatments:', error);
+      setTreatmentSearchResults([]);
+    } finally {
+      setIsSearchingTreatments(false);
+    }
+  };
+
+  // Function to handle treatment selection
+  const handleTreatmentSelect = (treatmentName: string, isOther: boolean = false) => {
+    const finalTreatmentName = isOther ? `Other: ${treatmentSearchQuery}` : treatmentName;
+    setSelectedTreatment(finalTreatmentName);
+    setShowTreatmentSearch(false);
+    setTreatmentSearchResults([]);
+    setTreatmentSearchQuery('');
+    
+    if (onTreatmentSelect) {
+      onTreatmentSelect(finalTreatmentName, message.id);
+    }
+  };
+
+  // Debounced search effect
+  useEffect(() => {
+    const timeoutId = setTimeout(() => {
+      if (treatmentSearchQuery.trim()) {
+        handleTreatmentSearch(treatmentSearchQuery);
+      } else {
+        setTreatmentSearchResults([]);
+      }
+    }, 300);
+
+    return () => clearTimeout(timeoutId);
+  }, [treatmentSearchQuery]);
 
   // Extract question and options from message
   const questionData = detectQuestionWithOptions(message.text);
@@ -170,6 +240,21 @@ const ChatMessage: React.FC<ChatMessageProps> = ({ message, onButtonClick, selec
       toast.remove();
     }, 2000);
   };
+
+  const handleNativeShare = async (url: string) => {
+    try {
+      await smartShare({
+        title: 'Shared from Careena',
+        text: `Check out this link: ${url}`,
+        url: url,
+      });
+    } catch (error) {
+      console.error('Error sharing:', error);
+      // Fallback to WhatsApp if native sharing fails
+      const whatsappUrl = `https://wa.me/?text=${encodeURIComponent(url)}`;
+      window.open(whatsappUrl, '_blank');
+    }
+  };
   
   // Function to make links clickable and copyable
   const renderLink = (url: string, index: number = 0) => {
@@ -190,7 +275,11 @@ const ChatMessage: React.FC<ChatMessageProps> = ({ message, onButtonClick, selec
             className="text-blue-600 hover:text-blue-800 underline break-all inline-flex items-center"
             onClick={(e) => {
               e.preventDefault();
-              window.open(targetUrl, '_blank');
+              if (onLinkClick) {
+                onLinkClick(targetUrl);
+              } else {
+                window.open(targetUrl, '_blank');
+              }
             }}
           >
             {isLoading ? (
@@ -217,6 +306,18 @@ const ChatMessage: React.FC<ChatMessageProps> = ({ message, onButtonClick, selec
           >
             <Copy className="h-3 w-3" />
           </button>
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              handleNativeShare(targetUrl);
+            }}
+            className="ml-1 px-1 rounded-md bg-green-100 hover:bg-green-200 text-green-600 inline-flex items-center flex-shrink-0"
+            aria-label="Share"
+            title={isNativeSharingSupported() ? "Share" : "Share to WhatsApp"}
+            disabled={isLoading}
+          >
+            <Share2 className="h-3 w-3" />
+          </button>
         </span>
       </span>
     );
@@ -232,7 +333,11 @@ const ChatMessage: React.FC<ChatMessageProps> = ({ message, onButtonClick, selec
         <button
           onClick={(e) => {
             e.preventDefault();
-            window.open(targetUrl, '_blank');
+            if (onLinkClick) {
+              onLinkClick(targetUrl);
+            } else {
+              window.open(targetUrl, '_blank');
+            }
           }}
           className="w-full px-4 py-2 bg-primary-600 hover:bg-primary-700 text-white font-medium rounded-lg transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-1 disabled:opacity-50 disabled:cursor-not-allowed"
           disabled={isLoading}
@@ -246,6 +351,30 @@ const ChatMessage: React.FC<ChatMessageProps> = ({ message, onButtonClick, selec
             'Click here to open link'
           )}
         </button>
+        <div className="mt-2 flex gap-2">
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              copyToClipboard(targetUrl);
+            }}
+            className="flex-1 px-3 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium rounded-lg transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-1 disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center justify-center"
+            disabled={isLoading}
+          >
+            <Copy className="h-4 w-4 mr-2" />
+            Copy Link
+          </button>
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              handleNativeShare(targetUrl);
+            }}
+            className="flex-1 px-3 py-2 bg-green-600 hover:bg-green-700 text-white font-medium rounded-lg transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-1 disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center justify-center"
+            disabled={isLoading}
+          >
+            <Share2 className="h-4 w-4 mr-2" />
+            Share
+          </button>
+        </div>
       </div>
     );
   };
@@ -378,27 +507,20 @@ const ChatMessage: React.FC<ChatMessageProps> = ({ message, onButtonClick, selec
         </div>
       )}
       
-      <div 
-        className={`
-          ${isUser ? 'max-w-[60%]' : 'max-w-[70%]'} px-1 py-0.5 rounded-lg shadow-sm relative message-bubble
-          ${isUser 
-            ? 'bg-[#cfe9ba] text-gray-800 rounded-br-md' 
-            : 'bg-white text-gray-800 rounded-bl-md border border-gray-100'
-          }
-        `}
-        style={{
-          overflow: 'hidden',
-          borderRadius: '8px',
-          position: 'relative',
-          width: 'fit-content',
-          maxWidth: '500px',
-          padding: '4px',
-          fontWeight: '500',
-          boxShadow: '0 1px 0.5px rgba(0, 0, 0, 0.13)',
-          marginBottom: '10px'
-        }}
-      >
-        <div className="flex flex-col">
+      <div className={`inline-block max-w-[85%] ${isUser ? 'ml-auto' : 'mr-auto'}`}>
+        <div 
+          className={`
+            whatsapp-message 
+            ${isUser 
+              ? 'bg-[#DCF8C6] text-gray-800 rounded-tl-lg rounded-tr-lg rounded-bl-lg' 
+              : isOcrResult
+              ? 'bg-gradient-to-r from-blue-50 to-indigo-50 text-gray-800 rounded-tr-lg rounded-br-lg rounded-bl-lg border-2 border-blue-200 shadow-md'
+              : 'bg-white text-gray-800 rounded-tr-lg rounded-br-lg rounded-bl-lg'
+            } 
+            px-3 py-1.5 shadow-sm relative text-sm leading-tight
+          `}
+        >
+          <div className="flex flex-col">
           <div 
             className={`prose ${isUser ? 'prose-xs text-gray-800' : 'prose-sm text-gray-800'} max-w-none break-words leading-tight`}
             style={{ lineHeight: isUser ? 1.2 : 1.3 }}
@@ -481,6 +603,25 @@ const ChatMessage: React.FC<ChatMessageProps> = ({ message, onButtonClick, selec
             </ReactMarkdown>
           </div>
           
+          {/* Image Preview for uploaded files */}
+          {message.imagePreview && (
+            <div className="mt-2">
+              <div className="relative inline-block">
+                <img
+                  src={message.imagePreview}
+                  alt={message.fileName || 'Uploaded file'}
+                  className="max-w-full max-h-48 rounded-lg border border-gray-200 shadow-sm object-contain"
+                  style={{ maxWidth: '200px' }}
+                />
+                {message.fileName && (
+                  <div className="mt-1 text-xs text-gray-500 truncate">
+                    {message.fileName}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+          
           {/* WhatsApp-style button options */}
           {!isUser && shouldShowButtons && (
             <div className="mt-2 space-y-1.5">
@@ -515,6 +656,92 @@ const ChatMessage: React.FC<ChatMessageProps> = ({ message, onButtonClick, selec
               })}
             </div>
           )}
+
+          {/* Treatment Search Component */}
+          {!isUser && isTreatmentNameQuestion && (
+            <div className="mt-3 space-y-2">
+              {!selectedTreatment ? (
+                <>
+                  <div className="relative">
+                    <div className="flex items-center space-x-2">
+                      <div className="flex-1 relative">
+                        <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                        <input
+                          type="text"
+                          value={treatmentSearchQuery}
+                          onChange={(e) => setTreatmentSearchQuery(e.target.value)}
+                          placeholder="Search for treatment..."
+                          className="w-full pl-10 pr-4 py-2 bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                          onFocus={() => setShowTreatmentSearch(true)}
+                        />
+                      </div>
+                      <button
+                        onClick={() => setShowTreatmentSearch(!showTreatmentSearch)}
+                        className="p-2 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
+                      >
+                        <ArrowDown className={`h-4 w-4 text-gray-600 transition-transform ${showTreatmentSearch ? 'rotate-180' : ''}`} />
+                      </button>
+                    </div>
+                    
+                    {/* Search Results Dropdown */}
+                    {showTreatmentSearch && (treatmentSearchQuery.trim() || isSearchingTreatments) && (
+                      <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-10 max-h-60 overflow-y-auto">
+                        {isSearchingTreatments ? (
+                          <div className="p-3 text-center text-gray-500">
+                            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600 mx-auto mb-2"></div>
+                            Searching treatments...
+                          </div>
+                        ) : treatmentSearchResults.length > 0 ? (
+                          <div className="py-1">
+                            {treatmentSearchResults.map((treatment) => (
+                              <button
+                                key={treatment.id}
+                                onClick={() => handleTreatmentSelect(treatment.name)}
+                                className="w-full text-left px-3 py-2 hover:bg-gray-50 focus:bg-gray-50 focus:outline-none text-sm border-b border-gray-100"
+                              >
+                                <div className="font-medium text-gray-900">{treatment.name}</div>
+                                <div className="text-xs text-gray-500">{treatment.category}</div>
+                              </button>
+                            ))}
+                            {/* Always show "Other" option */}
+                            <button
+                              onClick={() => handleTreatmentSelect(treatmentSearchQuery, true)}
+                              className="w-full text-left px-3 py-2 hover:bg-gray-50 focus:bg-gray-50 focus:outline-none text-sm border-t border-gray-200 bg-gray-50"
+                            >
+                              <div className="font-medium text-gray-900">Other: "{treatmentSearchQuery}"</div>
+                              <div className="text-xs text-gray-500">Custom treatment name</div>
+                            </button>
+                          </div>
+                        ) : treatmentSearchQuery.trim() ? (
+                          <div className="py-1">
+                            <button
+                              onClick={() => handleTreatmentSelect(treatmentSearchQuery, true)}
+                              className="w-full text-left px-3 py-2 hover:bg-gray-50 focus:bg-gray-50 focus:outline-none text-sm border-b border-gray-100"
+                            >
+                              <div className="font-medium text-gray-900">Other: "{treatmentSearchQuery}"</div>
+                              <div className="text-xs text-gray-500">Custom treatment name</div>
+                            </button>
+                          </div>
+                        ) : null}
+                      </div>
+                    )}
+                  </div>
+                  
+                  {/* Manual Entry Option */}
+                  <div className="text-xs text-gray-500 text-center">
+                    Or type the treatment name manually in the chat input below
+                  </div>
+                </>
+              ) : (
+                <div className="bg-green-50 border border-green-200 rounded-lg p-3">
+                  <div>
+                    <div className="font-medium text-green-800">Selected Treatment:</div>
+                    <div className="text-sm text-green-700">{selectedTreatment}</div>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
           
           {/* Message timestamp - WhatsApp style */}
           <div className={`flex items-center justify-end ${isUser ? 'mt-0' : 'mt-0.5'} space-x-1`}>
@@ -528,6 +755,7 @@ const ChatMessage: React.FC<ChatMessageProps> = ({ message, onButtonClick, selec
             )}
           </div>
         </div>
+      </div>
       </div>
       
       {isUser && (

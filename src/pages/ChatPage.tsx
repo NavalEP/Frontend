@@ -1,13 +1,15 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { createSession, sendMessage, getSessionDetails, uploadDocument, uploadPanCard } from '../services/api';
+import { createSession, sendMessage, getSessionDetails, uploadDocument, uploadPanCard, getUserDetailsBySessionId } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import ChatMessage from '../components/ChatMessage';
 import StructuredInputForm from '../components/StructuredInputForm';
+import TypingAnimation from '../components/TypingAnimation';
 
 import PanCardUpload from '../components/PanCardUpload';
 import AadhaarUpload from '../components/AadhaarUpload';
 import Modal from '../components/Modal';
-import { SendHorizonal, Plus, Notebook as Robot, History, ArrowLeft, Search, LogOut, Upload } from 'lucide-react';
+import EditProfileForm from '../components/EditProfileForm';
+import { SendHorizonal, Plus, Notebook as Robot, History, ArrowLeft, Search, LogOut, Upload, User, MapPin, Briefcase, Calendar, Mail, GraduationCap, Heart, Edit3, Phone, Menu } from 'lucide-react';
 
 interface Message {
   id: string;
@@ -42,6 +44,7 @@ const ChatPage: React.FC = () => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputMessage, setInputMessage] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [loadingStartTime, setLoadingStartTime] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [sessionDetails, setSessionDetails] = useState<SessionDetails | null>(null);
   const [showStructuredForm, setShowStructuredForm] = useState(true);
@@ -68,6 +71,7 @@ const ChatPage: React.FC = () => {
   const [isNewSessionModalOpen, setIsNewSessionModalOpen] = useState(false);
   const [selectedOption, setSelectedOption] = useState<string | undefined>(undefined);
   const [disabledOptions, setDisabledOptions] = useState<Record<string, boolean>>({});
+  const [selectedTreatments, setSelectedTreatments] = useState<Record<string, string>>({});
 
   const [isUploading, setIsUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
@@ -78,6 +82,19 @@ const ChatPage: React.FC = () => {
   const [showLinkIframe, setShowLinkIframe] = useState(false);
   const [linkIframeUrl, setLinkIframeUrl] = useState<string>('');
   const fileInputRef = useRef<HTMLInputElement>(null);
+  
+  // Profile Summary State
+  const [showProfileSummary, setShowProfileSummary] = useState(false);
+  const [userDetails, setUserDetails] = useState<any>(null);
+  const [isLoadingProfile, setIsLoadingProfile] = useState(false);
+  const [profileError, setProfileError] = useState<string | null>(null);
+  
+  // Edit Profile State
+  const [showEditProfile, setShowEditProfile] = useState(false);
+  const [showAvatarMenu, setShowAvatarMenu] = useState(false);
+  
+  // Hamburger Menu State
+  const [showHamburgerMenu, setShowHamburgerMenu] = useState(false);
   
   // Helper function to format welcome message from API response
   const formatWelcomeMessage = (content: string): string => {
@@ -90,82 +107,185 @@ const ChatPage: React.FC = () => {
     return content;
   };
   
+  // Helper function to check if user has sent their first message (patient information)
+  const hasUserSentFirstMessage = (messages: Message[]): boolean => {
+    return messages.some(msg => 
+      msg.sender === 'user' && 
+      msg.text.includes('Name:') && 
+      msg.text.includes('Phone Number:') && 
+      msg.text.includes('Treatment Cost:') && 
+      msg.text.includes('Monthly Income:')
+    );
+  };
+  
   // Scroll to bottom when messages change
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
   
-  // Initialize chat session - restore existing or start new
+  // Function to restore existing session
+  const restoreExistingSession = async () => {
+    // Check if there's an existing session for this doctor
+    const existingSessionData = localStorage.getItem(`session_id_doctor_${doctorId}`);
+    const currentSessionId = localStorage.getItem('current_session_id');
+    
+    console.log('Existing session data:', existingSessionData);
+    console.log('Current session ID:', currentSessionId);
+    
+    // Prioritize existing session data, fallback to current session ID
+    let sessionIdToRestore = null;
+    let sessionData = null;
+    
+    if (existingSessionData) {
+      try {
+        sessionData = JSON.parse(existingSessionData);
+        sessionIdToRestore = sessionData.id;
+        console.log('Using existing session data, session ID:', sessionIdToRestore);
+      } catch (error) {
+        console.error('Error parsing existing session data:', error);
+      }
+    } else if (currentSessionId) {
+      // Fallback to current session ID if no doctor-specific session data
+      sessionIdToRestore = currentSessionId;
+      console.log('Using current session ID as fallback:', sessionIdToRestore);
+    }
+    
+    // Also check chat history for the most recent session if no session data found
+    if (!sessionIdToRestore && doctorId) {
+      const savedHistory = localStorage.getItem(`chat_history_doctor_${doctorId}`);
+      if (savedHistory) {
+        try {
+          const parsedHistory = JSON.parse(savedHistory);
+          if (parsedHistory.length > 0) {
+            const mostRecentSession = parsedHistory[0];
+            sessionIdToRestore = mostRecentSession.id;
+            console.log('Using most recent session from history:', sessionIdToRestore);
+          }
+        } catch (error) {
+          console.error('Error parsing chat history:', error);
+        }
+      }
+    }
+    
+    if (sessionIdToRestore) {
+      try {
+        // Check if session is still valid (not expired)
+        const isSessionValid = !sessionData?.expiresAt || new Date(sessionData.expiresAt) > new Date();
+        console.log('Session valid:', isSessionValid);
+        
+        if (isSessionValid) {
+          console.log('Restoring existing session:', sessionIdToRestore);
+          setSessionId(sessionIdToRestore);
+          
+          // Update localStorage to ensure consistency
+          if (doctorId) {
+            const sessionDataToSave = {
+              id: sessionIdToRestore,
+              expiresAt: sessionData?.expiresAt || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString() // 30 days
+            };
+            localStorage.setItem(`session_id_doctor_${doctorId}`, JSON.stringify(sessionDataToSave));
+          }
+          localStorage.setItem('current_session_id', sessionIdToRestore);
+          
+          // Load session details and chat history
+          const response = await getSessionDetails(sessionIdToRestore);
+          if (response.data) {
+            console.log('Session details loaded:', response.data);
+            setSessionDetails({
+              phoneNumber: response.data.phoneNumber,
+              status: response.data.status,
+              history: response.data.history,
+              created_at: response.data.created_at,
+              updated_at: response.data.updated_at,
+              userId: response.data.userId
+            });
+            
+            // Convert history to messages
+            if (response.data.history && response.data.history.length > 0) {
+              console.log('Loading chat history, messages count:', response.data.history.length);
+              const historyMessages: Message[] = response.data.history.map((item, index) => {
+                if (index === 0 && item.type === 'AIMessage') {
+                  return {
+                    id: `history-${index}`,
+                    text: formatWelcomeMessage(item.content),
+                    sender: 'agent',
+                    timestamp: new Date(response.data.created_at),
+                  };
+                }
+                
+                return {
+                  id: `history-${index}`,
+                  text: item.content,
+                  sender: item.type === 'HumanMessage' ? 'user' : 'agent',
+                  timestamp: new Date(response.data.created_at),
+                };
+              });
+              
+              setMessages(historyMessages);
+              
+              // Check if user has sent their first message (patient information)
+              const hasFirstMessage = hasUserSentFirstMessage(historyMessages);
+              console.log('User has sent first message:', hasFirstMessage);
+              
+              if (hasFirstMessage) {
+                // User has already sent their first message, show chat history
+                console.log('Showing chat history - user has sent first message');
+                setShowStructuredForm(false);
+                setPatientInfoSubmitted(true);
+              } else {
+                // User hasn't sent their first message yet, show structured form
+                console.log('Showing structured form - user has not sent first message');
+                setShowStructuredForm(true);
+                setPatientInfoSubmitted(false);
+              }
+            } else {
+              // No history but session exists - show structured form for new conversation
+              console.log('No history found, showing structured form for new conversation');
+              setMessages([]);
+              setShowStructuredForm(true);
+              setPatientInfoSubmitted(false);
+            }
+          } else {
+            // Session not found on server, start new session
+            console.log('Session not found on server, starting new session');
+            await startNewSession();
+          }
+        } else {
+          // Session expired, start new session
+          console.log('Session expired, starting new session');
+          await startNewSession();
+        }
+      } catch (error) {
+        console.error('Error restoring session:', error);
+        // If restoration fails, start new session
+        await startNewSession();
+      }
+    } else {
+      // No existing session, start new session
+      console.log('No existing session, starting new session');
+      await startNewSession();
+    }
+  };
+
+  // Initialize chat session - start new session on first login, restore on subsequent visits
   useEffect(() => {
     const initializeSession = async () => {
       if (!doctorId) return;
       
-      // Check if there's an existing session for this doctor
-      const existingSessionData = localStorage.getItem(`session_id_doctor_${doctorId}`);
-      const currentSessionId = localStorage.getItem('current_session_id');
+      console.log('Initializing session for doctor:', doctorId);
       
-      if (existingSessionData && currentSessionId) {
-        try {
-          // Try to restore existing session
-          const sessionData = JSON.parse(existingSessionData);
-          const sessionId = sessionData.id;
-          
-          // Check if session is still valid (not expired)
-          if (sessionData.expiresAt && new Date(sessionData.expiresAt) > new Date()) {
-            console.log('Restoring existing session:', sessionId);
-            setSessionId(sessionId);
-            
-            // Load session details and chat history
-            const response = await getSessionDetails(sessionId);
-            if (response.data) {
-              setSessionDetails({
-                phoneNumber: response.data.phoneNumber,
-                status: response.data.status,
-                history: response.data.history,
-                created_at: response.data.created_at,
-                updated_at: response.data.updated_at,
-                userId: response.data.userId
-              });
-              
-              // Convert history to messages
-              if (response.data.history && response.data.history.length > 0) {
-                const historyMessages: Message[] = response.data.history.map((item, index) => {
-                  if (index === 0 && item.type === 'AIMessage') {
-                    return {
-                      id: `history-${index}`,
-                      text: formatWelcomeMessage(item.content),
-                      sender: 'agent',
-                      timestamp: new Date(response.data.created_at),
-                    };
-                  }
-                  
-                  return {
-                    id: `history-${index}`,
-                    text: item.content,
-                    sender: item.type === 'HumanMessage' ? 'user' : 'agent',
-                    timestamp: new Date(response.data.created_at),
-                  };
-                });
-                
-                setMessages(historyMessages);
-                setShowStructuredForm(false); // Don't show structured form for existing sessions
-                setPatientInfoSubmitted(true); // Mark as submitted since we have history
-              }
-            }
-          } else {
-            // Session expired, start new session
-            console.log('Session expired, starting new session');
-            await startNewSession();
-          }
-        } catch (error) {
-          console.error('Error restoring session:', error);
-          // If restoration fails, start new session
-          await startNewSession();
-        }
-      } else {
-        // No existing session, start new session
-        console.log('No existing session, starting new session');
+      // Check if this is a fresh login
+      const isFreshLogin = localStorage.getItem('is_fresh_login') === 'true';
+      
+      if (isFreshLogin) {
+        // Always start a new session when user first enters chat page after login
+        console.log('Starting new session for fresh login');
+        localStorage.removeItem('is_fresh_login'); // Clear the flag
         await startNewSession();
+      } else {
+        // For subsequent visits, try to restore existing session
+        console.log('Attempting to restore existing session');
+        await restoreExistingSession();
       }
     };
     
@@ -184,7 +304,9 @@ const ChatPage: React.FC = () => {
     if (doctorId) {
       const savedHistory = localStorage.getItem(`chat_history_doctor_${doctorId}`);
       if (savedHistory) {
-        setChatHistory(JSON.parse(savedHistory));
+        const parsedHistory = JSON.parse(savedHistory);
+        setChatHistory(parsedHistory);
+        console.log('Loaded chat history:', parsedHistory);
       }
     }
   }, [doctorId]);
@@ -203,8 +325,23 @@ const ChatPage: React.FC = () => {
     try {
       setIsLoading(true);
       setError(null);
+      
+
+      
       setSessionId(sessionId);
       setShowHistory(false);
+      setSelectedTreatments({}); // Clear selected treatments when loading a session
+      setDisabledOptions({}); // Clear disabled options when loading a session
+      
+      // Update localStorage to reflect the loaded session
+      if (doctorId) {
+        const sessionData = {
+          id: sessionId,
+          expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString() // 30 days
+        };
+        localStorage.setItem(`session_id_doctor_${doctorId}`, JSON.stringify(sessionData));
+      }
+      localStorage.setItem('current_session_id', sessionId);
       
       // Clear current messages while loading
       setMessages([{
@@ -264,8 +401,16 @@ const ChatPage: React.FC = () => {
             }
           }
           
-          // Always set showStructuredForm to false when loading a previous chat
-          setShowStructuredForm(false);
+          // Check if user has sent their first message (patient information)
+          if (hasUserSentFirstMessage(historyMessages)) {
+            // User has already sent their first message, show chat history
+            setShowStructuredForm(false);
+            setPatientInfoSubmitted(true);
+          } else {
+            // User hasn't sent their first message yet, show structured form
+            setShowStructuredForm(true);
+            setPatientInfoSubmitted(false);
+          }
         } else {
           // If no history found, don't show any message - let API provide the first message
           setMessages([]);
@@ -368,18 +513,15 @@ const ChatPage: React.FC = () => {
           // Replace any loading messages and show the actual conversation history
           setMessages(historyMessages);
           
-          // Check if patient information has already been submitted
-          const hasPatientInfo = historyMessages.some(msg => 
-            msg.sender === 'user' && 
-            msg.text.includes('name:') && 
-            msg.text.includes('phone number:') && 
-            msg.text.includes('treatment cost:') && 
-            msg.text.includes('monthly income:')
-          );
-          
-          if (hasPatientInfo) {
+          // Check if user has sent their first message (patient information)
+          if (hasUserSentFirstMessage(historyMessages)) {
+            // User has already sent their first message, show chat history
             setShowStructuredForm(false);
             setPatientInfoSubmitted(true);
+          } else {
+            // User hasn't sent their first message yet, show structured form
+            setShowStructuredForm(true);
+            setPatientInfoSubmitted(false);
           }
         } else if (messages.length === 1 && messages[0].id.startsWith('loading-session')) {
           // If there's no history but we were showing a loading message, clear messages
@@ -413,16 +555,20 @@ const ChatPage: React.FC = () => {
   
   // Check if we should show structured form based on conversation state
   const shouldShowStructuredForm = () => {
-    return showStructuredForm && (
-      messages.length === 1 && messages[0].sender === 'agent' || 
-      !messages.some(msg => 
-        msg.sender === 'user' && 
-        msg.text.includes('name:') && 
-        msg.text.includes('phone number:') && 
-        msg.text.includes('treatment cost:') && 
-        msg.text.includes('monthly income:')
-      )
-    );
+    // If showStructuredForm is false, don't show it
+    if (!showStructuredForm) return false;
+    
+    // If patient info is already submitted, don't show structured form
+    if (patientInfoSubmitted) return false;
+    
+    // If no messages, show structured form
+    if (messages.length === 0) return true;
+    
+    // If only one message and it's from agent (welcome message), show structured form
+    if (messages.length === 1 && messages[0].sender === 'agent') return true;
+    
+    // If user hasn't sent first message, show structured form
+    return !hasUserSentFirstMessage(messages);
   };
 
   const handleStructuredFormSubmit = (formattedMessage: string) => {
@@ -446,6 +592,7 @@ const ChatPage: React.FC = () => {
     setMessages(prevMessages => [...prevMessages, userMessage]);
     setInputMessage('');
     setIsLoading(true);
+    setLoadingStartTime(Date.now());
     setError(null);
     setSelectedOption(undefined); // Clear selected option when sending a new message
     
@@ -507,6 +654,7 @@ const ChatPage: React.FC = () => {
       setError(errorMessage);
     } finally {
       setIsLoading(false);
+      setLoadingStartTime(null);
     }
   };
 
@@ -533,6 +681,10 @@ const ChatPage: React.FC = () => {
       return newDisabledOptions;
     });
     
+    // Start loading animation
+    setIsLoading(true);
+    setLoadingStartTime(Date.now());
+    
     // Send the option text (like "Yes" or "No") to the API as the user's message
     await handleMessageSubmit(optionText);
   };
@@ -541,8 +693,18 @@ const ChatPage: React.FC = () => {
   const handleTreatmentSelect = async (treatmentName: string, messageId: string) => {
     console.log('Treatment selected:', treatmentName, 'for message:', messageId);
     
+    // Store the selected treatment for this message
+    setSelectedTreatments(prev => ({
+      ...prev,
+      [messageId]: treatmentName
+    }));
+    
     // Set the input message to the selected treatment name
     setInputMessage(treatmentName);
+    
+    // Start loading animation
+    setIsLoading(true);
+    setLoadingStartTime(Date.now());
     
     // Send the treatment name to the API as the user's message
     await handleMessageSubmit(treatmentName);
@@ -550,18 +712,32 @@ const ChatPage: React.FC = () => {
 
   const startNewSession = async () => {
     setIsLoading(true);
+    setLoadingStartTime(Date.now());
     setError(null);
     setSessionDetails(null);
     setShowStructuredForm(true); // Reset to show structured form for new session
     setPatientInfoSubmitted(false);
     setSelectedOption(undefined); // Clear selected option for new session
     setDisabledOptions({}); // Clear disabled options for new session
+    setSelectedTreatments({}); // Clear selected treatments for new session
     
-    // Clear existing session from localStorage when starting new session
+    // Clear all existing session data to ensure fresh start
     localStorage.removeItem('current_session_id');
     
     if (doctorId) {
       localStorage.removeItem(`session_id_doctor_${doctorId}`);
+      // Clear all disabled options and selected treatments for this doctor
+      Object.keys(localStorage).forEach(key => {
+        if (key.startsWith(`disabled_options_doctor_${doctorId}_`) || 
+            key.startsWith(`selected_treatments_doctor_${doctorId}_`)) {
+          localStorage.removeItem(key);
+        }
+      });
+    }
+    
+    // Clear any phone number based session data
+    if (sessionDetails?.phoneNumber) {
+      localStorage.removeItem(`session_id_${sessionDetails.phoneNumber}`);
     }
     
     try {
@@ -601,6 +777,7 @@ const ChatPage: React.FC = () => {
       setError(errorMessage);
     } finally {
       setIsLoading(false);
+      setLoadingStartTime(null);
     }
   };
 
@@ -609,6 +786,11 @@ const ChatPage: React.FC = () => {
     localStorage.removeItem('current_session_id');
     if (doctorId) {
       localStorage.removeItem(`session_id_doctor_${doctorId}`);
+      // Clear disabled options and selected treatments for the current session
+      if (sessionId) {
+        localStorage.removeItem(`disabled_options_doctor_${doctorId}_session_${sessionId}`);
+        localStorage.removeItem(`selected_treatments_doctor_${doctorId}_session_${sessionId}`);
+      }
     }
     setSessionId(null);
     setSessionDetails(null);
@@ -617,6 +799,7 @@ const ChatPage: React.FC = () => {
     setPatientInfoSubmitted(false);
     setSelectedOption(undefined);
     setDisabledOptions({});
+    setSelectedTreatments({});
   };
 
   // Filter chat history based on search query
@@ -659,6 +842,24 @@ const ChatPage: React.FC = () => {
       document.removeEventListener('keydown', handleEscapeKey);
     };
   }, [showIframePopup]);
+
+  // Handle click outside to close avatar menu
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as Element;
+      if (showAvatarMenu && !target.closest('.avatar-menu-container')) {
+        setShowAvatarMenu(false);
+      }
+    };
+
+    if (showAvatarMenu) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [showAvatarMenu]);
 
   const handleLogoutClick = () => {
     setIsLogoutModalOpen(true);
@@ -708,6 +909,8 @@ const ChatPage: React.FC = () => {
     }
 
     setIsUploading(true);
+    setIsLoading(true);
+    setLoadingStartTime(Date.now());
     setUploadError(null);
     setUploadSuccess(null); // Clear previous success message
     const uploadMessageId = `upload-${Date.now()}`;
@@ -810,6 +1013,8 @@ const ChatPage: React.FC = () => {
       setUploadError(errorMessage);
     } finally {
       setIsUploading(false);
+      setIsLoading(false);
+      setLoadingStartTime(null);
     }
   };
 
@@ -821,6 +1026,8 @@ const ChatPage: React.FC = () => {
     }
 
     setIsUploading(true);
+    setIsLoading(true);
+    setLoadingStartTime(Date.now());
     setUploadError(null);
     setUploadSuccess(null); // Clear previous success message
     const uploadMessageId = `upload-${Date.now()}`;
@@ -912,6 +1119,8 @@ const ChatPage: React.FC = () => {
       setUploadError(errorMessage);
     } finally {
       setIsUploading(false);
+      setIsLoading(false);
+      setLoadingStartTime(null);
     }
   };
 
@@ -942,94 +1151,202 @@ const ChatPage: React.FC = () => {
     setLinkIframeUrl('');
   };
 
+  // Handle profile summary button click
+  const handleProfileSummaryClick = async () => {
+    if (!sessionId) {
+      setProfileError('No active session found.');
+      return;
+    }
+
+    setShowProfileSummary(true);
+    setIsLoadingProfile(true);
+    setProfileError(null);
+    setUserDetails(null);
+
+    try {
+      const response = await getUserDetailsBySessionId(sessionId);
+      if (response.data.status === 'success') {
+        setUserDetails(response.data);
+      } else {
+        throw new Error('Failed to fetch user details');
+      }
+    } catch (error) {
+      console.error('Error fetching user details:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Failed to fetch user details. Please try again.';
+      setProfileError(errorMessage);
+    } finally {
+      setIsLoadingProfile(false);
+    }
+  };
+
+  // Handle closing profile summary
+  const handleCloseProfileSummary = () => {
+    setShowProfileSummary(false);
+    setUserDetails(null);
+    setProfileError(null);
+  };
+
+  // Handle opening edit profile form
+  const handleOpenEditProfile = () => {
+    setShowEditProfile(true);
+  };
+
+  // Handle closing edit profile form
+  const handleCloseEditProfile = () => {
+    setShowEditProfile(false);
+  };
+
+  // Handle successful save in edit profile
+  const handleEditProfileSaveSuccess = () => {
+    // Refresh user details after successful save
+    if (sessionId) {
+      handleProfileSummaryClick();
+    }
+  };
+
+  // Helper function to check if edit profile should be disabled
+  const isEditProfileDisabled = (): boolean => {
+    return sessionDetails?.status === 'additional_details_completed';
+  };
+
+  // Load disabled options and selected treatments from localStorage on component mount
+  useEffect(() => {
+    if (doctorId && sessionId) {
+      const savedDisabledOptions = localStorage.getItem(`disabled_options_doctor_${doctorId}_session_${sessionId}`);
+      const savedSelectedTreatments = localStorage.getItem(`selected_treatments_doctor_${doctorId}_session_${sessionId}`);
+      
+      if (savedDisabledOptions) {
+        try {
+          setDisabledOptions(JSON.parse(savedDisabledOptions));
+        } catch (error) {
+          console.error('Error parsing saved disabled options:', error);
+        }
+      }
+      
+      if (savedSelectedTreatments) {
+        try {
+          setSelectedTreatments(JSON.parse(savedSelectedTreatments));
+        } catch (error) {
+          console.error('Error parsing saved selected treatments:', error);
+        }
+      }
+    }
+  }, [doctorId, sessionId]);
+
+  // Save disabled options and selected treatments to localStorage whenever they change
+  useEffect(() => {
+    if (doctorId && sessionId) {
+      localStorage.setItem(`disabled_options_doctor_${doctorId}_session_${sessionId}`, JSON.stringify(disabledOptions));
+    }
+  }, [disabledOptions, doctorId, sessionId]);
+
+  useEffect(() => {
+    if (doctorId && sessionId) {
+      localStorage.setItem(`selected_treatments_doctor_${doctorId}_session_${sessionId}`, JSON.stringify(selectedTreatments));
+    }
+  }, [selectedTreatments, doctorId, sessionId]);
+
     return (
     <div className="whatsapp-chat-container bg-[#E5DDD5]">
-      {/* Company Logo and Doctor Info Bar */}
-      <div className="bg-white shadow-sm border-b border-gray-200 flex items-center justify-between px-4 py-2 flex-shrink-0" style={{ height: '3rem' }}>
-        <div className="flex items-center flex-shrink-0">
-          <img 
-            src="/images/Careena-Logo-cropped.png" 
-            alt="Careena" 
-            className="h-8 max-h-8 w-auto object-contain"
-          />
-        </div>
-        
-        <div className="flex items-center space-x-2 min-w-0 flex-1 justify-end">
-          {doctorName && (
-            <span className="text-sm text-gray-700 font-medium truncate max-w-[120px] sm:max-w-[150px] md:max-w-[200px] lg:max-w-[250px]">
-              Dr. {doctorName.replace('_', ' ')}
-            </span>
-          )}
-          <div className="text-sm text-gray-700 bg-gray-100 px-2 py-1 rounded-full flex-shrink-0">
-            {sessionCount}/10
-          </div>
-          <button 
-            onClick={handleLogoutClick}
-            className="inline-flex items-center text-sm font-medium text-gray-700 hover:text-red-600 transition-colors p-1 rounded-full hover:bg-gray-100 flex-shrink-0"
-          >
-            <LogOut className="h-4 w-4" />
-          </button>
-        </div>
-      </div>
 
       {/* WhatsApp-style Header - Mobile Responsive */}
-      <div className="whatsapp-header bg-primary-600 text-white flex items-center justify-between px-4 py-2 sm:py-3 chat-header min-h-[3.5rem] sm:min-h-[4.5rem]">
+      <div className="whatsapp-header bg-white text-gray-800 flex items-center justify-between px-4 py-2 sm:py-3 chat-header min-h-[3.5rem] sm:min-h-[4.5rem]">
         <div className="flex items-center space-x-2 sm:space-x-3 min-w-0 flex-1">
           <div className="flex items-center space-x-2 sm:space-x-3 min-w-0 flex-1">
-            <div className="relative flex-shrink-0">
-              <img
-                src="/images/careeena-avatar.jpg"
-                alt="Careena"
-                className="h-8 w-8 sm:h-10 sm:w-10 rounded-full object-cover shadow-md"
-              />
-              <div className="absolute -bottom-1 -right-1 h-3 w-3 sm:h-4 sm:w-4 bg-green-500 border-2 border-white rounded-full online-status"></div>
+            <div className="relative flex-shrink-0 avatar-menu-container">
+              <button
+                onClick={() => setShowAvatarMenu(!showAvatarMenu)}
+                className="focus:outline-none"
+              >
+                <span className="relative inline-block">
+                  <img
+                    src="/images/careeena-avatar.jpg"
+                    alt="Careena"
+                    className="h-8 w-8 sm:h-10 sm:w-10 rounded-full object-cover shadow-md hover:shadow-lg transition-shadow"
+                  />
+                  {/* Online status dot, overlaid on the image */}
+                  <span className="absolute bottom-0 right-0 translate-x-1/4 translate-y-1/4 h-3 w-3 sm:h-4 sm:w-4 bg-green-500 border-2 border-white rounded-full online-status"></span>
+                </span>
+                
+              </button>
+              
+              {/* Avatar Menu Dropdown */}
+              {showAvatarMenu && (
+                <div className="absolute top-full left-0 mt-2 w-64 bg-white rounded-lg shadow-lg border border-gray-200 z-50">
+                  <div className="p-4">
+                    {/* Your Doctor */}
+                    {doctorName && (
+                      <div className="flex items-center space-x-2 mb-3 pb-3 border-b border-gray-100">
+                        <User className="h-4 w-4 text-gray-500" />
+                        <span className="text-sm font-medium text-gray-700">
+                          Your doctor: {doctorName.replace('_', ' ')}
+                        </span>
+                      </div>
+                    )}
+                    
+                    {/* Session Count */}
+                    <div className="flex items-center justify-between mb-3 pb-3 border-b border-gray-100">
+                      <span className="text-sm text-gray-600">Session Count</span>
+                      <div className="text-sm text-gray-700 bg-gray-100 px-2 py-1 rounded-full">
+                        {sessionCount}/10
+                      </div>
+                    </div>
+                    
+                    {/* Menu Items */}
+                    <div className="space-y-2">
+                      <button
+                        onClick={() => {
+                          setShowHistory(true);
+                          setShowAvatarMenu(false);
+                        }}
+                        className="w-full flex items-center space-x-2 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 rounded-md transition-colors"
+                      >
+                        <History className="h-4 w-4" />
+                        <span>Chat History</span>
+                      </button>
+                      
+
+                      
+                      <button
+                        onClick={() => {
+                          handleLogoutClick();
+                          setShowAvatarMenu(false);
+                        }}
+                        className="w-full flex items-center space-x-2 px-3 py-2 text-sm text-red-600 hover:bg-red-50 rounded-md transition-colors"
+                      >
+                        <LogOut className="h-4 w-4" />
+                        <span>Logout</span>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
             <div className="min-w-0 flex-1">
-              <h2 className="font-semibold text-base sm:text-lg truncate">Medical Loan Assistant</h2>
-              <p className="text-xs text-white opacity-80 hidden sm:block">Online • Ready to help</p>
+              <div className="flex items-center space-x-2">
+                <img 
+                  src="/images/Careena-Logo-cropped.png" 
+                  alt="Careena" 
+                  className="h-10 sm:h-12 w-auto object-contain"
+                />
+              </div>
+              
             </div>
           </div>
         </div>
         <div className="flex items-center space-x-1 sm:space-x-2 flex-shrink-0">
           <button
-            onClick={() => setShowHistory(!showHistory)}
-            className="p-1.5 sm:p-2 hover:bg-primary-700 rounded-full transition-colors chat-button"
-            title="Chat History"
-          >
-            <History className="h-4 w-4 sm:h-5 sm:w-5" />
-          </button>
-          <button
             onClick={handleNewSessionClick}
-            className="flex items-center space-x-1 p-1.5 sm:p-2 hover:bg-primary-700 rounded-full transition-colors chat-button"
+            className="flex items-center space-x-1 p-1.5 sm:p-2 hover:bg-gray-100 rounded-full transition-colors chat-button"
             title="New Inquiry"
           >
             <Plus className="h-4 w-4 sm:h-5 sm:w-5" />
-            <span className="text-xs sm:hidden">New Inquiry</span>
+            <span className="text-xs">New Inquiry</span>
           </button>
         </div>
       </div>
 
-      {/* Doctor Info Bar below Medical Loan Assistant */}
-      <div className="flex items-center justify-between px-4 py-2 bg-white border-b border-gray-200">
-        <div className="flex items-center space-x-2">
-          {doctorName && (
-            <span className="text-xs text-gray-700 font-medium truncate max-w-[120px] sm:max-w-[150px] md:max-w-[200px] lg:max-w-[250px]">
-              Dr. {doctorName.replace('_', ' ')}
-            </span>
-          )}
-        </div>
-        <div className="flex items-center space-x-2">
-          <div className="text-xs text-gray-700 bg-gray-100 px-2 py-1 rounded-full flex-shrink-0">
-            {sessionCount}/10
-          </div>
-          <button 
-            onClick={handleLogoutClick}
-            className="inline-flex items-center text-xs font-medium text-gray-700 hover:text-red-600 transition-colors p-1 rounded-full hover:bg-gray-100 flex-shrink-0"
-          >
-            <LogOut className="h-4 w-4" />
-          </button>
-        </div>
-      </div>
+
 
       {/* Main content area */}
       <div className="flex flex-1 overflow-hidden relative">
@@ -1101,14 +1418,122 @@ const ChatPage: React.FC = () => {
           </div>
         )}
 
+        {/* Hamburger Menu Overlay */}
+        {showHamburgerMenu && (
+          <div className="absolute inset-0 z-20 bg-white">
+            <div className="flex flex-col h-full">
+              {/* Menu Header */}
+              <div className="bg-primary-600 text-white px-4 py-3 flex items-center space-x-3">
+                <button
+                  onClick={() => setShowHamburgerMenu(false)}
+                  className="p-1 hover:bg-primary-700 rounded-full transition-colors"
+                >
+                  <ArrowLeft className="h-5 w-5" />
+                </button>
+                <h3 className="font-semibold">Menu</h3>
+              </div>
+              
+              {/* Menu Items */}
+              <div className="flex-1 overflow-y-auto p-4">
+                <div className="space-y-2">
+                  {/* Chat History */}
+                  <button
+                    onClick={() => {
+                      setShowHamburgerMenu(false);
+                      setShowHistory(true);
+                    }}
+                    className="w-full flex items-center space-x-3 px-4 py-3 text-left hover:bg-gray-50 rounded-lg transition-colors"
+                  >
+                    <History className="h-5 w-5 text-gray-600" />
+                    <div>
+                      <div className="font-medium text-gray-900">Chat History</div>
+                      <div className="text-sm text-gray-500">View previous conversations</div>
+                    </div>
+                  </button>
+                  
+                  {/* New Chat */}
+                  <button
+                    onClick={() => {
+                      setShowHamburgerMenu(false);
+                      handleNewSessionClick();
+                    }}
+                    className="w-full flex items-center space-x-3 px-4 py-3 text-left hover:bg-gray-50 rounded-lg transition-colors"
+                  >
+                    <Plus className="h-5 w-5 text-gray-600" />
+                    <div>
+                      <div className="font-medium text-gray-900">New Chat</div>
+                      <div className="text-sm text-gray-500">Start a new conversation</div>
+                    </div>
+                  </button>
+                  
+                  {/* Session Info */}
+                  <div className="px-4 py-3 bg-gray-50 rounded-lg">
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm text-gray-600">Session Count</span>
+                        <span className="text-sm font-medium text-gray-900">{sessionCount}/10</span>
+                      </div>
+                      {doctorName && (
+                        <div className="flex items-center justify-between">
+                          <span className="text-sm text-gray-600">Doctor</span>
+                          <span className="text-sm font-medium text-gray-900">{doctorName.replace('_', ' ')}</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                  
+                  {/* Logout */}
+                  <button
+                    onClick={() => {
+                      setShowHamburgerMenu(false);
+                      handleLogoutClick();
+                    }}
+                    className="w-full flex items-center space-x-3 px-4 py-3 text-left hover:bg-red-50 rounded-lg transition-colors text-red-600"
+                  >
+                    <LogOut className="h-5 w-5" />
+                    <div>
+                      <div className="font-medium">Logout</div>
+                      <div className="text-sm text-red-500">Sign out of your account</div>
+                    </div>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Chat content area - Fixed layout */}
         <div className="flex-1 flex flex-col min-h-0">
           {/* Session status bar - Fixed */}
           {sessionDetails && sessionDetails.phoneNumber && (
-            <div className="px-4 py-2 bg-gray-100 border-b border-gray-200 text-xs text-gray-600 flex-shrink-0">
-              {sessionDetails.status && (
-                <span>Status: {sessionDetails.status}</span>
-              )}
+            <div className="px-4 py-2 bg-gray-100 border-b border-gray-200 text-xs text-gray-600 flex-shrink-0 flex items-center justify-between">
+              <div className="flex items-center space-x-3">
+                <button
+                  onClick={() => setShowHamburgerMenu(true)}
+                  className="p-1 hover:bg-gray-200 rounded-md transition-colors"
+                  title="Menu"
+                >
+                  <Menu className="h-5 w-5 text-gray-600" />
+                </button>
+                <div>
+                  {sessionDetails.status && (
+                    <span>Status: {
+                      sessionDetails.status === 'active' ? 'Loan Application Start' :
+                      sessionDetails.status === 'collecting_additional_details' ? 'Collection Step' :
+                      sessionDetails.status === 'additional_details_completed' ? 'Loan Application Complete' :
+                      sessionDetails.status
+                    }</span>
+                  )}
+                </div>
+              </div>
+              <button
+                onClick={handleProfileSummaryClick}
+                className="inline-flex items-center text-xs font-medium text-gray-700 hover:text-blue-600 transition-colors p-1 rounded-full hover:bg-gray-200 flex-shrink-0"
+                title="Profile Summary"
+              >
+                <User className="h-4 w-4" />
+                <span className="ml-1"> Your Profile Summary</span>
+              </button>
             </div>
           )}
           
@@ -1149,28 +1574,14 @@ const ChatPage: React.FC = () => {
                   disabledOptions={disabledOptions[message.id] || false}
                   onLinkClick={handleLinkClick}
                   onTreatmentSelect={handleTreatmentSelect}
+                  selectedTreatment={selectedTreatments[message.id]}
                 />
               ))}
               {isLoading && messages.some(m => m.sender === 'user') && (
-                <div className="flex items-start space-x-2">
-                  <div className="flex-shrink-0">
-                    <img
-                      src="/images/careeena-avatar.jpg"
-                      alt="Careena"
-                      className="h-6 w-6 rounded-full object-cover"
-                    />
-                  </div>
-                  <div className="bg-white rounded-lg px-3 py-1.5 shadow-sm max-w-xs">
-                    <div className="flex items-center space-x-1">
-                      <span className="text-gray-500 text-xs">Careena is typing</span>
-                      <div className="flex space-x-1">
-                        <div className="w-1.5 h-1.5 bg-gray-400 rounded-full typing-dot"></div>
-                        <div className="w-1.5 h-1.5 bg-gray-400 rounded-full typing-dot"></div>
-                        <div className="w-1.5 h-1.5 bg-gray-400 rounded-full typing-dot"></div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
+                <TypingAnimation 
+                  isLoading={isLoading} 
+                  startTime={loadingStartTime} 
+                />
               )}
               <div ref={messagesEndRef} />
             </div>
@@ -1432,6 +1843,9 @@ const ChatPage: React.FC = () => {
             src={`https://carepay.money/patient/razorpayoffer/${localStorage.getItem('userId')}`}
             title="Razorpay Offer"
             className="w-full h-full iframe-scrollbar"
+            allow="camera; microphone; geolocation; payment; clipboard-write; web-share; fullscreen"
+            allowFullScreen
+            sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-modals allow-top-navigation allow-top-navigation-by-user-activation allow-downloads allow-storage-access-by-user-activation"
             style={{ 
               overflow: 'auto',
               border: 'none',
@@ -1479,6 +1893,262 @@ const ChatPage: React.FC = () => {
       >
         You have an active conversation. Starting a new chat will save the current conversation to history. Are you sure you want to continue?
       </Modal>
+
+      {/* Profile Summary Overlay */}
+      {showProfileSummary && (
+        <div className="absolute inset-0 z-20 bg-white" style={{ top: '3.5rem' }}>
+          <div className="flex flex-col h-full">
+            {/* Profile Header */}
+            <div className="bg-primary-600 text-white px-4 py-3 flex items-center justify-between">
+              <div className="flex items-center space-x-3">
+                <button
+                  onClick={handleCloseProfileSummary}
+                  className="p-1 hover:bg-primary-700 rounded-full transition-colors"
+                >
+                  <ArrowLeft className="h-5 w-5" />
+                </button>
+                <h3 className="font-semibold">Profile Summary</h3>
+              </div>
+              {userDetails && (
+                <button
+                  onClick={handleOpenEditProfile}
+                  disabled={isEditProfileDisabled()}
+                  className={`flex items-center space-x-2 px-3 py-1.5 rounded-md transition-colors ${
+                    isEditProfileDisabled()
+                      ? 'bg-gray-400 bg-opacity-20 cursor-not-allowed opacity-50'
+                      : 'bg-white bg-opacity-20 hover:bg-opacity-30'
+                  }`}
+                  title={isEditProfileDisabled() ? 'Edit Profile is disabled when loan application is complete' : 'Edit Profile'}
+                >
+                  <Edit3 className="h-4 w-4" />
+                  <span className="text-sm">Edit Profile</span>
+                </button>
+              )}
+            </div>
+            
+            {/* Profile Content */}
+            <div className="flex-1 overflow-y-auto p-4 bg-gray-50">
+              {isLoadingProfile ? (
+                <div className="flex flex-col items-center justify-center h-full text-gray-500">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600 mb-4"></div>
+                  <p>Loading profile details...</p>
+                </div>
+              ) : profileError ? (
+                <div className="flex flex-col items-center justify-center h-full text-red-500">
+                  <div className="bg-red-50 border border-red-200 rounded-lg p-4 max-w-md">
+                    <p className="text-center">{profileError}</p>
+                  </div>
+                </div>
+              ) : userDetails ? (
+                <div className="space-y-4">
+                  {/* User Details Section */}
+                  <div className="bg-white rounded-lg border border-gray-200 p-4 shadow-sm">
+                    <div className="flex items-center space-x-3 mb-4">
+                      <div className="h-10 w-10 bg-primary-600 rounded-full flex items-center justify-center">
+                        <User className="h-5 w-5 text-white" />
+                      </div>
+                      <div>
+                        <h4 className="font-semibold text-gray-900">Personal Information</h4>
+                        <p className="text-sm text-gray-500">User details and basic information</p>
+                      </div>
+                    </div>
+                    
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="flex items-center space-x-3">
+                        <User className="h-4 w-4 text-gray-400" />
+                        <div>
+                          <p className="text-xs text-gray-500">Full Name</p>
+                          <p className="text-sm font-medium text-gray-900">{userDetails.user_details?.firstName || 'N/A'}</p>
+                        </div>
+                      </div>
+                      
+                      <div className="flex items-center space-x-3">
+                        <Calendar className="h-4 w-4 text-gray-400" />
+                        <div>
+                          <p className="text-xs text-gray-500">Date of Birth</p>
+                          <p className="text-sm font-medium text-gray-900">
+                            {userDetails.user_details?.dateOfBirth ? new Date(userDetails.user_details.dateOfBirth).toLocaleDateString() : 'N/A'}
+                          </p>
+                        </div>
+                      </div>
+                      
+                      <div className="flex items-center space-x-3">
+                        <Mail className="h-4 w-4 text-gray-400" />
+                        <div>
+                          <p className="text-xs text-gray-500">Email</p>
+                          <p className="text-sm font-medium text-gray-900">{userDetails.user_details?.emailId || 'N/A'}</p>
+                        </div>
+                      </div>
+                      
+                      <div className="flex items-center space-x-3">
+                        <Heart className="h-4 w-4 text-gray-400" />
+                        <div>
+                          <p className="text-xs text-gray-500">Marital Status</p>
+                          <p className="text-sm font-medium text-gray-900">{userDetails.user_details?.maritalStatus || 'N/A'}</p>
+                        </div>
+                      </div>
+                      
+                      <div className="flex items-center space-x-3">
+                        <div className="h-4 w-4 text-gray-400 flex items-center justify-center">
+                          <span className="text-xs font-bold">♂♀</span>
+                        </div>
+                        <div>
+                          <p className="text-xs text-gray-500">Gender</p>
+                          <p className="text-sm font-medium text-gray-900">{userDetails.user_details?.gender || 'N/A'}</p>
+                        </div>
+                      </div>
+                      
+                      <div className="flex items-center space-x-3">
+                        <div className="h-4 w-4 text-gray-400 flex items-center justify-center">
+                          <span className="text-xs font-bold">PAN</span>
+                        </div>
+                        <div>
+                          <p className="text-xs text-gray-500">PAN Number</p>
+                          <p className="text-sm font-medium text-gray-900">{userDetails.user_details?.panNo || 'N/A'}</p>
+                        </div>
+                      </div>
+                      
+                      <div className="flex items-center space-x-3">
+                        <div className="h-4 w-4 text-gray-400 flex items-center justify-center">
+                          <span className="text-xs font-bold">AAD</span>
+                        </div>
+                        <div>
+                          <p className="text-xs text-gray-500">Aadhaar Number</p>
+                          <p className="text-sm font-medium text-gray-900">{userDetails.user_details?.aadhaarNo || 'N/A'}</p>
+                        </div>
+                      </div>
+                      
+                      <div className="flex items-center space-x-3">
+                        <Phone className="h-4 w-4 text-gray-400" />
+                        <div>
+                          <p className="text-xs text-gray-500">Mobile Number</p>
+                          <p className="text-sm font-medium text-gray-900">{userDetails.user_details?.mobileNumber || 'N/A'}</p>
+                        </div>
+                      </div>
+                      
+                      <div className="flex items-center space-x-3">
+                        <GraduationCap className="h-4 w-4 text-gray-400" />
+                        <div>
+                          <p className="text-xs text-gray-500">Education Level</p>
+                          <p className="text-sm font-medium text-gray-900">{userDetails.user_details?.educationLevel || 'N/A'}</p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Address Details Section */}
+                  <div className="bg-white rounded-lg border border-gray-200 p-4 shadow-sm">
+                    <div className="flex items-center space-x-3 mb-4">
+                      <div className="h-10 w-10 bg-green-600 rounded-full flex items-center justify-center">
+                        <MapPin className="h-5 w-5 text-white" />
+                      </div>
+                      <div>
+                        <h4 className="font-semibold text-gray-900">Address Information</h4>
+                        <p className="text-sm text-gray-500">Residential address details</p>
+                      </div>
+                    </div>
+                    
+                    <div className="space-y-3">
+                      <div className="flex items-start space-x-3">
+                        <MapPin className="h-4 w-4 text-gray-400 mt-0.5" />
+                        <div className="flex-1">
+                          <p className="text-xs text-gray-500">Full Address</p>
+                          <p className="text-sm font-medium text-gray-900">{userDetails.address_details?.address || 'N/A'}</p>
+                        </div>
+                      </div>
+                      
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div>
+                          <p className="text-xs text-gray-500">City</p>
+                          <p className="text-sm font-medium text-gray-900">{userDetails.address_details?.city || 'N/A'}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-gray-500">State</p>
+                          <p className="text-sm font-medium text-gray-900">{userDetails.address_details?.state || 'N/A'}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-gray-500">Pincode</p>
+                          <p className="text-sm font-medium text-gray-900">{userDetails.address_details?.pincode || 'N/A'}</p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Employment Details Section */}
+                  <div className="bg-white rounded-lg border border-gray-200 p-4 shadow-sm">
+                    <div className="flex items-center space-x-3 mb-4">
+                      <div className="h-10 w-10 bg-blue-600 rounded-full flex items-center justify-center">
+                        <Briefcase className="h-5 w-5 text-white" />
+                      </div>
+                      <div>
+                        <h4 className="font-semibold text-gray-900">Employment Information</h4>
+                        <p className="text-sm text-gray-500">Work and salary details</p>
+                      </div>
+                    </div>
+                    
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="flex items-center space-x-3">
+                        <Briefcase className="h-4 w-4 text-gray-400" />
+                        <div>
+                          <p className="text-xs text-gray-500">Employment Type</p>
+                          <p className="text-sm font-medium text-gray-900">{userDetails.employment_details?.employmentType || 'N/A'}</p>
+                        </div>
+                      </div>
+                      
+                      <div className="flex items-center space-x-3">
+                        <div className="h-4 w-4 text-gray-400 flex items-center justify-center">
+                          <span className="text-xs font-bold">₹</span>
+                        </div>
+                        <div>
+                          <p className="text-xs text-gray-500">Net Take Home Salary</p>
+                          <p className="text-sm font-medium text-gray-900">
+                            ₹{userDetails.employment_details?.netTakeHomeSalary?.toLocaleString() || '0'}
+                          </p>
+                        </div>
+                      </div>
+                      
+                      <div className="flex items-center space-x-3 md:col-span-2">
+                        <Briefcase className="h-4 w-4 text-gray-400" />
+                        <div className="flex-1">
+                          <p className="text-xs text-gray-500">
+                            {userDetails.employment_details?.employmentType === 'SELF_EMPLOYED' ? 'Business Name' : 'Current Company'}
+                          </p>
+                          <p className="text-sm font-medium text-gray-900">
+                            {userDetails.employment_details?.employmentType === 'SELF_EMPLOYED' 
+                              ? (userDetails.employment_details?.nameOfBusiness || 'N/A')
+                              : (userDetails.employment_details?.currentCompanyName || 'N/A')
+                            }
+                          </p>
+                        </div>
+                      </div>
+                      
+                      <div className="flex items-center space-x-3">
+                        <MapPin className="h-4 w-4 text-gray-400" />
+                        <div>
+                          <p className="text-xs text-gray-500">Workplace Pincode</p>
+                          <p className="text-sm font-medium text-gray-900">{userDetails.employment_details?.workplacePincode || 'N/A'}</p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+
+                </div>
+              ) : null}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Profile Form Modal */}
+      {showEditProfile && userDetails && (
+        <EditProfileForm
+          userDetails={userDetails}
+          sessionId={sessionId!}
+          onClose={handleCloseEditProfile}
+          onSaveSuccess={handleEditProfileSaveSuccess}
+        />
+      )}
     </div>
   );
 };

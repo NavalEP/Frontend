@@ -123,18 +123,18 @@ const LoginPage: React.FC = () => {
   };
 
   return (
-    <div className="flex flex-col items-center justify-center max-w-md mx-auto">
-      <div className="p-8 bg-white rounded-xl shadow-md w-full animate-fade-in">
-        <div className="text-center mb-8">
+    <div className="flex flex-col items-center justify-center max-w-md mx-auto min-h-full py-4 sm:py-8 px-4">
+      <div className="p-6 sm:p-8 bg-white rounded-xl shadow-md w-full animate-fade-in">
+        <div className="text-center mb-6 sm:mb-8">
           <div className="flex justify-center">
             <img
               src="/images/careeena-avatar.jpg"
               alt="Careena Avatar"
-              className="h-44 w-44 rounded-full border-2 border-white shadow-lg mx-auto object-cover"
+              className="h-32 w-32 sm:h-44 sm:w-44 rounded-full border-2 border-white shadow-lg mx-auto object-cover"
             />
           </div>
-          <h2 className="mt-4 text-2xl font-bold text-gray-900">Welcome to Careena</h2>
-          <p className="mt-2 text-gray-600">
+          <h2 className="mt-3 sm:mt-4 text-xl sm:text-2xl font-bold text-gray-900">Welcome to Careena</h2>
+          <p className="mt-2 text-sm sm:text-base text-gray-600">
             {otpSent ? 'Enter the OTP sent to your phone' : 'Sign in for your loan enquiry'}
           </p>
         </div>

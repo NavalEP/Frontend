@@ -20,9 +20,10 @@ interface ChatMessageProps {
   disabledOptions?: boolean;
   onLinkClick?: (url: string) => void;
   onTreatmentSelect?: (treatmentName: string, messageId: string) => void;
+  selectedTreatment?: string;
 }
 
-const ChatMessage: React.FC<ChatMessageProps> = ({ message, onButtonClick, selectedOption, disabledOptions, onLinkClick, onTreatmentSelect }) => {
+const ChatMessage: React.FC<ChatMessageProps> = ({ message, onButtonClick, selectedOption, disabledOptions, onLinkClick, onTreatmentSelect, selectedTreatment }) => {
   const isUser = message.sender === 'user';
   const [resolvedUrls, setResolvedUrls] = useState<Record<string, string>>({});
   const [loadingUrls, setLoadingUrls] = useState<Set<string>>(new Set());
@@ -30,7 +31,6 @@ const ChatMessage: React.FC<ChatMessageProps> = ({ message, onButtonClick, selec
   const [treatmentSearchQuery, setTreatmentSearchQuery] = useState('');
   const [treatmentSearchResults, setTreatmentSearchResults] = useState<any[]>([]);
   const [isSearchingTreatments, setIsSearchingTreatments] = useState(false);
-  const [selectedTreatment, setSelectedTreatment] = useState<string>('');
   
   // Check if this is an OCR result message
   const isOcrResult = message.text.includes('📋 **Aadhaar Card Details Extracted Successfully!**') || 
@@ -43,6 +43,19 @@ const ChatMessage: React.FC<ChatMessageProps> = ({ message, onButtonClick, selec
   
   // Function to detect if message contains question with options
   const detectQuestionWithOptions = (text: string) => {
+    // Check if this is patient information format - don't show buttons for these
+    const patientInfoPatterns = [
+      /Patient's full name/,
+      /Patient's phone number/,
+      /cost of the treatment/,
+      /Monthly income/
+    ];
+    
+    const isPatientInfo = patientInfoPatterns.some(pattern => pattern.test(text));
+    if (isPatientInfo) {
+      return null; // Don't show buttons for patient information
+    }
+    
     // Check for specific patterns like "Please Enter input 1 or 2 only"
     const inputPattern = /(.*?)\n\n?Please Enter input (\d+) or (\d+) only/i;
     const inputMatch = text.match(inputPattern);
@@ -183,7 +196,6 @@ const ChatMessage: React.FC<ChatMessageProps> = ({ message, onButtonClick, selec
   // Function to handle treatment selection
   const handleTreatmentSelect = (treatmentName: string, isOther: boolean = false) => {
     const finalTreatmentName = isOther ? `Other: ${treatmentSearchQuery}` : treatmentName;
-    setSelectedTreatment(finalTreatmentName);
     setShowTreatmentSearch(false);
     setTreatmentSearchResults([]);
     setTreatmentSearchQuery('');
@@ -223,8 +235,8 @@ const ChatMessage: React.FC<ChatMessageProps> = ({ message, onButtonClick, selec
     return welcomePatterns.some(pattern => pattern.test(text));
   };
   
-  // Only show button options if it's not a welcome message and has question data
-  const shouldShowButtons = questionData && !isWelcomeMessage(message.text);
+  // Show button options if there's question data
+  const shouldShowButtons = questionData;
   
   // Function to copy text to clipboard
   const copyToClipboard = (text: string) => {

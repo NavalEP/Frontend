@@ -21,6 +21,11 @@ body {
   overflow: hidden;
 }
 
+/* Allow scrolling on login pages */
+body.login-page {
+  overflow: auto;
+}
+
 @layer components {
   .btn {
     @apply px-4 py-2 rounded-md font-medium transition-all duration-200 disabled:opacity-60 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-offset-2;
@@ -160,6 +165,38 @@ body {
 
 .typing-dot:nth-child(3) {
   animation-delay: 0.4s;
+}
+
+/* Enhanced typing animation for different states */
+.typing-message {
+  animation: messageSlideIn 0.3s ease-out;
+}
+
+.typing-dot-active {
+  animation: typingIndicator 1.4s infinite ease-in-out;
+  background-color: #3b82f6 !important;
+  box-shadow: 0 0 6px rgba(59, 130, 246, 0.4);
+}
+
+.typing-dot-inactive {
+  background-color: #d1d5db !important;
+  transition: background-color 0.3s ease;
+}
+
+/* Pulse effect for typing animation */
+@keyframes typingPulse {
+  0%, 100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  50% {
+    transform: scale(1.1);
+    opacity: 0.8;
+  }
+}
+
+.typing-container {
+  animation: typingPulse 2s infinite ease-in-out;
 }
 
 /* Online status pulse */

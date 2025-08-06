@@ -9,6 +9,7 @@ const DoctorStaffLoginPage: React.FC = () => {
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [consentAccepted, setConsentAccepted] = useState(true);
   const { login } = useAuth();
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -22,6 +23,11 @@ const DoctorStaffLoginPage: React.FC = () => {
     
     if (!password.trim()) {
       setError('Password is required');
+      return;
+    }
+    
+    if (!consentAccepted) {
+      setError('Please accept the terms and conditions to proceed');
       return;
     }
     
@@ -50,22 +56,22 @@ const DoctorStaffLoginPage: React.FC = () => {
   };
 
   return (
-    <div className="flex flex-col items-center justify-center max-w-md mx-auto">
-      <div className="p-8 bg-white rounded-xl shadow-md w-full animate-fade-in">
-        <div className="text-center mb-8">
-          <div className="flex justify-center">
-            <img
-              src="/images/careeena-avatar.jpg"
-              alt="Careena Avatar"
-              className="h-44 w-44 rounded-full border-2 border-white shadow-lg mx-auto object-cover"
-            />
+    <div className="flex flex-col items-center justify-center max-w-md mx-auto min-h-full py-4 sm:py-8 px-4">
+      <div className="p-6 sm:p-8 bg-white rounded-xl shadow-md w-full animate-fade-in">
+                  <div className="text-center mb-6 sm:mb-8">
+            <div className="flex justify-center">
+              <img
+                src="/images/careeena-avatar.jpg"
+                alt="Careena Avatar"
+                className="h-32 w-32 sm:h-44 sm:w-44 rounded-full border-2 border-white shadow-lg mx-auto object-cover"
+              />
+            </div>
+            <h2 className="mt-3 sm:mt-4 text-xl sm:text-2xl font-bold text-gray-900">Welcome to Careena</h2>
+            <div className="text-sm sm:text-base font-medium text-gray-700 mt-1">Doctor Staff Login</div>
+            <p className="mt-2 text-sm sm:text-base text-gray-600">
+              Sign in to access patient loan enquiries
+            </p>
           </div>
-          <h2 className="mt-4 text-2xl font-bold text-gray-900">Welcome to Careena</h2>
-          <div className="text-base font-medium text-gray-700 mt-1">Doctor Staff Login</div>
-          <p className="mt-2 text-gray-600">
-            Sign in to access patient loan enquiries
-          </p>
-        </div>
 
         {error && (
           <div className="mb-4 p-3 bg-error-50 border border-error-200 text-error-700 rounded-md">
@@ -116,10 +122,42 @@ const DoctorStaffLoginPage: React.FC = () => {
             </div>
           </div>
           
+          {/* Consent Section */}
+          <div className="space-y-3 p-4 bg-gray-50 rounded-lg">
+            <div className="flex items-start space-x-3">
+              <input
+                id="consent"
+                type="checkbox"
+                checked={consentAccepted}
+                onChange={(e) => setConsentAccepted(e.target.checked)}
+                className="mt-1 h-4 w-4 accent-primary-600 focus:ring-primary-500 border-gray-300 rounded"
+              />
+              <div className="flex-1">
+                <label htmlFor="consent" className="text-sm text-gray-700">
+                  <p className="mb-2">I consent to the following:</p>
+                  <div className="space-y-2 text-xs text-gray-600">
+                    <p>1. I confirm that I am authorized medical staff and have permission to access patient loan enquiry data through this platform.</p>
+                    <p>2. I consent to the collection, storage, and use of patient information for loan processing purposes, as per applicable laws and medical ethics.</p>
+                    <p>3. I accept the{' '}
+                      <a 
+                        href="https://carepay.money/patient/termspatient" 
+                        target="_blank" 
+                        rel="noopener noreferrer"
+                        className="text-primary-600 hover:text-primary-500 underline"
+                      >
+                        Terms & Conditions
+                      </a>
+                    </p>
+                  </div>
+                </label>
+              </div>
+            </div>
+          </div>
+          
           <button
             type="submit"
             className="btn btn-primary w-full"
-            disabled={isLoading || !doctorCode.trim() || !password.trim()}
+            disabled={isLoading || !doctorCode.trim() || !password.trim() || !consentAccepted}
           >
             {isLoading ? (
               <>

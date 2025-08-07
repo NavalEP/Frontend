@@ -127,7 +127,7 @@ const StructuredInputForm: React.FC<StructuredInputFormProps> = ({ onSubmit, isL
     if (!validateForm()) return;
 
     // Format the message in the expected format
-    const formattedMessage = `name: ${formData.patientName.trim()} phone number: ${formData.phoneNumber} treatment cost: ${formData.treatmentCost} monthly income: ${formData.monthlyIncome}`;
+    const formattedMessage = `Name: ${formData.patientName.trim()}\n\n Phone Number: ${formData.phoneNumber}\n\n Treatment Cost: ${formData.treatmentCost}\n\n Monthly Income: ${formData.monthlyIncome}`;
     onSubmit(formattedMessage);
     
     // Reset form

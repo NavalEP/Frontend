@@ -52,6 +52,93 @@ interface ShortlinkResponse {
   message?: string;
 }
 
+interface DocumentUploadResponse {
+  status: string;
+  data?: {
+    document_url?: string;
+    gcs_path?: string;
+    agent_result?: {
+      status: string;
+      message?: string;
+      data?: any;
+    };
+    message?: string;
+    ocr_result?: {
+      name: string;
+      aadhaar_number?: string;
+      dob: string;
+      gender: string;
+      address: string;
+      pincode: string;
+      father_name: string;
+      husband_name?: string | null;
+    };
+  };
+  message?: string;
+}
+
+interface PanCardUploadResponse {
+  status: string;
+  message: string;
+  data?: {
+    ocr_result?: {
+      pan_card_number: string;
+      person_name: string;
+      date_of_birth: string;
+      gender: string;
+      father_name: string;
+    };
+    pan_details_saved: boolean;
+  };
+}
+
+interface Treatment {
+  id: number;
+  name: string;
+  category: string;
+  created_at: string | null;
+  updated_at: string | null;
+}
+
+interface TreatmentSearchResponse {
+  status: string;
+  data: {
+    treatments: Treatment[];
+    total_count: number;
+    search_query: string;
+    category_filter: string | null;
+  };
+}
+
+interface UserDetailsResponse {
+  status: string;
+  session_id: string;
+  user_id: string;
+  user_details: {
+    firstName: string;
+    dateOfBirth: string;
+    emailId: string;
+    maritalStatus: string;
+    panNo: string;
+    educationLevel: string;
+    gender: string;
+    aadhaarNo: string;
+  };
+  address_details: {
+    address: string;
+    state: string;
+    city: string;
+    pincode: number;
+  };
+  employment_details: {
+    netTakeHomeSalary: number;
+    employmentType: string;
+    currentCompanyName: string;
+    workplacePincode: string;
+    nameOfBusiness: string;
+  };
+}
+
 // Base URL for API
 const API_BASE_URL = 'https://loanbot.carepay.money/api/v1/agent';
 
@@ -267,6 +354,136 @@ export const getShortlink = async (
 ): Promise<AxiosResponse<ShortlinkResponse>> => {
   try {
     return await api.get(`/s/${shortCode}/`);
+  } catch (error) {
+    throw error;
+  }
+};
+
+export const uploadDocument = async (
+  file: File,
+  sessionId: string
+): Promise<AxiosResponse<DocumentUploadResponse>> => {
+  try {
+    const formData = new FormData();
+    formData.append('document', file);
+    formData.append('session_id', sessionId);
+ 
+    return await api.post('/documents/upload/', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    });
+  } catch (error) {
+    throw error;
+  }
+};
+
+export const uploadPanCard = async (
+  file: File,
+  sessionId: string
+): Promise<AxiosResponse<PanCardUploadResponse>> => {
+  try {
+    const formData = new FormData();
+    formData.append('document', file);
+    formData.append('session_id', sessionId);
+ 
+    return await api.post('/documents/upload-pan/', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    });
+  } catch (error) {
+    throw error;
+  }
+};
+
+export const searchTreatments = async (
+  searchQuery: string,
+  limit: number = 10,
+  category?: string
+): Promise<AxiosResponse<TreatmentSearchResponse>> => {
+  try {
+    const params: Record<string, string | number> = {
+      q: searchQuery.trim(),
+      limit: limit
+    };
+    
+    if (category && category.trim()) {
+      params.category = category.trim();
+    }
+    
+    return await api.get('/treatments/search/', { params });
+  } catch (error) {
+    throw error;
+  }
+};
+
+export const getUserDetailsBySessionId = async (
+  sessionId: string
+): Promise<AxiosResponse<UserDetailsResponse>> => {
+  try {
+    return await api.get(`/user-details/${sessionId}/`);
+  } catch (error) {
+    throw error;
+  }
+};
+
+// New API functions for saving user details
+export const saveUserBasicDetails = async (
+  sessionId: string,
+  basicDetails: {
+    firstName: string;
+    dateOfBirth: string;
+    emailId: string;
+    maritalStatus: string;
+    panNo: string;
+    educationLevel: string;
+    gender: string;
+    aadhaarNo: string;
+    mobileNumber: string;
+  }
+): Promise<AxiosResponse<any>> => {
+  try {
+    return await api.post(`/save-user-basic-details/${sessionId}/`, {
+      basic_details: basicDetails
+    });
+  } catch (error) {
+    throw error;
+  }
+};
+
+export const saveUserAddressDetails = async (
+  sessionId: string,
+  addressDetails: {
+    address: string;
+    state: string;
+    city: string;
+    pincode: string;
+  }
+): Promise<AxiosResponse<any>> => {
+  try {
+    return await api.post(`/save-user-address-details/${sessionId}/`, {
+      address_details: addressDetails
+    });
+  } catch (error) {
+    throw error;
+  }
+};
+
+export const saveUserEmploymentDetails = async (
+  sessionId: string,
+  employmentDetails: {
+    netTakeHomeSalary: number;
+    employmentType: string;
+    currentCompanyName: string;
+    workplacePincode: string;
+    nameOfBusiness: string;
+  }
+): Promise<AxiosResponse<any>> => {
+  try {
+    return await api.post(`/save-user-employment-details/${sessionId}/`, {
+      employment_details: employmentDetails
+    });
   } catch (error) {
     throw error;
   }

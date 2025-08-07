@@ -17,8 +17,17 @@ body {
   margin: 0;
   min-width: 320px;
   min-height: 100vh;
+  min-height: 100dvh;
   background-color: #f8fafc;
   overflow: hidden;
+  -webkit-text-size-adjust: 100%;
+  -ms-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+/* Allow scrolling on login pages */
+body.login-page {
+  overflow: auto;
 }
 
 @layer components {
@@ -95,6 +104,50 @@ body {
   background: rgba(156, 163, 175, 0.7);
 }
 
+/* Custom scrollbar for iframes - smaller and more suitable */
+.iframe-scrollbar::-webkit-scrollbar {
+  width: 4px;
+  height: 4px;
+}
+
+.iframe-scrollbar::-webkit-scrollbar-track {
+  background: rgba(0, 0, 0, 0.05);
+  border-radius: 2px;
+}
+
+.iframe-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: 2px;
+}
+
+.iframe-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 0, 0, 0.3);
+}
+
+.iframe-scrollbar::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+/* Firefox scrollbar for iframes */
+.iframe-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(0, 0, 0, 0.2) rgba(0, 0, 0, 0.05);
+}
+
+/* Iframe container styles for better fit */
+.iframe-container {
+  overflow: hidden;
+  border-radius: 8px;
+  background: #f8f9fa;
+}
+
+.iframe-container iframe {
+  border: none;
+  width: 100%;
+  height: 100%;
+  background: white;
+}
+
 /* Message bubble animations */
 .message-bubble {
   animation: messageSlideIn 0.3s ease-out;
@@ -116,6 +169,38 @@ body {
 
 .typing-dot:nth-child(3) {
   animation-delay: 0.4s;
+}
+
+/* Enhanced typing animation for different states */
+.typing-message {
+  animation: messageSlideIn 0.3s ease-out;
+}
+
+.typing-dot-active {
+  animation: typingIndicator 1.4s infinite ease-in-out;
+  background-color: #3b82f6 !important;
+  box-shadow: 0 0 6px rgba(59, 130, 246, 0.4);
+}
+
+.typing-dot-inactive {
+  background-color: #d1d5db !important;
+  transition: background-color 0.3s ease;
+}
+
+/* Pulse effect for typing animation */
+@keyframes typingPulse {
+  0%, 100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  50% {
+    transform: scale(1.1);
+    opacity: 0.8;
+  }
+}
+
+.typing-container {
+  animation: typingPulse 2s infinite ease-in-out;
 }
 
 /* Online status pulse */
@@ -151,10 +236,12 @@ body {
 /* WhatsApp-style chat container */
 .whatsapp-chat-container {
   height: 100vh;
+  height: 100dvh; /* Dynamic viewport height for mobile browsers */
   display: flex;
   flex-direction: column;
   overflow: hidden;
   position: relative;
+  width: 100%;
 }
 
 .whatsapp-messages-area {
@@ -163,12 +250,18 @@ body {
   overflow-x: hidden;
   position: relative;
   min-height: 0;
-  max-height: calc(100vh - 3.5rem - 3rem - 4rem);
+  max-height: calc(100vh - 3.5rem - 2rem - 3.5rem);
 }
 
-@media (min-width: 640px) {
+@media (min-width: 768px) {
   .whatsapp-messages-area {
-    max-height: calc(100vh - 4.5rem - 3rem - 4rem);
+    max-height: calc(100vh - 4rem - 2rem - 3.5rem);
+  }
+}
+
+@media (min-width: 1024px) {
+  .whatsapp-messages-area {
+    max-height: calc(100vh - 4.5rem - 2rem - 3.5rem);
   }
 }
 
@@ -177,6 +270,8 @@ body {
   position: sticky;
   top: 0;
   z-index: 10;
+  background-color: white;
+  border-bottom: 1px solid #e5e7eb;
 }
 
 .whatsapp-input-area {
@@ -184,10 +279,12 @@ body {
   position: sticky;
   bottom: 0;
   z-index: 10;
+  background-color: white;
+  border-top: 1px solid #e5e7eb;
 }
 
-/* Responsive design improvements */
-@media (max-width: 640px) {
+/* Responsive design improvements for all screen sizes */
+@media (max-width: 767px) {
   .message-bubble {
     max-width: 85% !important;
   }
@@ -197,7 +294,7 @@ body {
   }
   
   .chat-input-container {
-    padding: 0.75rem 1rem;
+    padding: 0.5rem 0.75rem;
   }
   
   .whatsapp-header {
@@ -208,8 +305,78 @@ body {
   
   .whatsapp-chat-container {
     /* Account for safe areas on mobile */
-    height: 100vh;
-    height: 100dvh; /* Dynamic viewport height for mobile browsers */
+    padding-top: env(safe-area-inset-top, 0);
+    padding-bottom: env(safe-area-inset-bottom, 0);
+  }
+  
+  .whatsapp-messages-area {
+    max-height: calc(100vh - 3.5rem - 2rem - 3rem - env(safe-area-inset-top, 0) - env(safe-area-inset-bottom, 0));
+    max-height: calc(100dvh - 3.5rem - 2rem - 3rem - env(safe-area-inset-top, 0) - env(safe-area-inset-bottom, 0));
+  }
+}
+
+/* Medium screens (tablets) */
+@media (min-width: 768px) and (max-width: 1023px) {
+  .message-bubble {
+    max-width: 75% !important;
+  }
+  
+  .whatsapp-messages-area {
+    max-height: calc(100vh - 4rem - 2rem - 3.5rem);
+  }
+}
+
+/* Large screens (desktop) */
+@media (min-width: 1024px) {
+  .message-bubble {
+    max-width: 70% !important;
+  }
+  
+  .whatsapp-messages-area {
+    max-height: calc(100vh - 4.5rem - 2rem - 3.5rem);
+  }
+}
+
+/* Extra small screens (very small phones) */
+@media (max-width: 375px) {
+  .whatsapp-header {
+    min-height: 3rem;
+  }
+  
+  .whatsapp-messages-area {
+    max-height: calc(100vh - 3rem - 1.5rem - 2.5rem - env(safe-area-inset-top, 0) - env(safe-area-inset-bottom, 0));
+    max-height: calc(100dvh - 3rem - 1.5rem - 2.5rem - env(safe-area-inset-top, 0) - env(safe-area-inset-bottom, 0));
+  }
+  
+  .chat-input-container {
+    padding: 0.5rem;
+  }
+}
+
+/* Landscape orientation on mobile */
+@media (max-width: 767px) and (orientation: landscape) {
+  .whatsapp-header {
+    min-height: 3rem;
+  }
+  
+  .whatsapp-messages-area {
+    max-height: calc(100vh - 3rem - 1.5rem - 2.5rem - env(safe-area-inset-top, 0) - env(safe-area-inset-bottom, 0));
+    max-height: calc(100dvh - 3rem - 1.5rem - 2.5rem - env(safe-area-inset-top, 0) - env(safe-area-inset-bottom, 0));
+  }
+}
+
+/* Ensure proper scaling on high DPI displays */
+@media (-webkit-min-device-pixel-ratio: 2), (min-resolution: 192dpi) {
+  .whatsapp-chat-container {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+}
+
+/* Prevent zoom on input focus for iOS */
+@media screen and (-webkit-min-device-pixel-ratio: 0) {
+  .chat-input {
+    font-size: 16px !important;
   }
 }
 

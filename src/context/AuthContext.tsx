@@ -154,6 +154,25 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const login = (tokenData: { token: string; phone_number?: string; doctor_id?: string; doctor_name?: string }) => {
     const { token, phone_number, doctor_id, doctor_name } = tokenData;
     
+    // Clear any existing session data to ensure new session on login
+    localStorage.removeItem('current_session_id');
+    if (doctor_id) {
+      localStorage.removeItem(`session_id_doctor_${doctor_id}`);
+      // Clear all disabled options and selected treatments for this doctor
+      Object.keys(localStorage).forEach(key => {
+        if (key.startsWith(`disabled_options_doctor_${doctor_id}_`) || 
+            key.startsWith(`selected_treatments_doctor_${doctor_id}_`)) {
+          localStorage.removeItem(key);
+        }
+      });
+    }
+    if (phone_number) {
+      localStorage.removeItem(`session_id_${phone_number}`);
+    }
+    
+    // Set flag to indicate fresh login
+    localStorage.setItem('is_fresh_login', 'true');
+    
     // Save to localStorage
     localStorage.setItem('token', token);
     if (phone_number) {
@@ -213,6 +232,21 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     // Clear doctor-specific session ID if doctorId exists
     if (doctorId) {
       localStorage.removeItem(`session_id_doctor_${doctorId}`);
+      
+      // Clear all disabled options and selected treatments for this doctor
+      const currentSessionId = localStorage.getItem('current_session_id');
+      if (currentSessionId) {
+        localStorage.removeItem(`disabled_options_doctor_${doctorId}_session_${currentSessionId}`);
+        localStorage.removeItem(`selected_treatments_doctor_${doctorId}_session_${currentSessionId}`);
+      }
+      
+      // Clear all localStorage entries that start with disabled_options_doctor_ or selected_treatments_doctor_
+      Object.keys(localStorage).forEach(key => {
+        if (key.startsWith(`disabled_options_doctor_${doctorId}_`) || 
+            key.startsWith(`selected_treatments_doctor_${doctorId}_`)) {
+          localStorage.removeItem(key);
+        }
+      });
     }
     
     // Clear current session ID

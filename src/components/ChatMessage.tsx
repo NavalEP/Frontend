@@ -221,19 +221,7 @@ const ChatMessage: React.FC<ChatMessageProps> = ({ message, onButtonClick, selec
   // Extract question and options from message
   const questionData = detectQuestionWithOptions(message.text);
   
-  // Check if this is a welcome message (first message from agent)
-  const isWelcomeMessage = (text: string) => {
-    const welcomePatterns = [
-      /Hello! I'm here to assist you with your patient's medical loan/,
-      /Example input format:/,
-      /Patient's full name/,
-      /Patient's phone number/,
-      /cost of the treatment/,
-      /Monthly income/
-    ];
-    
-    return welcomePatterns.some(pattern => pattern.test(text));
-  };
+
   
   // Show button options if there's question data
   const shouldShowButtons = questionData;
@@ -510,16 +498,16 @@ const ChatMessage: React.FC<ChatMessageProps> = ({ message, onButtonClick, selec
       }}
     >
       {!isUser && (
-        <div className="flex-shrink-0 mr-2">
+        <div className="flex-shrink-0 mr-1.5 md:mr-2">
           <img
             src="/images/careeena-avatar.jpg"
             alt="Careena"
-            className="h-6 w-6 rounded-full object-cover"
+            className="h-5 w-5 md:h-6 md:w-6 rounded-full object-cover"
           />
         </div>
       )}
       
-      <div className={`inline-block max-w-[85%] ${isUser ? 'ml-auto' : 'mr-auto'}`}>
+      <div className={`inline-block max-w-[85%] md:max-w-[75%] lg:max-w-[70%] ${isUser ? 'ml-auto' : 'mr-auto'}`}>
         <div 
           className={`
             whatsapp-message 
@@ -529,7 +517,7 @@ const ChatMessage: React.FC<ChatMessageProps> = ({ message, onButtonClick, selec
               ? 'bg-gradient-to-r from-blue-50 to-indigo-50 text-gray-800 rounded-tr-lg rounded-br-lg rounded-bl-lg border-2 border-blue-200 shadow-md'
               : 'bg-white text-gray-800 rounded-tr-lg rounded-br-lg rounded-bl-lg'
             } 
-            px-3 py-1.5 shadow-sm relative text-sm leading-tight
+            px-2.5 md:px-3 py-1.5 shadow-sm relative text-sm leading-tight
           `}
         >
           <div className="flex flex-col">
@@ -649,7 +637,7 @@ const ChatMessage: React.FC<ChatMessageProps> = ({ message, onButtonClick, selec
                     key={index}
                     onClick={() => !isDisabled && handleButtonClick(option, index)}
                     disabled={isDisabled}
-                    className={`w-full text-left px-3 py-2 border rounded-lg font-medium transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-1 hover:shadow-sm chat-button text-sm ${
+                    className={`w-full text-left px-2.5 md:px-3 py-1.5 md:py-2 border rounded-lg font-medium transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-1 hover:shadow-sm chat-button text-xs md:text-sm ${
                       isSelected 
                         ? 'bg-blue-50 border-blue-200 text-blue-700 shadow-sm' 
                         : isDisabled
@@ -659,7 +647,7 @@ const ChatMessage: React.FC<ChatMessageProps> = ({ message, onButtonClick, selec
                   >
                     {option}
                     {isDisabled && (
-                      <span className="ml-2 text-xs text-gray-400">
+                      <span className="ml-1 md:ml-2 text-xs text-gray-400">
                         {isSelected ? "(Selected)" : "(Answered)"}
                       </span>
                     )}
@@ -677,21 +665,21 @@ const ChatMessage: React.FC<ChatMessageProps> = ({ message, onButtonClick, selec
                   <div className="relative">
                     <div className="flex items-center space-x-2">
                       <div className="flex-1 relative">
-                        <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                        <Search className="absolute left-2.5 md:left-3 top-1/2 transform -translate-y-1/2 h-3.5 w-3.5 md:h-4 md:w-4 text-gray-400" />
                         <input
                           type="text"
                           value={treatmentSearchQuery}
                           onChange={(e) => setTreatmentSearchQuery(e.target.value)}
                           placeholder="Search for treatment..."
-                          className="w-full pl-10 pr-4 py-2 bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                          className="w-full pl-8 md:pl-10 pr-3 md:pr-4 py-1.5 md:py-2 bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-xs md:text-sm"
                           onFocus={() => setShowTreatmentSearch(true)}
                         />
                       </div>
                       <button
                         onClick={() => setShowTreatmentSearch(!showTreatmentSearch)}
-                        className="p-2 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
+                        className="p-1.5 md:p-2 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
                       >
-                        <ArrowDown className={`h-4 w-4 text-gray-600 transition-transform ${showTreatmentSearch ? 'rotate-180' : ''}`} />
+                        <ArrowDown className={`h-3.5 w-3.5 md:h-4 md:w-4 text-gray-600 transition-transform ${showTreatmentSearch ? 'rotate-180' : ''}`} />
                       </button>
                     </div>
                     
@@ -709,7 +697,7 @@ const ChatMessage: React.FC<ChatMessageProps> = ({ message, onButtonClick, selec
                               <button
                                 key={treatment.id}
                                 onClick={() => handleTreatmentSelect(treatment.name)}
-                                className="w-full text-left px-3 py-2 hover:bg-gray-50 focus:bg-gray-50 focus:outline-none text-sm border-b border-gray-100"
+                                className="w-full text-left px-2.5 md:px-3 py-1.5 md:py-2 hover:bg-gray-50 focus:bg-gray-50 focus:outline-none text-xs md:text-sm border-b border-gray-100"
                               >
                                 <div className="font-medium text-gray-900">{treatment.name}</div>
                                 <div className="text-xs text-gray-500">{treatment.category}</div>
@@ -718,7 +706,7 @@ const ChatMessage: React.FC<ChatMessageProps> = ({ message, onButtonClick, selec
                             {/* Always show "Other" option */}
                             <button
                               onClick={() => handleTreatmentSelect(treatmentSearchQuery, true)}
-                              className="w-full text-left px-3 py-2 hover:bg-gray-50 focus:bg-gray-50 focus:outline-none text-sm border-t border-gray-200 bg-gray-50"
+                              className="w-full text-left px-2.5 md:px-3 py-1.5 md:py-2 hover:bg-gray-50 focus:bg-gray-50 focus:outline-none text-xs md:text-sm border-t border-gray-200 bg-gray-50"
                             >
                               <div className="font-medium text-gray-900">Other: "{treatmentSearchQuery}"</div>
                               <div className="text-xs text-gray-500">Custom treatment name</div>
@@ -728,7 +716,7 @@ const ChatMessage: React.FC<ChatMessageProps> = ({ message, onButtonClick, selec
                           <div className="py-1">
                             <button
                               onClick={() => handleTreatmentSelect(treatmentSearchQuery, true)}
-                              className="w-full text-left px-3 py-2 hover:bg-gray-50 focus:bg-gray-50 focus:outline-none text-sm border-b border-gray-100"
+                              className="w-full text-left px-2.5 md:px-3 py-1.5 md:py-2 hover:bg-gray-50 focus:bg-gray-50 focus:outline-none text-xs md:text-sm border-b border-gray-100"
                             >
                               <div className="font-medium text-gray-900">Other: "{treatmentSearchQuery}"</div>
                               <div className="text-xs text-gray-500">Custom treatment name</div>
@@ -740,15 +728,15 @@ const ChatMessage: React.FC<ChatMessageProps> = ({ message, onButtonClick, selec
                   </div>
                   
                   {/* Manual Entry Option */}
-                  <div className="text-xs text-gray-500 text-center">
+                  <div className="text-xs text-gray-500 text-center px-2">
                     Or type the treatment name manually in the chat input below
                   </div>
                 </>
               ) : (
-                <div className="bg-green-50 border border-green-200 rounded-lg p-3">
+                <div className="bg-green-50 border border-green-200 rounded-lg p-2.5 md:p-3">
                   <div>
-                    <div className="font-medium text-green-800">Selected Treatment:</div>
-                    <div className="text-sm text-green-700">{selectedTreatment}</div>
+                    <div className="font-medium text-green-800 text-xs md:text-sm">Selected Treatment:</div>
+                    <div className="text-xs md:text-sm text-green-700">{selectedTreatment}</div>
                   </div>
                 </div>
               )}
@@ -761,7 +749,7 @@ const ChatMessage: React.FC<ChatMessageProps> = ({ message, onButtonClick, selec
               {message.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
             </span>
             {isUser && (
-              <svg className="w-3 h-3 text-gray-600" fill="currentColor" viewBox="0 0 20 20">
+              <svg className="w-2.5 h-2.5 md:w-3 md:h-3 text-gray-600" fill="currentColor" viewBox="0 0 20 20">
                 <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
               </svg>
             )}
@@ -771,9 +759,9 @@ const ChatMessage: React.FC<ChatMessageProps> = ({ message, onButtonClick, selec
       </div>
       
       {isUser && (
-        <div className="flex-shrink-0 ml-1.5">
-          <div className="h-5 w-5 bg-primary-500 rounded-full flex items-center justify-center">
-            <svg className="w-2.5 h-2.5 text-white" fill="currentColor" viewBox="0 0 20 20">
+        <div className="flex-shrink-0 ml-1 md:ml-1.5">
+          <div className="h-4 w-4 md:h-5 md:w-5 bg-primary-500 rounded-full flex items-center justify-center">
+            <svg className="w-2 h-2 md:w-2.5 md:h-2.5 text-white" fill="currentColor" viewBox="0 0 20 20">
               <path fillRule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clipRule="evenodd" />
             </svg>
           </div>

@@ -1,21 +1,17 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { LogOut } from 'lucide-react';
-import Modal from './Modal';
 
 interface LayoutProps {
   children: React.ReactNode;
 }
 
 const Layout: React.FC<LayoutProps> = ({ children }) => {
-  const { isAuthenticated, logout, doctorName, sessionCount } = useAuth();
+  const { isAuthenticated } = useAuth();
   const location = useLocation();
   const isLoginPage = location.pathname === '/login';
   const isDoctorLoginPage = location.pathname === '/doctor-login';
   const isChatPage = location.pathname === '/chat';
-  const [isLogoutModalOpen, setIsLogoutModalOpen] = useState(false);
-
   // Add/remove login-page class to body for scrolling
   useEffect(() => {
     if (isLoginPage || isDoctorLoginPage) {
@@ -28,15 +24,6 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
       document.body.classList.remove('login-page');
     };
   }, [isLoginPage, isDoctorLoginPage]);
-
-  const handleLogoutClick = () => {
-    setIsLogoutModalOpen(true);
-  };
-
-  const handleConfirmLogout = () => {
-    setIsLogoutModalOpen(false);
-    logout();
-  };
 
   return (
     <div className="min-h-screen flex flex-col safe-top safe-bottom">
@@ -69,15 +56,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
         {children}
       </main>
 
-      {/* Logout Confirmation Modal */}
-      <Modal
-        isOpen={isLogoutModalOpen}
-        onClose={() => setIsLogoutModalOpen(false)}
-        onConfirm={handleConfirmLogout}
-        title="Confirm Logout"
-      >
-        Are you sure you want to logout?
-      </Modal>
+
     </div>
   );
 };

@@ -41,19 +41,6 @@ function App() {
 
   return (
     <Routes>
-      <Route path="/login" element={
-        <Layout>
-          {!isInitialized ? (
-            <div className="flex items-center justify-center h-screen">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600"></div>
-            </div>
-          ) : isAuthenticated ? (
-            <Navigate to="/chat" />
-          ) : (
-            <LoginPage />
-          )}
-        </Layout>
-      } />
       <Route path="/doctor-login" element={
         <Layout>
           {!isInitialized ? (
@@ -67,6 +54,20 @@ function App() {
           )}
         </Layout>
       } />
+      <Route path="/login" element={
+        <Layout>
+          {!isInitialized ? (
+            <div className="flex items-center justify-center h-screen">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600"></div>
+            </div>
+          ) : isAuthenticated ? (
+            <Navigate to="/chat" />
+          ) : (
+            <LoginPage />
+          )}
+        </Layout>
+      } />
+      
       <Route path="/chat" element={
         <ProtectedRoute>
           <ChatPage />
@@ -79,11 +80,11 @@ function App() {
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600"></div>
             </div>
           ) : (
-            <Navigate to={isAuthenticated ? "/chat" : "/login"} />
+            <Navigate to={isAuthenticated ? "/chat" : "/doctor-login"} />
           )}
         </Layout>
       } />
-      <Route path="*" element={<Navigate to="/" />} />
+      <Route path="*" element={<Navigate to="/doctor-login" />} />
     </Routes>
   );
 }

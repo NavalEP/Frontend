@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Copy, ExternalLink, Share2, Search, ArrowDown } from 'lucide-react';
+import { Copy, ExternalLink, Share2, Search, ArrowDown, Upload } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import { getShortlink, searchTreatments } from '../services/api';
 import { smartShare, isNativeSharingSupported } from '../utils/shareUtils';
@@ -21,9 +21,10 @@ interface ChatMessageProps {
   onLinkClick?: (url: string) => void;
   onTreatmentSelect?: (treatmentName: string, messageId: string) => void;
   selectedTreatment?: string;
+  onUploadClick?: (documentType: 'aadhaar' | 'pan') => void;
 }
 
-const ChatMessage: React.FC<ChatMessageProps> = ({ message, onButtonClick, selectedOption, disabledOptions, onLinkClick, onTreatmentSelect, selectedTreatment }) => {
+const ChatMessage: React.FC<ChatMessageProps> = ({ message, onButtonClick, selectedOption, disabledOptions, onLinkClick, onTreatmentSelect, selectedTreatment, onUploadClick }) => {
   const isUser = message.sender === 'user';
   const [resolvedUrls, setResolvedUrls] = useState<Record<string, string>>({});
   const [loadingUrls, setLoadingUrls] = useState<Set<string>>(new Set());
@@ -40,6 +41,36 @@ const ChatMessage: React.FC<ChatMessageProps> = ({ message, onButtonClick, selec
   const isTreatmentNameQuestion = message.text.toLowerCase().includes('what is the name of treatment') || 
                                  message.text.toLowerCase().includes('treatment name') ||
                                  message.text.toLowerCase().includes('name of treatment');
+  
+  // Check if this is an Aadhaar upload request - be very specific
+  const isAadhaarUploadRequest = !isUser && (
+    // Must contain "upload" and "aadhaar"
+    message.text.toLowerCase().includes('upload') && 
+    message.text.toLowerCase().includes('aadhaar') &&
+    // Must mention both front and back
+    (message.text.toLowerCase().includes('front and back') || 
+     message.text.toLowerCase().includes('both') ||
+     (message.text.toLowerCase().includes('front') && message.text.toLowerCase().includes('back'))) &&
+    // Must be asking for upload, not just mentioning it
+    (message.text.toLowerCase().includes('please upload') || 
+     message.text.toLowerCase().includes('kindly upload') ||
+     message.text.toLowerCase().includes('you can upload') ||
+     message.text.toLowerCase().includes('click') ||
+     message.text.toLowerCase().includes('proceed with the loan'))
+  );
+  
+  // Check if this is a PAN upload request - be very specific
+  const isPanUploadRequest = !isUser && (
+    // Must contain "pan" and either "upload" or "provide"
+    message.text.toLowerCase().includes('pan') &&
+    (message.text.toLowerCase().includes('upload') || message.text.toLowerCase().includes('provide')) &&
+    // Must be specifically asking for PAN card upload
+    (message.text.toLowerCase().includes('please provide your pan') ||
+     message.text.toLowerCase().includes('upload patient pan') ||
+     message.text.toLowerCase().includes('clicking the file upload') ||
+     message.text.toLowerCase().includes('enter patient pan') ||
+     message.text.toLowerCase().includes('pan card details'))
+  );
   
   // Function to detect if message contains question with options
   const detectQuestionWithOptions = (text: string) => {
@@ -384,6 +415,14 @@ const ChatMessage: React.FC<ChatMessageProps> = ({ message, onButtonClick, selec
     // First handle escaped newlines
     let formattedText = text.replace(/\\n/g, '\n');
     
+    // Format employment types for both agent and user messages
+    // This ensures consistency in display while keeping original values for backend
+    // Replace SALARIED with Salaried
+    formattedText = formattedText.replace(/\bSALARIED\b/g, 'Salaried');
+    
+    // Replace SELF_EMPLOYED with Self Employed
+    formattedText = formattedText.replace(/\bSELF_EMPLOYED\b/g, 'Self Employed');
+    
     // If this message has question options, format it to show only the question part
     if (questionData) {
       // Remove the options part and "Please Enter input" instructions
@@ -626,16 +665,25 @@ const ChatMessage: React.FC<ChatMessageProps> = ({ message, onButtonClick, selec
           {!isUser && shouldShowButtons && (
             <div className="mt-2 space-y-1.5">
               {questionData.options.map((option, index) => {
+                // Keep the original option value for backend
+                const originalOption = option;
                 const optionValue = questionData.optionNumbers && questionData.optionNumbers[index] 
                   ? questionData.optionNumbers[index] 
                   : option;
                 const isSelected = selectedOption === optionValue;
                 const isDisabled = disabledOptions || false;
                 
+                // Format the option text for display only
+                let displayOption = option;
+                if (!isUser) {
+                  displayOption = displayOption.replace(/\bSALARIED\b/g, 'Salaried');
+                  displayOption = displayOption.replace(/\bSELF_EMPLOYED\b/g, 'Self Employed');
+                }
+                
                 return (
                   <button
                     key={index}
-                    onClick={() => !isDisabled && handleButtonClick(option, index)}
+                    onClick={() => !isDisabled && handleButtonClick(originalOption, index)}
                     disabled={isDisabled}
                     className={`w-full text-left px-2.5 md:px-3 py-1.5 md:py-2 border rounded-lg font-medium transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-1 hover:shadow-sm chat-button text-xs md:text-sm ${
                       isSelected 
@@ -645,7 +693,7 @@ const ChatMessage: React.FC<ChatMessageProps> = ({ message, onButtonClick, selec
                         : 'bg-gray-50 hover:bg-gray-100 border-gray-200 text-gray-800'
                     }`}
                   >
-                    {option}
+                    {displayOption}
                     {isDisabled && (
                       <span className="ml-1 md:ml-2 text-xs text-gray-400">
                         {isSelected ? "(Selected)" : "(Answered)"}
@@ -740,6 +788,34 @@ const ChatMessage: React.FC<ChatMessageProps> = ({ message, onButtonClick, selec
                   </div>
                 </div>
               )}
+            </div>
+          )}
+          
+          {/* Upload Document Button for Aadhaar */}
+          {isAadhaarUploadRequest && onUploadClick && (
+            <div className="mt-3">
+              <button
+                onClick={() => onUploadClick('aadhaar')}
+                className="w-full px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1 flex items-center justify-center space-x-2"
+              >
+                <Upload className="h-4 w-4 md:h-5 md:w-5" />
+                <span className="text-sm md:text-base">Upload Aadhaar Card (Front & Back)</span>
+              </button>
+              <p className="text-xs text-gray-500 text-center mt-1">Click here to upload both front and back sides</p>
+            </div>
+          )}
+          
+          {/* Upload Document Button for PAN */}
+          {isPanUploadRequest && onUploadClick && (
+            <div className="mt-3">
+              <button
+                onClick={() => onUploadClick('pan')}
+                className="w-full px-4 py-2.5 bg-green-600 hover:bg-green-700 text-white font-medium rounded-lg transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-1 flex items-center justify-center space-x-2"
+              >
+                <Upload className="h-4 w-4 md:h-5 md:w-5" />
+                <span className="text-sm md:text-base">Upload PAN Card</span>
+              </button>
+              <p className="text-xs text-gray-500 text-center mt-1">Click here to upload your PAN card</p>
             </div>
           )}
           

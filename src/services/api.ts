@@ -85,7 +85,7 @@ interface PanCardUploadResponse {
       pan_card_number: string;
       person_name: string;
       date_of_birth: string;
-      gender: string;
+    
       father_name: string;
     };
     pan_details_saved: boolean;
@@ -243,9 +243,9 @@ api.interceptors.response.use(
       if (!navigator.onLine) {
         throw new Error('You are offline. Please check your internet connection.');
       }
-      throw new Error('No response from server. Please try again later.');
+      throw new Error('Please wait for a while and Refresh the page. If after refresh you face same problem, then try New Inquiry.');
     } else {
-      throw new Error('Error setting up request. Please try again.');
+      throw new Error('Please try New Inquiry.');
     }
   }
 );

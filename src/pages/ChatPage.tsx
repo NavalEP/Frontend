@@ -9,7 +9,7 @@ import PanCardUpload from '../components/PanCardUpload';
 import AadhaarUpload from '../components/AadhaarUpload';
 import Modal from '../components/Modal';
 import EditProfileForm from '../components/EditProfileForm';
-import { SendHorizonal, Plus, Notebook as Robot, History, ArrowLeft, Search, LogOut, Upload, User, MapPin, Briefcase, Calendar, Mail, GraduationCap, Heart, Edit3, Phone, Menu } from 'lucide-react';
+import { SendHorizonal, Plus, Notebook as Robot, History, ArrowLeft, Search, LogOut, User, MapPin, Briefcase, Calendar, Mail, GraduationCap, Heart, Edit3, Phone, Menu } from 'lucide-react';
 
 interface Message {
   id: string;
@@ -79,9 +79,7 @@ const ChatPage: React.FC = () => {
   const [showUploadModal, setShowUploadModal] = useState(false);
   const [selectedDocumentType, setSelectedDocumentType] = useState<'aadhaar' | 'pan' | null>(null);
 
-  const [showLinkIframe, setShowLinkIframe] = useState(false);
-  const [linkIframeUrl, setLinkIframeUrl] = useState<string>('');
-  const fileInputRef = useRef<HTMLInputElement>(null);
+
   
   // Profile Summary State
   const [showProfileSummary, setShowProfileSummary] = useState(false);
@@ -966,7 +964,7 @@ const ChatPage: React.FC = () => {
           const ocrData = response.data.data.ocr_result;
           const ocrMessage: Message = {
             id: `ocr-${Date.now()}`,
-            text: `📋 **Aadhaar Card Details Extracted Successfully!**\n\n**👤 Name:** ${ocrData.name}\n**🆔 Aadhaar Number:** ${ocrData.aadhaar_number}\n**📅 Date of Birth:** ${ocrData.dob}\n**👥 Gender:** ${ocrData.gender}\n**🏠 Address:** ${ocrData.address}\n**📍 Pincode:** ${ocrData.pincode}\n**👨‍👦 Father's Name:** ${ocrData.father_name}${ocrData.husband_name ? `\n**👨‍👩‍👦 Husband's Name:** ${ocrData.husband_name}` : ''}\n\n✅ All details have been automatically extracted and saved from both sides of the Aadhaar card.`,
+            text: `📋 **Aadhaar Card Details Extracted Successfully!**\n\n**👤 Name:** ${ocrData.name}\n\n**🆔 Aadhaar Number:** ${ocrData.aadhaar_number}\n\n**📅 Date of Birth:** ${ocrData.dob}\n\n**👥 Gender:** ${ocrData.gender}\n\n**🏠 Address:** ${ocrData.address}\n\n**📍 Pincode:** ${ocrData.pincode}\n\n**👨‍👦 Father's Name:** ${ocrData.father_name}${ocrData.husband_name ? `\n**👨‍👩‍👦 Husband's Name:** ${ocrData.husband_name}` : ''}\n\n✅ All details have been automatically extracted and saved from both sides of the Aadhaar card.`,
             sender: 'agent',
             timestamp: new Date(),
           };
@@ -1070,14 +1068,12 @@ const ChatPage: React.FC = () => {
           setUploadSuccess(null);
         }, 3000);
 
-        // Hide upload interface
-
         // Show OCR results in chat if available
         if (response.data.data?.ocr_result) {
           const ocrData = response.data.data.ocr_result;
           const ocrMessage: Message = {
             id: `ocr-${Date.now()}`,
-            text: `📋 **PAN Card Details Extracted Successfully!**\n\n**🆔 PAN Number:** ${ocrData.pan_card_number}\n**👤 Name:** ${ocrData.person_name}\n**📅 Date of Birth:** ${ocrData.date_of_birth}\n**👥 Gender:** ${ocrData.gender}\n**👨‍👦 Father's Name:** ${ocrData.father_name}\n\n✅ All details have been automatically extracted and saved.`,
+            text: `📋 **PAN Card Details Extracted Successfully!**\n\n**🆔 PAN Number:** ${ocrData.pan_card_number}\n\n**👤 Name:** ${ocrData.person_name}\n\n**📅 Date of Birth:** ${ocrData.date_of_birth}\n\n**👨‍👦 Father's Name:** ${ocrData.father_name}\n\n✅ All details have been automatically extracted and saved.`,
             sender: 'agent',
             timestamp: new Date(),
           };
@@ -1092,7 +1088,7 @@ const ChatPage: React.FC = () => {
         let messageToAgent = successMessage;
         if (response.data.data?.ocr_result) {
           const ocrData = response.data.data.ocr_result;
-          messageToAgent = `${successMessage}\n\nExtracted PAN Card Details:\n\n\n\nPAN Number: ${ocrData.pan_card_number}\n\nName: ${ocrData.person_name}\n\nDate of Birth: ${ocrData.date_of_birth}\n\nGender: ${ocrData.gender}\n\nFather's Name: ${ocrData.father_name}`.split('\n').join('\n');
+          messageToAgent = `${successMessage}\n\nExtracted PAN Card Details:\n\n\n\nPAN Number: ${ocrData.pan_card_number}\n\nName: ${ocrData.person_name}\n\nDate of Birth: ${ocrData.date_of_birth}\n\nFather's Name: ${ocrData.father_name}`.split('\n').join('\n');
         }
         
         // Send the success message to the agent
@@ -1126,29 +1122,16 @@ const ChatPage: React.FC = () => {
 
 
 
-  const handleFileInputChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (file) {
-      if (selectedDocumentType === 'aadhaar') {
-        handleFileUpload(file);
-      } else if (selectedDocumentType === 'pan') {
-        handlePanCardUpload(file);
-      }
-    }
-    event.target.value = ''; // Clear the input value after selection
-    setSelectedDocumentType(null); // Reset document type selection
-  };
 
-  // Handle link clicks to open in iframe modal
+  // Handle link clicks: open in a new tab (no iframe)
   const handleLinkClick = (url: string) => {
-    setLinkIframeUrl(url);
-    setShowLinkIframe(true);
+    window.open(url, '_blank', 'noopener,noreferrer');
   };
-
-  // Handle closing the link iframe modal
-  const handleCloseLinkIframe = () => {
-    setShowLinkIframe(false);
-    setLinkIframeUrl('');
+  
+  // Handle upload button click from chat message
+  const handleUploadButtonClick = (documentType: 'aadhaar' | 'pan') => {
+    setSelectedDocumentType(documentType);
+    setShowUploadModal(true);
   };
 
   // Handle profile summary button click
@@ -1532,7 +1515,7 @@ const ChatPage: React.FC = () => {
                 title="Profile Summary"
               >
                 <User className="h-4 w-4" />
-                <span className="ml-1"> Your Profile Summary</span>
+                <span className="ml-1"> Patient Profile Summary</span>
               </button>
             </div>
           )}
@@ -1575,6 +1558,7 @@ const ChatPage: React.FC = () => {
                   onLinkClick={handleLinkClick}
                   onTreatmentSelect={handleTreatmentSelect}
                   selectedTreatment={selectedTreatments[message.id]}
+                  onUploadClick={handleUploadButtonClick}
                 />
               ))}
               {isLoading && messages.some(m => m.sender === 'user') && (
@@ -1598,27 +1582,6 @@ const ChatPage: React.FC = () => {
               /* Regular Message Input */
               <>
                 <form onSubmit={handleSendMessage} className="flex items-end space-x-2">
-                  {/* File Upload Button */}
-                  <button
-                    type="button"
-                    onClick={() => setShowUploadModal(true)}
-                    className="bg-gray-100 hover:bg-gray-200 text-gray-600 p-2.5 rounded-full transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
-                    disabled={isLoading || !sessionId}
-                    title="Upload file"
-                  >
-                    <Upload className="h-4 w-4" />
-                  </button>
-                  
-                  {/* Hidden file input */}
-                  <input
-                    ref={fileInputRef}
-                    type="file"
-                    accept="image/jpeg,image/png,image/jpg,application/pdf"
-                    onChange={handleFileInputChange}
-                    className="hidden"
-                    disabled={isLoading || !sessionId}
-                  />
-                  
                   <div className="flex-1 bg-gray-100 rounded-full px-3 py-1.5">
                     <input
                       type="text"
@@ -1637,26 +1600,6 @@ const ChatPage: React.FC = () => {
                     <SendHorizonal className="h-4 w-4" />
                   </button>
                 </form>
-                
-                {/* File upload status */}
-                {isUploading && (
-                  <div className="mt-2 flex items-center space-x-2 text-sm text-gray-600">
-                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-primary-600"></div>
-                    <span>Uploading file...</span>
-                  </div>
-                )}
-                
-                {uploadError && (
-                  <div className="mt-2 text-sm text-red-600 bg-red-50 p-2 rounded">
-                    {uploadError}
-                  </div>
-                )}
-                
-                {uploadSuccess && (
-                  <div className="mt-2 text-sm text-green-600 bg-green-50 p-2 rounded">
-                    {uploadSuccess}
-                  </div>
-                )}
               </>
             )}
           </div>
@@ -1676,138 +1619,105 @@ const ChatPage: React.FC = () => {
             className="bg-white rounded-lg p-6 w-96 max-w-[90vw] mx-4"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-semibold text-gray-900">Upload Document</h3>
-              <button
-                onClick={() => {
-                  setShowUploadModal(false);
-                  setSelectedDocumentType(null);
-                }}
-                className="text-gray-400 hover:text-gray-600"
-              >
-                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
+            <div className="mb-4">
+              <h3 className="text-lg font-semibold text-gray-900 text-center">
+                {selectedDocumentType === 'aadhaar' ? 'Upload Aadhaar Card' : 
+                 selectedDocumentType === 'pan' ? 'Upload PAN Card' : 
+                 'Upload Document'}
+              </h3>
             </div>
             
             <div className="space-y-4">
-              <div className="text-sm text-gray-600 mb-4">
-                Select the type of document you want to upload:
-              </div>
-              
-              {/* Aadhaar Card Option */}
-              <button
-                onClick={() => setSelectedDocumentType('aadhaar')}
-                className={`w-full p-4 border-2 rounded-lg text-left transition-colors ${
-                  selectedDocumentType === 'aadhaar'
-                    ? 'border-blue-500 bg-blue-50'
-                    : 'border-gray-200 hover:border-gray-300'
-                }`}
-              >
-                <div className="flex items-center space-x-3">
-                  <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
-                    <svg className="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V8a2 2 0 00-2-2h-5m-4 0V4a2 2 0 114 0v2m-4 0a2 2 0 104 0m-5 8a2 2 0 100-4 2 2 0 000 4zm0 0c1.306 0 2.417.835 2.83 2M9 14a3.001 3.001 0 00-2.83 2M15 11h3m-3 4h2" />
-                    </svg>
+              {/* Show appropriate content based on pre-selected document type */}
+              {selectedDocumentType === 'aadhaar' ? (
+                <>
+                  {/* Direct Aadhaar Upload - No selection needed */}
+                  <div className="text-sm text-gray-600 mb-4">
+                    Please upload both front and back sides of your Aadhaar card:
                   </div>
-                  <div>
-                    <div className="font-medium text-gray-900">Aadhaar Card</div>
-                    <div className="text-sm text-gray-500">Both front and back sides</div>
+                  <AadhaarUpload
+                    onUpload={async (combinedFile) => {
+                      // Handle combined Aadhaar upload
+                      setShowUploadModal(false);
+                      // Call the Aadhaar upload function with combined file
+                      await handleFileUpload(combinedFile);
+                    }}
+                    isUploading={isUploading}
+                    acceptedTypes={['image/jpeg', 'image/png', 'image/jpg']}
+                    maxSize={10}
+                  />
+                </>
+              ) : selectedDocumentType === 'pan' ? (
+                <>
+                  {/* Direct PAN Upload - No selection needed */}
+                  <div className="text-sm text-gray-600 mb-4">
+                    Please upload the front side of your PAN card:
                   </div>
-                </div>
-              </button>
-              
-              {/* PAN Card Option */}
-              <button
-                onClick={() => setSelectedDocumentType('pan')}
-                className={`w-full p-4 border-2 rounded-lg text-left transition-colors ${
-                  selectedDocumentType === 'pan'
-                    ? 'border-blue-500 bg-blue-50'
-                    : 'border-gray-200 hover:border-gray-300'
-                }`}
-              >
-                <div className="flex items-center space-x-3">
-                  <div className="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center">
-                    <svg className="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                    </svg>
+                                     <PanCardUpload
+                     onFileSelect={() => {
+                       // Handle file selection for PAN card
+                       // Don't close modal or upload immediately - let user see preview and click upload button
+                     }}
+                     onUpload={async (file) => {
+                       // Close modal and upload PAN card
+                       setShowUploadModal(false);
+                       await handlePanCardUpload(file);
+                     }}
+                     isUploading={isUploading}
+                     acceptedTypes={['image/jpeg', 'image/png', 'image/jpg', 'application/pdf']}
+                     maxSize={10}
+                   />
+                </>
+              ) : (
+                <>
+                  {/* Show selection options only when no document type is pre-selected */}
+                  <div className="text-sm text-gray-600 mb-4">
+                    Select the type of document you want to upload:
                   </div>
-                  <div>
-                    <div className="font-medium text-gray-900">PAN Card</div>
-                    <div className="text-sm text-gray-500">Front side only</div>
-                  </div>
-                </div>
-              </button>
-              
-              {/* Upload Component */}
-              {selectedDocumentType && (
-                <div className="pt-4">
-                  {selectedDocumentType === 'aadhaar' ? (
-                    <AadhaarUpload
-                      onUpload={async (combinedFile) => {
-                        // Handle combined Aadhaar upload
-                        setShowUploadModal(false);
-                        // Call the Aadhaar upload function with combined file
-                        await handleFileUpload(combinedFile);
-                      }}
-                      isUploading={isUploading}
-                      acceptedTypes={['image/jpeg', 'image/png', 'image/jpg']}
-                      maxSize={10}
-                    />
-                  ) : (
-                    <PanCardUpload
-                      onFileSelect={() => {
-                        // Handle file selection for PAN card
-                        // Don't close modal or upload immediately - let user see preview and click upload button
-                      }}
-                      onUpload={handlePanCardUpload}
-                      isUploading={isUploading}
-                      acceptedTypes={['image/jpeg', 'image/png', 'image/jpg', 'application/pdf']}
-                      maxSize={10}
-                    />
-                  )}
-                </div>
+                  
+                  {/* Aadhaar Card Option */}
+                  <button
+                    onClick={() => setSelectedDocumentType('aadhaar')}
+                    className="w-full p-4 border-2 rounded-lg text-left transition-colors border-gray-200 hover:border-gray-300"
+                  >
+                    <div className="flex items-center space-x-3">
+                      <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
+                        <svg className="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V8a2 2 0 00-2-2h-5m-4 0V4a2 2 0 114 0v2m-4 0a2 2 0 104 0m-5 8a2 2 0 100-4 2 2 0 000 4zm0 0c1.306 0 2.417.835 2.83 2M9 14a3.001 3.001 0 00-2.83 2M15 11h3m-3 4h2" />
+                        </svg>
+                      </div>
+                      <div>
+                        <div className="font-medium text-gray-900">Aadhaar Card</div>
+                        <div className="text-sm text-gray-500">Both front and back sides</div>
+                      </div>
+                    </div>
+                  </button>
+                  
+                  {/* PAN Card Option */}
+                  <button
+                    onClick={() => setSelectedDocumentType('pan')}
+                    className="w-full p-4 border-2 rounded-lg text-left transition-colors border-gray-200 hover:border-gray-300"
+                  >
+                    <div className="flex items-center space-x-3">
+                      <div className="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center">
+                        <svg className="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                        </svg>
+                      </div>
+                      <div>
+                        <div className="font-medium text-gray-900">PAN Card</div>
+                        <div className="text-sm text-gray-500">Front side only</div>
+                      </div>
+                    </div>
+                  </button>
+                </>
               )}
             </div>
           </div>
         </div>
       )}
 
-      {/* Link Iframe Modal */}
-      {showLinkIframe && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg shadow-xl w-11/12 max-w-7xl h-[95vh] max-h-[95vh] flex flex-col">
-            {/* Header */}
-            <div className="flex items-center justify-between p-4 border-b border-gray-200">
-              <h3 className="text-lg font-semibold text-gray-900">Application Status</h3>
-              <button
-                onClick={handleCloseLinkIframe}
-                className="text-gray-400 hover:text-gray-600 p-2 rounded-full hover:bg-gray-100 transition-colors"
-              >
-                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
-            </div>
-            
-            {/* Iframe Content */}
-            <div className="flex-1 p-4 iframe-container">
-              <iframe
-                src={linkIframeUrl}
-                title="Application Status"
-                className="w-full h-full border-0 rounded-lg iframe-scrollbar"
-                style={{ 
-                  minHeight: '400px',
-                  overflow: 'auto',
-                  WebkitOverflowScrolling: 'touch'
-                }}
-                scrolling="auto"
-              />
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Link Iframe Modal removed: links open in a new tab now */}
 
       {/* Iframe Popup Modal */}
       {showIframePopup && (

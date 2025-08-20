@@ -156,7 +156,31 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     
     // Clear any existing session data to ensure new session on login
     localStorage.removeItem('current_session_id');
-    if (doctor_id) {
+    
+    // Clear doctor data if this is a patient login (no doctor_id provided)
+    if (!doctor_id) {
+      // This is a patient login, clear all doctor data
+      localStorage.removeItem('doctorId');
+      localStorage.removeItem('doctorId_backup');
+      localStorage.removeItem('doctorName');
+      localStorage.removeItem('doctorName_backup');
+      sessionStorage.removeItem('doctorId');
+      sessionStorage.removeItem('doctorName');
+      
+      // Clear doctor-specific session data
+      const existingDoctorId = localStorage.getItem('doctorId') || localStorage.getItem('doctorId_backup');
+      if (existingDoctorId) {
+        localStorage.removeItem(`session_id_doctor_${existingDoctorId}`);
+        // Clear all disabled options and selected treatments for this doctor
+        Object.keys(localStorage).forEach(key => {
+          if (key.startsWith(`disabled_options_doctor_${existingDoctorId}_`) || 
+              key.startsWith(`selected_treatments_doctor_${existingDoctorId}_`)) {
+            localStorage.removeItem(key);
+          }
+        });
+      }
+    } else {
+      // This is a doctor login, clear session data for this specific doctor
       localStorage.removeItem(`session_id_doctor_${doctor_id}`);
       // Clear all disabled options and selected treatments for this doctor
       Object.keys(localStorage).forEach(key => {
@@ -166,6 +190,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
       });
     }
+    
     if (phone_number) {
       localStorage.removeItem(`session_id_${phone_number}`);
     }
@@ -179,36 +204,26 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       localStorage.setItem('phoneNumber', phone_number);
     }
     
-    // Handle doctorId and doctorName - never allow them to be null
-    let finalDoctorId = doctorId;
-    let finalDoctorName = doctorName;
+    // Handle doctorId and doctorName
+    let finalDoctorId = null;
+    let finalDoctorName = null;
     
     if (doctor_id) {
+      // This is a doctor login
       finalDoctorId = doctor_id;
+      finalDoctorName = doctor_name || null;
+      
+      // Store doctor data with backup mechanisms
+      storeDoctorData(finalDoctorId, finalDoctorName);
     } else {
-      // Get existing doctor data if not provided in login response
-      const existing = retrieveDoctorData();
-      if (existing.doctorId) {
-        finalDoctorId = existing.doctorId;
-      }
+      // This is a patient login - ensure doctor data is cleared
+      finalDoctorId = null;
+      finalDoctorName = null;
     }
-    
-    if (doctor_name) {
-      finalDoctorName = doctor_name;
-    } else {
-      // Get existing doctor data if not provided in login response
-      const existing = retrieveDoctorData();
-      if (existing.doctorName) {
-        finalDoctorName = existing.doctorName;
-      }
-    }
-    
-    // Store doctor data with backup mechanisms
-    storeDoctorData(finalDoctorId, finalDoctorName);
     
     // Update state
-    if (finalDoctorId) setDoctorId(finalDoctorId);
-    if (finalDoctorName) setDoctorName(finalDoctorName);
+    setDoctorId(finalDoctorId);
+    setDoctorName(finalDoctorName);
     
     // Reset session count
     localStorage.setItem('sessionCount', '0');

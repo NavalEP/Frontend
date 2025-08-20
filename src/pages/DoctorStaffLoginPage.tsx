@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { doctorStaffLogin } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import { User, Lock, MessageSquare } from 'lucide-react';
@@ -11,6 +11,50 @@ const DoctorStaffLoginPage: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [consentAccepted, setConsentAccepted] = useState(true);
   const { login } = useAuth();
+
+  // Auto-login effect when URL parameters are present
+  useEffect(() => {
+    const autoLoginMerchantCode = localStorage.getItem('autoLogin_merchantCode');
+    const autoLoginPassword = localStorage.getItem('autoLogin_password');
+    
+    if (autoLoginMerchantCode && autoLoginPassword && !isLoading) {
+      // Clear the stored credentials
+      localStorage.removeItem('autoLogin_merchantCode');
+      localStorage.removeItem('autoLogin_password');
+      
+      // Set the form values
+      setDoctorCode(autoLoginMerchantCode);
+      setPassword(autoLoginPassword);
+      
+      // Trigger login automatically
+      handleAutoLogin(autoLoginMerchantCode, autoLoginPassword);
+    }
+  }, [isLoading]);
+
+  const handleAutoLogin = async (merchantCode: string, password: string) => {
+    setError(null);
+    setIsLoading(true);
+    
+    try {
+      const response = await doctorStaffLogin(merchantCode.trim(), password);
+      
+      if (response.data.token) {
+        login({
+          token: response.data.token,
+          doctor_id: response.data.doctor_id,
+          doctor_name: response.data.doctor_name
+        });
+        setError(null);
+      } else {
+        setError('Auto-login failed. Please check your credentials.');
+      }
+    } catch (err) {
+      console.error('Error during auto-login:', err);
+      setError(err instanceof Error ? err.message : 'Auto-login failed. Please try again.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

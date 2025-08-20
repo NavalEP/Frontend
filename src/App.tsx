@@ -2,7 +2,9 @@ import { Routes, Route, Navigate } from 'react-router-dom';
 import LoginPage from './pages/LoginPage';
 import DoctorStaffLoginPage from './pages/DoctorStaffLoginPage';
 import ChatPage from './pages/ChatPage';
+import LoanTransactionsPage from './pages/LoanTransactionsPage';
 import ProtectedRoute from './components/ProtectedRoute';
+import DoctorProtectedRoute from './components/DoctorProtectedRoute';
 import { useAuth } from './context/AuthContext';
 import Layout from './components/Layout';
 import { useEffect } from 'react';
@@ -26,10 +28,23 @@ function App() {
     const url = new URL(window.location.href);
     const doctorId = url.searchParams.get('doctorId');
     const doctorName = url.searchParams.get('doctor_name');
+    const merchantCode = url.searchParams.get('merchantCode');
+    const password = url.searchParams.get('password');
     
+    // Handle both doctorId/doctor_name and merchantCode/password URL parameters
     if (doctorId && doctorName) {
       // Store doctor info persistently - never allow them to be lost
       storeDoctorDataPersistently(doctorId, doctorName);
+      
+      // Clean URL if needed
+      if (window.history.replaceState) {
+        const cleanUrl = window.location.protocol + "//" + window.location.host + window.location.pathname;
+        window.history.replaceState({}, document.title, cleanUrl);
+      }
+    } else if (merchantCode && password) {
+      // Handle merchantCode/password parameters - these will be used for auto-login
+      localStorage.setItem('autoLogin_merchantCode', merchantCode);
+      localStorage.setItem('autoLogin_password', password);
       
       // Clean URL if needed
       if (window.history.replaceState) {
@@ -72,6 +87,11 @@ function App() {
         <ProtectedRoute>
           <ChatPage />
         </ProtectedRoute>
+      } />
+      <Route path="/loan-transactions" element={
+        <DoctorProtectedRoute>
+          <LoanTransactionsPage />
+        </DoctorProtectedRoute>
       } />
       <Route path="/" element={
         <Layout>

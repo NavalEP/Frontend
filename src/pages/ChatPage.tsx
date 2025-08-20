@@ -4,12 +4,12 @@ import { useAuth } from '../context/AuthContext';
 import ChatMessage from '../components/ChatMessage';
 import StructuredInputForm from '../components/StructuredInputForm';
 import TypingAnimation from '../components/TypingAnimation';
-
 import PanCardUpload from '../components/PanCardUpload';
 import AadhaarUpload from '../components/AadhaarUpload';
 import Modal from '../components/Modal';
 import EditProfileForm from '../components/EditProfileForm';
 import { SendHorizonal, Plus, Notebook as Robot, History, ArrowLeft, Search, LogOut, User, MapPin, Briefcase, Calendar, Mail, GraduationCap, Heart, Edit3, Phone, Menu } from 'lucide-react';
+import LoanTransactionsPage from './LoanTransactionsPage';
 
 interface Message {
   id: string;
@@ -54,6 +54,7 @@ const ChatPage: React.FC = () => {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const { incrementSessionCount, doctorId, doctorName, logout, sessionCount } = useAuth();
   const [showOfferButton, setShowOfferButton] = useState(false);
+  const [showLoanTransactionsOverlay, setShowLoanTransactionsOverlay] = useState(false);
 
   // Utility function to create image preview
   const createImagePreview = (file: File): Promise<string> => {
@@ -892,12 +893,7 @@ const ChatPage: React.FC = () => {
     }
   }, [messages, patientInfoSubmitted]);
 
-  // // Check if agent is asking for Aadhaar upload
-  // const shouldShowFileUpload = () => {
-  //   // Always return false to keep text input bar visible
-  //   // Users will use the upload button instead of switching to file upload interface
-  //   return false;
-  // };
+  
 
   // Handle file upload
   const handleFileUpload = async (file: File) => {
@@ -1277,10 +1273,11 @@ const ChatPage: React.FC = () => {
                     
                     {/* Menu Items */}
                     <div className="space-y-2">
+                      {/* Chat History */}
                       <button
                         onClick={() => {
+                          setShowHamburgerMenu(false);
                           setShowHistory(true);
-                          setShowAvatarMenu(false);
                         }}
                         className="w-full flex items-center space-x-2 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 rounded-md transition-colors"
                       >
@@ -1419,14 +1416,35 @@ const ChatPage: React.FC = () => {
               {/* Menu Items */}
               <div className="flex-1 overflow-y-auto p-4">
                 <div className="space-y-2">
+                  {/* Loan Transactions - Only show for doctors */}
+                  {doctorId && (
+                    <button
+                      onClick={() => {
+                        setShowHamburgerMenu(false);
+                        setShowHistory(false);
+                        setShowLoanTransactionsOverlay(true);
+                      }}
+                      className="w-full flex items-center space-x-3 px-4 py-3 text-left hover:bg-gray-50 rounded-lg transition-colors"
+                    >
+                      <div className="flex items-center justify-center w-8 h-8 bg-gray-700 rounded-lg">
+                        <span className="text-white font-bold text-base">₹</span>
+                      </div>
+                      <div>
+                        <div className="font-medium text-gray-900">All Applications</div>
+                        <div className="text-sm text-gray-500">Track latest application statuses here.</div>
+                      </div>
+                    </button>
+                  )}
                   {/* Chat History */}
                   <button
                     onClick={() => {
                       setShowHamburgerMenu(false);
+                      setShowLoanTransactionsOverlay(false);
                       setShowHistory(true);
                     }}
                     className="w-full flex items-center space-x-3 px-4 py-3 text-left hover:bg-gray-50 rounded-lg transition-colors"
                   >
+                    
                     <History className="h-5 w-5 text-gray-600" />
                     <div>
                       <div className="font-medium text-gray-900">Chat History</div>
@@ -1626,7 +1644,8 @@ const ChatPage: React.FC = () => {
                  'Upload Document'}
               </h3>
             </div>
-            
+            {uploadError && <div className="text-sm text-red-600 mb-2">{uploadError}</div>}
+            {uploadSuccess && <div className="text-sm text-green-600 mb-2">{uploadSuccess}</div>}
             <div className="space-y-4">
               {/* Show appropriate content based on pre-selected document type */}
               {selectedDocumentType === 'aadhaar' ? (
@@ -1753,8 +1772,7 @@ const ChatPage: React.FC = () => {
             src={`https://carepay.money/patient/razorpayoffer/${localStorage.getItem('userId')}`}
             title="Razorpay Offer"
             className="w-full h-full iframe-scrollbar"
-            allow="camera; microphone; geolocation; payment; clipboard-write; web-share; fullscreen"
-            allowFullScreen
+            allow="camera; microphone; geolocation; payment; clipboard-write; web-share; fullscreen; publickey-credentials-get; publickey-credentials-create; otp-credentials"
             sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-modals allow-top-navigation allow-top-navigation-by-user-activation allow-downloads allow-storage-access-by-user-activation"
             style={{ 
               overflow: 'auto',
@@ -2058,6 +2076,13 @@ const ChatPage: React.FC = () => {
           onClose={handleCloseEditProfile}
           onSaveSuccess={handleEditProfileSaveSuccess}
         />
+      )}
+
+      {/* Loan Transactions Overlay */}
+      {showLoanTransactionsOverlay && (
+        <div className="absolute inset-0 z-20 bg-white overflow-auto">
+          <LoanTransactionsPage onClose={() => setShowLoanTransactionsOverlay(false)} />
+        </div>
       )}
     </div>
   );

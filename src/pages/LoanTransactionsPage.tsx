@@ -88,6 +88,7 @@ const LoanTransactionsPage: React.FC<LoanTransactionsPageProps> = ({ onClose }) 
         });
         
         const formattedTransactions = loanTransactions.map(loan => formatLoanTransaction(loan));
+        console.log('Formatted transactions:', formattedTransactions.map(t => ({ id: t.id, status: t.status, approved: t.approved })));
         setTransactions(formattedTransactions);
       } catch (err: any) {
         console.error('Error fetching data:', err);

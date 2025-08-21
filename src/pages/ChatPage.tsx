@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { createSession, sendMessage, getSessionDetails, uploadDocument, uploadPanCard, getUserDetailsBySessionId } from '../services/api';
+import { createSession, sendMessage, getSessionDetails, uploadDocument, uploadPanCard, getUserDetailsBySessionId, getDoctorSessions, getSessionDetailsWithHistory, formatIndianTime } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import ChatMessage from '../components/ChatMessage';
 import StructuredInputForm from '../components/StructuredInputForm';
@@ -8,6 +8,7 @@ import PanCardUpload from '../components/PanCardUpload';
 import AadhaarUpload from '../components/AadhaarUpload';
 import Modal from '../components/Modal';
 import EditProfileForm from '../components/EditProfileForm';
+import DoctorSessionsList from '../components/DoctorSessionsList';
 import { SendHorizonal, Plus, Notebook as Robot, History, ArrowLeft, Search, LogOut, User, MapPin, Briefcase, Calendar, Mail, GraduationCap, Heart, Edit3, Phone, Menu } from 'lucide-react';
 import LoanTransactionsPage from './LoanTransactionsPage';
 
@@ -94,6 +95,10 @@ const ChatPage: React.FC = () => {
   
   // Hamburger Menu State
   const [showHamburgerMenu, setShowHamburgerMenu] = useState(false);
+  
+  // Doctor Sessions State
+  const [showDoctorSessions, setShowDoctorSessions] = useState(false);
+  const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
   
   // Helper function to format welcome message from API response
   const formatWelcomeMessage = (content: string): string => {
@@ -329,6 +334,7 @@ const ChatPage: React.FC = () => {
       
       setSessionId(sessionId);
       setShowHistory(false);
+      setShowDoctorSessions(false);
       setSelectedTreatments({}); // Clear selected treatments when loading a session
       setDisabledOptions({}); // Clear disabled options when loading a session
       
@@ -350,28 +356,28 @@ const ChatPage: React.FC = () => {
         timestamp: new Date(),
       }]);
 
-      const response = await getSessionDetails(sessionId);
+      const response = await getSessionDetailsWithHistory(sessionId);
       
-      if (response.data) {
+      if (response) {
         setSessionDetails({
-          phoneNumber: response.data.phoneNumber,
-          status: response.data.status,
-          history: response.data.history,
-          created_at: response.data.created_at,
-          updated_at: response.data.updated_at,
-          userId: response.data.userId
+          phoneNumber: response.phoneNumber,
+          status: response.status,
+          history: response.history,
+          created_at: response.created_at,
+          updated_at: response.updated_at,
+          userId: response.userId
         });
         
-        // Convert history to messages
-        if (response.data.history && response.data.history.length > 0) {
-          const historyMessages: Message[] = response.data.history.map((item, index) => {
+        // Convert history to messages with Indian time formatting
+        if (response.history && response.history.length > 0) {
+          const historyMessages: Message[] = response.history.map((item, index) => {
             // Format the first agent message to match welcome message format
             if (index === 0 && item.type === 'AIMessage') {
               return {
                 id: `history-${index}`,
                 text: formatWelcomeMessage(item.content),
                 sender: 'agent',
-                timestamp: new Date(response.data.created_at),
+                timestamp: new Date(response.created_at),
               };
             }
             
@@ -379,7 +385,7 @@ const ChatPage: React.FC = () => {
               id: `history-${index}`,
               text: item.content,
               sender: item.type === 'HumanMessage' ? 'user' : 'agent',
-              timestamp: new Date(response.data.created_at),
+              timestamp: new Date(response.created_at),
             };
           });
           
@@ -393,7 +399,7 @@ const ChatPage: React.FC = () => {
               const newSession: ChatSession = {
                 id: sessionId,
                 title: generateChatTitle(firstUserMessage.text),
-                timestamp: new Date(response.data.created_at),
+                timestamp: new Date(response.created_at),
                 lastMessage: firstUserMessage.text
               };
               saveChatHistory(newSession);
@@ -1225,6 +1231,18 @@ const ChatPage: React.FC = () => {
     }
   }, [selectedTreatments, doctorId, sessionId]);
 
+  // Handle session selection from doctor sessions list
+  const handleSessionSelect = async (sessionId: string) => {
+    try {
+      setSelectedSessionId(sessionId);
+      setShowDoctorSessions(false);
+      await loadChatSession(sessionId);
+    } catch (error) {
+      console.error('Error loading selected session:', error);
+      setError('Failed to load the selected session. Please try again.');
+    }
+  };
+
     return (
     <div className="whatsapp-chat-container bg-[#E5DDD5]">
 
@@ -1398,6 +1416,33 @@ const ChatPage: React.FC = () => {
           </div>
         )}
 
+        {/* Doctor Sessions Sidebar */}
+        {showDoctorSessions && (
+          <div className="absolute inset-0 z-20 bg-white">
+            <div className="flex flex-col h-full">
+              {/* Sessions Header */}
+              <div className="bg-primary-600 text-white px-4 py-3 flex items-center space-x-3">
+                <button
+                  onClick={() => setShowDoctorSessions(false)}
+                  className="p-1 hover:bg-primary-700 rounded-full transition-colors"
+                >
+                  <ArrowLeft className="h-5 w-5" />
+                </button>
+                <h3 className="font-semibold">Patient Sessions</h3>
+              </div>
+              
+              {/* Sessions List */}
+              <div className="flex-1 overflow-hidden">
+                <DoctorSessionsList
+                  doctorId={doctorId || ''}
+                  onSessionSelect={handleSessionSelect}
+                  selectedSessionId={selectedSessionId || undefined}
+                />
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Hamburger Menu Overlay */}
         {showHamburgerMenu && (
           <div className="absolute inset-0 z-20 bg-white">
@@ -1435,6 +1480,28 @@ const ChatPage: React.FC = () => {
                       </div>
                     </button>
                   )}
+                  
+                  {/* Doctor Sessions - Only show for doctors */}
+                  {doctorId && (
+                    <button
+                      onClick={() => {
+                        setShowHamburgerMenu(false);
+                        setShowHistory(false);
+                        setShowLoanTransactionsOverlay(false);
+                        setShowDoctorSessions(true);
+                      }}
+                      className="w-full flex items-center space-x-3 px-4 py-3 text-left hover:bg-gray-50 rounded-lg transition-colors"
+                    >
+                      <div className="flex items-center justify-center w-8 h-8 bg-blue-600 rounded-lg">
+                        <User className="h-4 w-4 text-white" />
+                      </div>
+                      <div>
+                        <div className="font-medium text-gray-900">All Inquiries chat History</div>
+                        <div className="text-sm text-gray-500">View all inquiriest chat history</div>
+                      </div>
+                    </button>
+                  )}
+                  
                   {/* Chat History */}
                   <button
                     onClick={() => {
@@ -1447,7 +1514,7 @@ const ChatPage: React.FC = () => {
                     
                     <History className="h-5 w-5 text-gray-600" />
                     <div>
-                      <div className="font-medium text-gray-900">Chat History</div>
+                      <div className="font-medium text-gray-900">Recent chat history</div>
                       <div className="text-sm text-gray-500">View previous conversations</div>
                     </div>
                   </button>

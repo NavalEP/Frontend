@@ -139,6 +139,57 @@ interface UserDetailsResponse {
   };
 }
 
+// New interfaces for doctor sessions
+interface PatientInfo {
+  name: string;
+  phone_number: string;
+  treatment_cost: number;
+  monthly_income: number;
+}
+
+interface DoctorSession {
+  session_id: string;
+  application_id: string;
+  phone_number: string;
+  status: string;
+  created_at: string;
+  updated_at: string;
+  patient_info: PatientInfo;
+}
+
+interface DoctorSessionsResponse {
+  status: string;
+  doctor_id: string;
+  total_sessions: number;
+  sessions_returned: number;
+  pagination: {
+    limit: number;
+    offset: number;
+    has_more: boolean;
+  };
+  filters: {
+    status: string | null;
+  };
+  sessions: DoctorSession[];
+}
+
+interface ChatHistoryItem {
+  type: string;
+  content: string;
+  timestamp?: string;
+}
+
+interface SessionDetailsWithHistoryResponse {
+  status: string;
+  session_id: string;
+  phoneNumber: string;
+  bureau_decision_details: string | null;
+  created_at: string;
+  updated_at: string;
+  history: ChatHistoryItem[];
+  userId: string;
+}
+
 // Base URL for API
 const API_BASE_URL = 'https://loanbot.carepay.money/api/v1/agent';
 
@@ -487,6 +538,69 @@ export const saveUserEmploymentDetails = async (
   } catch (error) {
     throw error;
   }
+};
+
+// API functions for doctor sessions
+export const getDoctorSessions = async (
+  doctorId: string,
+  limit: number = 50,
+  offset: number = 0,
+  status?: string
+): Promise<DoctorSessionsResponse> => {
+  try {
+    const params: Record<string, string | number> = {
+      doctorId,
+      limit,
+      offset
+    };
+    
+    if (status && status.trim()) {
+      params.status = status.trim();
+    }
+    
+    const response = await api.get('/doctor-sessions/', { params });
+    return response.data;
+  } catch (error) {
+    throw error;
+  }
+};
+
+export const getSessionDetailsWithHistory = async (
+  sessionId: string
+): Promise<SessionDetailsWithHistoryResponse> => {
+  try {
+    const response = await api.get(`/session-details/${sessionId}/`);
+    return response.data;
+  } catch (error) {
+    throw error;
+  }
+};
+
+// Helper function to format Indian time
+export const formatIndianTime = (dateString: string): string => {
+  try {
+    const date = new Date(dateString);
+    return date.toLocaleString('en-IN', {
+      timeZone: 'Asia/Kolkata',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      hour12: true
+    });
+  } catch (error) {
+    return dateString;
+  }
+};
+
+// Helper function to format chat history with Indian time
+export const formatChatHistory = (history: ChatHistoryItem[]): ChatHistoryItem[] => {
+  return history.map(item => ({
+    ...item,
+    timestamp: item.timestamp ? formatIndianTime(item.timestamp) : undefined
+  }));
 };
 
 export default api;

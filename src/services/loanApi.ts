@@ -78,6 +78,7 @@ export interface LoanTransaction {
   loanPushedDate: string | null;
   lenderName: string;
   assignerName: string;
+  applicationId: string;
 }
 
 interface LoanTransactionsResponse {
@@ -380,7 +381,7 @@ export const getBureauDecisionData = async (loanId: string): Promise<BureauDecis
 };
 
 // New endpoint that directly calls Django API
-export const getMatchingEmiPlansFromAPI = async (userId: string, loanId: string): Promise<{ plans: BureauEmiPlan[], hasMatchingProduct: boolean, isApproved: boolean, assignedProductFailed: boolean }> => {
+export const getMatchingEmiPlansFromAPI = async (userId: string, loanId: string): Promise<{ plans: BureauEmiPlan[], hasMatchingProduct: boolean, isApproved: boolean, assignedProductFailed: boolean, loanDetails?: LoanDetailsByUserId }> => {
   try {
     const response = await loanApi.get('/matchingEmiPlans/', {
       params: { userId, loanId },
@@ -390,7 +391,22 @@ export const getMatchingEmiPlansFromAPI = async (userId: string, loanId: string)
     });
 
     if (response.data.status === 200 && response.data.data) {
-      return response.data.data;
+      // If we have matching products, also fetch loan details
+      let loanDetails: LoanDetailsByUserId | undefined;
+      if (response.data.data.hasMatchingProduct) {
+        try {
+          const loanDetailsResult = await getLoanDetailsByUserId(userId);
+          loanDetails = loanDetailsResult || undefined;
+        } catch (error) {
+          console.error('Error fetching loan details:', error);
+          // Don't fail the entire request if loan details fetch fails
+        }
+      }
+      
+      return {
+        ...response.data.data,
+        loanDetails
+      };
     }
 
     throw new Error(response.data.message || 'Failed to get matching EMI plans');
@@ -406,7 +422,7 @@ export const getMatchingEmiPlansFromAPI = async (userId: string, loanId: string)
 };
 
 // Legacy method - kept for backward compatibility
-export const getMatchingEmiPlans = async (userId: string, loanId: string): Promise<{ plans: BureauEmiPlan[], hasMatchingProduct: boolean, isApproved: boolean, assignedProductFailed: boolean }> => {
+export const getMatchingEmiPlans = async (userId: string, loanId: string): Promise<{ plans: BureauEmiPlan[], hasMatchingProduct: boolean, isApproved: boolean, assignedProductFailed: boolean, loanDetails?: LoanDetailsByUserId }> => {
   try {
     // First try the new Django API endpoint
     return await getMatchingEmiPlansFromAPI(userId, loanId);
@@ -438,11 +454,21 @@ export const getMatchingEmiPlans = async (userId: string, loanId: string): Promi
           
           if (matchingPlans.length > 0) {
             // Show detailed view with matching plans
+            // Fetch loan details when we have matching products
+            let loanDetails: LoanDetailsByUserId | undefined;
+            try {
+              const loanDetailsResult = await getLoanDetailsByUserId(userId);
+              loanDetails = loanDetailsResult || undefined;
+            } catch (error) {
+              console.error('Error fetching loan details:', error);
+            }
+            
             return { 
               plans: matchingPlans, 
               hasMatchingProduct: true,
               isApproved: true,
-              assignedProductFailed: false
+              assignedProductFailed: false,
+              loanDetails
             };
           } else {
             // No matching plans found, don't show EMI section
@@ -450,11 +476,21 @@ export const getMatchingEmiPlans = async (userId: string, loanId: string): Promi
           }
         } else {
           // Assigned product API failed (500) but decision is approved - show simplified view with all plans
+          // Fetch loan details when we have matching products
+          let loanDetails: LoanDetailsByUserId | undefined;
+          try {
+            const loanDetailsResult = await getLoanDetailsByUserId(userId);
+            loanDetails = loanDetailsResult || undefined;
+          } catch (error) {
+            console.error('Error fetching loan details:', error);
+          }
+          
           return { 
             plans: emiPlans, 
             hasMatchingProduct: true,
             isApproved: true,
-            assignedProductFailed: true
+            assignedProductFailed: true,
+            loanDetails
           };
         }
       }
@@ -871,7 +907,53 @@ export const getLoanCountAndAmountForDoctor = async (doctorId: string, clinicNam
   }
 };
 
-// Helper function to format loan transaction for display
+  // Helper function to check if loan status should be considered as approved
+  const isLoanApproved = (status: string | undefined): boolean => {
+    if (!status) {
+      console.log('isLoanApproved: status is undefined or null');
+      return false;
+    }
+    
+    const approvedStatuses = [
+      'Approved',
+      'Loan Approved',
+      'EMI plans elgibility check',
+      'EMI plan selected',
+      'Lender flow initiated',
+      'KYC required',
+      'KYC in progress',
+      'Bank Account KYC required',
+      'KYC failed',
+      'Lender loan rejected',
+      'KYC complete',
+      'Agreement signing initiated',
+      'Agreement generated',
+      'Agreement signing falied',
+      'Agreement signed',
+      'EMI auto pay setup in progress',
+      'Bank Account KYC initiated',
+      'Bank Account KYC successful',
+      'Bank Account KYC failed',
+      'EMI auto-pay setup failed',
+      'EMI auto-pay setup complete',
+      'Verification initiated for disbursal',
+      'Verification completed for disbursal',
+      'Disbursal initiated',
+      'Disbursal failed',
+      'Loan disbursed',
+      'UTR received'
+    ];
+    
+    // Normalize the status for comparison (trim whitespace and convert to lowercase)
+    const normalizedStatus = status.trim().toLowerCase();
+    const normalizedApprovedStatuses = approvedStatuses.map(s => s.trim().toLowerCase());
+    
+    const isApproved = normalizedApprovedStatuses.includes(normalizedStatus);
+    console.log(`isLoanApproved: status="${status}", normalized="${normalizedStatus}", isApproved=${isApproved}`);
+    return isApproved;
+  };
+
+  // Helper function to format loan transaction for display
 export const formatLoanTransaction = (loan: LoanTransaction) => {
   const formatDate = (dateStr: string) => {
     try {
@@ -889,22 +971,104 @@ export const formatLoanTransaction = (loan: LoanTransaction) => {
     }
   };
 
+  // Try different possible locations for the status
+  let loanStatus = loan.status?.loan?.loanStatus;
+  if (!loanStatus && loan.status) {
+    // If status is a string directly
+    if (typeof loan.status === 'string') {
+      loanStatus = loan.status;
+    }
+    // If status is an object with different structure
+    else if (typeof loan.status === 'object') {
+      loanStatus = (loan.status as any).loanStatus || (loan.status as any).status;
+    }
+  }
+  loanStatus = loanStatus || 'Unknown';
+  
+  const isApproved = isLoanApproved(loanStatus);
+  
+  console.log(`formatLoanTransaction: loanId=${loan.loanId}, status="${loanStatus}", approved=${isApproved}`);
+  console.log('Full loan object:', JSON.stringify(loan, null, 2));
+  console.log('loan.status:', loan.status);
+  console.log('loan.status?.loan:', loan.status?.loan);
+  console.log('loan.status?.loan?.loanStatus:', loan.status?.loan?.loanStatus);
+
   return {
     id: loan.loanId,
     loanId: loan.loanId, // Add loanId for bureau decision API
     userId: loan.userId, // Make sure userId is passed through
     amount: loan.loanAmount.toLocaleString(),
-    name: loan.firstName || loan.patientName,
-    treatment: loan.loanReason,
+    name: loan.firstName || loan.patientName || 'Unknown',
+    treatment: loan.loanReason || '',
     appliedAt: formatDate(loan.loanApplyDate),
-    status: loan.status?.loan?.loanStatus || 'Unknown',
-    approved: loan.status?.loan?.loanStatus === 'Approved',
+    status: loanStatus,
+    approved: isApproved,
     utr: loan.utrNo || undefined,
     disbursedAt: loan.disburseDate ? formatDate(loan.disburseDate) : undefined,
     lender: loan.lenderName || '',
     maxLimit: loan.treatmentAmount > loan.loanAmount ? loan.treatmentAmount.toLocaleString() : undefined,
     onboardingUrl: loan.onboardingUrl || undefined,
     shareableLink: loan.onboardingUrl || undefined,
-    patientPhoneNo: loan.mobileNumber ? parseInt(loan.mobileNumber) : undefined
+    patientPhoneNo: loan.mobileNumber ? parseInt(loan.mobileNumber) : undefined,
+    applicationId: loan.applicationId || undefined,
+    clinicName: loan.clinicName || undefined,
+    doctorName: loan.doctorName || undefined,
+    employmentType: loan.employmentType || undefined
   };
 };
+
+// New interface for loan details by user ID
+export interface LoanDetailsByUserId {
+  id: number;
+  loanId: string;
+  loanAmount: number;
+  loanReason: string;
+  loanApplyDate: string;
+  doctorId: string;
+  relationWithPatient: string;
+  patientName: string;
+  patientPhoneNumber: string;
+  patientEmailId: string;
+  status: string;
+  treatmentAmount: number;
+}
+
+interface LoanDetailsByUserIdResponse {
+  status: number;
+  data: LoanDetailsByUserId;
+  attachment: null;
+  message: string;
+}
+
+export const getLoanDetailsByUserId = async (userId: string): Promise<LoanDetailsByUserId | null> => {
+  try {
+    const response = await loanApi.get<LoanDetailsByUserIdResponse>('/userDetails/getLoanDetailsByUserId/', {
+      params: { userId },
+      headers: {
+        'Accept': 'application/json'
+      }
+    });
+
+    if (response.data.status === 200 && response.data.data) {
+      return response.data.data;
+    }
+
+    return null;
+  } catch (error: any) {
+    console.error('Error getting loan details by user ID:', error);
+    
+    // Handle 404 case specifically
+    if (error.response?.status === 404) {
+      return null;
+    }
+    
+    // Handle authentication errors
+    if (error.response?.status === 401) {
+      throw new Error('Authentication required. Please login again.');
+    }
+    
+    return null;
+  }
+};
+
+export default loanApi;

@@ -1,6 +1,6 @@
 import React, { useRef, useState } from 'react';
 import { ArrowLeft, User, Phone, Share2, QrCode, Eye, FileText, Download, Check, AlertTriangle, Copy, ExternalLink } from 'lucide-react';
-import { uploadPrescription, getQrCode, getDisburseDetailForReport, getMatchingEmiPlans, BureauEmiPlan, getBureauDecisionData, BureauDecisionData, getUserLoanTimeline, TimelineItem } from '../services/loanApi';
+import { uploadPrescription, getQrCode, getDisburseDetailForReport, getMatchingEmiPlans, BureauEmiPlan, getBureauDecisionData, BureauDecisionData, getUserLoanTimeline, TimelineItem, getLoanDetailsByUserId, LoanDetailsByUserId } from '../services/loanApi';
 import { useAuth } from '../context/AuthContext';
 
 export interface EMIPlan {
@@ -34,6 +34,10 @@ export interface Transaction {
   onboardingUrl?: string;
   shareableLink?: string;
   patientPhoneNo?: number;
+  applicationId?: string;
+  clinicName?: string;
+  doctorName?: string;
+  employmentType?: string;
 }
 
 interface Props {
@@ -60,6 +64,7 @@ const TransactionDetailsOverlay: React.FC<Props> = ({ transaction, onClose }) =>
   const [hasMatchingProduct, setHasMatchingProduct] = useState(false);
   const [bureauDecisionData, setBureauDecisionData] = useState<BureauDecisionData | null>(null);
   const [assignedProductFailed, setAssignedProductFailed] = useState(false);
+  const [loanDetails, setLoanDetails] = useState<LoanDetailsByUserId | null>(null);
 
   // Handle share button click
   const handleShare = async () => {
@@ -358,6 +363,7 @@ const TransactionDetailsOverlay: React.FC<Props> = ({ transaction, onClose }) =>
         setHasMatchingProduct(result.hasMatchingProduct);
         setAssignedProductFailed(result.assignedProductFailed);
         setBureauDecisionData(decisionData);
+        setLoanDetails(result.loanDetails || null);
       } catch (error) {
         console.error('Error loading EMI plans:', error);
       } finally {
@@ -437,6 +443,31 @@ const TransactionDetailsOverlay: React.FC<Props> = ({ transaction, onClose }) =>
               </div>
               <div className="text-gray-900">{transaction.treatment}</div>
             </div>
+
+            
+            {/* Application ID */}
+            {transaction.applicationId && (
+              <div className="flex items-center space-x-3">
+                <div className="p-2 bg-[#EEF2FF] rounded-full">
+                  <svg 
+                    className="h-5 w-5 text-[#4F46E5]" 
+                    viewBox="0 0 24 24" 
+                    fill="none" 
+                    stroke="currentColor" 
+                    strokeWidth="2" 
+                    strokeLinecap="round" 
+                    strokeLinejoin="round"
+                  >
+                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                    <polyline points="14,2 14,8 20,8"/>
+                    <line x1="16" y1="13" x2="8" y2="13"/>
+                    <line x1="16" y1="17" x2="8" y2="17"/>
+                    <polyline points="10,9 9,9 8,9"/>
+                  </svg>
+                </div>
+                <div className="text-gray-900">Application ID: {transaction.applicationId}</div>
+              </div>
+            )}
 
             {/* Applied Date */}
             <div className="text-sm text-gray-600">Applied at {transaction.appliedAt}</div>
@@ -808,6 +839,12 @@ const TransactionDetailsOverlay: React.FC<Props> = ({ transaction, onClose }) =>
                               <span className="text-gray-600">EMI amount</span>
                               <span className="text-gray-900">₹ {plan.emi.toLocaleString()}</span>
                             </div>
+                            {loanDetails && (
+                              <div className="flex justify-between">
+                                <span className="text-gray-600">Loan amount</span>
+                                <span className="text-gray-900">₹ {loanDetails.loanAmount.toLocaleString()}</span>
+                              </div>
+                            )}
                             <div className="flex justify-between">
                               <span className="text-gray-600">Processing fees</span>
                               <span className="text-gray-900">₹ {Math.round(plan.grossTreatmentAmount * plan.productDetailsDO.processingFesIncludingGSTRate / 100).toLocaleString()} ({plan.productDetailsDO.processingFesIncludingGSTRate}%)</span>
@@ -858,6 +895,12 @@ const TransactionDetailsOverlay: React.FC<Props> = ({ transaction, onClose }) =>
                       <span className="text-gray-600">EMI amount</span>
                       <span className="text-gray-900">₹ {transaction.selectedEmiPlan.emiAmount}</span>
                     </div>
+                    {loanDetails && (
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">Loan amount</span>
+                        <span className="text-gray-900">₹ {loanDetails.loanAmount.toLocaleString()}</span>
+                      </div>
+                    )}
                     {transaction.selectedEmiPlan.processingFees && (
                       <div className="flex justify-between">
                         <span className="text-gray-600">Processing fees</span>

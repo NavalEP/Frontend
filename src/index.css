@@ -213,6 +213,7 @@ body.login-page {
   outline: none !important;
   box-shadow: none !important;
   border: none !important;
+  ring: none !important;
 }
 
 .chat-input {

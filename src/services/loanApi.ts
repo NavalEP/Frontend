@@ -620,7 +620,6 @@ export const uploadPrescription = async (file: File, userId: string) => {
 };
 
 export const getLoanTransactions = async (doctorId: string, params?: {
-  parentDoctorId?: string;
   clinicName?: string;
   startDate?: string;
   endDate?: string;
@@ -629,7 +628,6 @@ export const getLoanTransactions = async (doctorId: string, params?: {
   try {
     const queryParams = {
       doctorId,
-      parentDoctorId: params?.parentDoctorId || '',
       clinicName: params?.clinicName || '',
       startDate: params?.startDate || '',
       endDate: params?.endDate || '',

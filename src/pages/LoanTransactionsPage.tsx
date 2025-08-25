@@ -43,8 +43,7 @@ const LoanTransactionsPage: React.FC<LoanTransactionsPageProps> = ({ onClose }) 
         setChildClinics(clinics);
         
         // Fetch transactions based on selected clinic or default
-        const transactionDoctorId = selectedClinic ? selectedClinic.doctorId : '';
-        const parentDoctorId = selectedClinic ? '' : doctorId;
+        const transactionDoctorId = selectedClinic ? selectedClinic.doctorId : doctorId;
         
         // Get date parameters from filters
         let startDate = '';
@@ -81,7 +80,6 @@ const LoanTransactionsPage: React.FC<LoanTransactionsPageProps> = ({ onClose }) 
         const loanStatus = filters.status.length > 0 ? filters.status[0] : '';
         
         const loanTransactions = await getLoanTransactions(transactionDoctorId, {
-          parentDoctorId: parentDoctorId,
           startDate: startDate,
           endDate: endDate,
           loanStatus: loanStatus

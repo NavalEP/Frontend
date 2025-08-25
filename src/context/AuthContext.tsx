@@ -110,6 +110,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         // Set flag to indicate fresh login
         localStorage.setItem('is_fresh_login', 'true');
         
+        // Set login route for doctor staff auto-login
+        setLoginRoute('/doctor-login');
+        localStorage.setItem('loginRoute', '/doctor-login');
+        
         console.log('Auto-login completed successfully');
       } else {
         console.error('Auto-login failed: No token received from API');

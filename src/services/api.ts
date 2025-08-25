@@ -287,7 +287,7 @@ api.interceptors.response.use(
         case 500:
           throw new Error(error.response.data?.message || 'Internal server error');
         default:
-          throw new Error(error.response.data?.message || 'An error occurred');
+          throw new Error(error.response.data?.message || 'Please refresh the page');
       }
     } else if (error.request) {
       // Network error
@@ -369,9 +369,12 @@ export const doctorStaffLogin = async (
 
 export const createSession = async (): Promise<AxiosResponse<SessionResponse>> => {
   try {
+    console.log('🔍 API: Creating new session...');
     const response = await api.post('/session/');
+    console.log('🔍 API: Session created:', response.data);
     return response;
   } catch (error) {
+    console.error('🔍 API: Error creating session:', error);
     throw error;
   }
 };
@@ -394,8 +397,12 @@ export const getSessionDetails = async (
   sessionId: string
 ): Promise<AxiosResponse<SessionDetailsResponse>> => {
   try {
-    return await api.get(`/session-details/${sessionId}/`);
+    console.log('🔍 API: Getting session details for:', sessionId);
+    const response = await api.get(`/session-details/${sessionId}/`);
+    console.log('🔍 API: Session details response:', response.data);
+    return response;
   } catch (error) {
+    console.error('🔍 API: Error getting session details:', error);
     throw error;
   }
 };
@@ -569,9 +576,12 @@ export const getSessionDetailsWithHistory = async (
   sessionId: string
 ): Promise<SessionDetailsWithHistoryResponse> => {
   try {
+    console.log('🔍 API: Getting session details with history for:', sessionId);
     const response = await api.get(`/session-details/${sessionId}/`);
+    console.log('🔍 API: Response received:', response.data);
     return response.data;
   } catch (error) {
+    console.error('🔍 API: Error getting session details:', error);
     throw error;
   }
 };

@@ -95,7 +95,7 @@ const LoginPage: React.FC = () => {
       const response = await verifyOtp(cleanPhoneNumber, cleanOtp, doctorId || undefined, doctorName || undefined);
       
       if (response.data.message === 'OTP verified successfully' && response.data.token) {
-        login(response.data);
+        login(response.data, '/login');
         setError(null);
       } else {
         setError('Invalid OTP. Please try again.');

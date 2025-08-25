@@ -1,6 +1,6 @@
 import React, { useRef, useState } from 'react';
 import { ArrowLeft, User, Phone, Share2, QrCode, Eye, FileText, Download, Check, AlertTriangle, Copy, ExternalLink } from 'lucide-react';
-import { uploadPrescription, getQrCode, getDisburseDetailForReport, getMatchingEmiPlans, BureauEmiPlan, getBureauDecisionData, BureauDecisionData, getUserLoanTimeline, TimelineItem, getLoanDetailsByUserId, LoanDetailsByUserId } from '../services/loanApi';
+import { uploadPrescription, getQrCode, getDisburseDetailForReport, getMatchingEmiPlans, BureauEmiPlan, getBureauDecisionData, BureauDecisionData, getUserLoanTimeline, TimelineItem, LoanDetailsByUserId } from '../services/loanApi';
 import { useAuth } from '../context/AuthContext';
 
 export interface EMIPlan {
@@ -335,9 +335,13 @@ const TransactionDetailsOverlay: React.FC<Props> = ({ transaction, onClose }) =>
     setIsDownloadingReport(true);
     try {
       await getDisburseDetailForReport(transaction.userId);
-    } catch (error) {
+      // Show success message
+      alert('Disbursal report downloaded.');
+    } catch (error: any) {
       console.error('Error downloading report:', error);
-      alert('Failed to download disbursal report. Please try again.');
+      // Show more specific error message
+      const errorMessage = error.message || 'Failed to download disbursal report. Please try again.';
+      alert(errorMessage);
     } finally {
       setIsDownloadingReport(false);
     }

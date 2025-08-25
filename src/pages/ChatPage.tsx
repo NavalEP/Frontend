@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { createSession, sendMessage, getSessionDetails, uploadDocument, uploadPanCard, getUserDetailsBySessionId, getDoctorSessions, getSessionDetailsWithHistory, formatIndianTime } from '../services/api';
+import { createSession, sendMessage, getSessionDetails, uploadDocument, uploadPanCard, getUserDetailsBySessionId, getSessionDetailsWithHistory } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import ChatMessage from '../components/ChatMessage';
 import StructuredInputForm from '../components/StructuredInputForm';
@@ -53,7 +53,18 @@ const ChatPage: React.FC = () => {
   const [chatHistory, setChatHistory] = useState<ChatSession[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const { incrementSessionCount, doctorId, doctorName, logout, sessionCount } = useAuth();
+  const { incrementSessionCount, doctorId, doctorName, logout, sessionCount, loginRoute } = useAuth();
+  
+  // Debug logging for authentication state
+  useEffect(() => {
+    console.log('ChatPage - Authentication State:', {
+      doctorId,
+      doctorName,
+      loginRoute,
+      isDoctor: loginRoute === '/doctor-login',
+      userType: loginRoute === '/doctor-login' ? 'Doctor' : 'Patient'
+    });
+  }, [doctorId, doctorName, loginRoute]);
   const [showOfferButton, setShowOfferButton] = useState(false);
   const [showLoanTransactionsOverlay, setShowLoanTransactionsOverlay] = useState(false);
 
@@ -1271,15 +1282,21 @@ const ChatPage: React.FC = () => {
               {showAvatarMenu && (
                 <div className="absolute top-full left-0 mt-2 w-64 bg-white rounded-lg shadow-lg border border-gray-200 z-50">
                   <div className="p-4">
-                    {/* Your Doctor */}
-                    {doctorName && (
-                      <div className="flex items-center space-x-2 mb-3 pb-3 border-b border-gray-100">
-                        <User className="h-4 w-4 text-gray-500" />
-                        <span className="text-sm font-medium text-gray-700">
-                          Your doctor: {doctorName.replace('_', ' ')}
-                        </span>
-                      </div>
-                    )}
+                    {/* User Type Indicator */}
+                    <div className="flex items-center space-x-2 mb-3 pb-3 border-b border-gray-100">
+                      <User className="h-4 w-4 text-gray-500" />
+                      <span className="text-sm font-medium text-gray-700">
+                        {loginRoute === '/doctor-login' ? (
+                          <>
+                            Doctor: {doctorName?.replace('_', ' ') || 'Unknown'}
+                          </>
+                        ) : (
+                          <>
+                            Your Doctor: {doctorName?.replace('_', ' ') || 'Unknown'}
+                          </>
+                        )}
+                      </span>
+                    </div>
                     
                     {/* Session Count */}
                     <div className="flex items-center justify-between mb-3 pb-3 border-b border-gray-100">
@@ -1461,8 +1478,9 @@ const ChatPage: React.FC = () => {
               {/* Menu Items */}
               <div className="flex-1 overflow-y-auto p-4">
                 <div className="space-y-2">
-                  {/* Loan Transactions - Only show for doctors */}
-                  {doctorId && (
+                  {/* DOCTOR-ONLY FEATURES - Only visible when user came from doctor login route */}
+                  {/* All Applications - Only for doctors */}
+                  {loginRoute === '/doctor-login' && (
                     <button
                       onClick={() => {
                         setShowHamburgerMenu(false);
@@ -1481,8 +1499,8 @@ const ChatPage: React.FC = () => {
                     </button>
                   )}
                   
-                  {/* Doctor Sessions - Only show for doctors */}
-                  {doctorId && (
+                  {/* All Inquiries - Only for doctors */}
+                  {loginRoute === '/doctor-login' && (
                     <button
                       onClick={() => {
                         setShowHamburgerMenu(false);
@@ -1497,11 +1515,14 @@ const ChatPage: React.FC = () => {
                       </div>
                       <div>
                         <div className="font-medium text-gray-900">All Inquiries chat History</div>
-                        <div className="text-sm text-gray-500">View all inquiriest chat history</div>
+                        <div className="text-sm text-gray-500">View all inquiries chat history</div>
                       </div>
                     </button>
                   )}
                   
+
+                  
+                  {/* PATIENT & DOCTOR FEATURES - Available to all authenticated users */}
                   {/* Chat History */}
                   <button
                     onClick={() => {
@@ -1543,7 +1564,7 @@ const ChatPage: React.FC = () => {
                       </div>
                       {doctorName && (
                         <div className="flex items-center justify-between">
-                          <span className="text-sm text-gray-600">Doctor</span>
+                          <span className="text-sm text-gray-600">{loginRoute === '/doctor-login' ? 'Doctor' : 'Your Doctor'}</span>
                           <span className="text-sm font-medium text-gray-900">{doctorName.replace('_', ' ')}</span>
                         </div>
                       )}
@@ -1644,6 +1665,7 @@ const ChatPage: React.FC = () => {
                   onTreatmentSelect={handleTreatmentSelect}
                   selectedTreatment={selectedTreatments[message.id]}
                   onUploadClick={handleUploadButtonClick}
+                  onIframeOpen={handleOpenIframe}
                 />
               ))}
               {isLoading && messages.some(m => m.sender === 'user') && (

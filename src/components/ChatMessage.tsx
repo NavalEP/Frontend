@@ -22,9 +22,10 @@ interface ChatMessageProps {
   onTreatmentSelect?: (treatmentName: string, messageId: string) => void;
   selectedTreatment?: string;
   onUploadClick?: (documentType: 'aadhaar' | 'pan') => void;
+  onIframeOpen?: () => void;
 }
 
-const ChatMessage: React.FC<ChatMessageProps> = ({ message, onButtonClick, selectedOption, disabledOptions, onLinkClick, onTreatmentSelect, selectedTreatment, onUploadClick }) => {
+const ChatMessage: React.FC<ChatMessageProps> = ({ message, onButtonClick, selectedOption, disabledOptions, onLinkClick, onTreatmentSelect, selectedTreatment, onUploadClick, onIframeOpen }) => {
   const isUser = message.sender === 'user';
   const [resolvedUrls, setResolvedUrls] = useState<Record<string, string>>({});
   const [loadingUrls, setLoadingUrls] = useState<Set<string>>(new Set());
@@ -56,7 +57,9 @@ const ChatMessage: React.FC<ChatMessageProps> = ({ message, onButtonClick, selec
      message.text.toLowerCase().includes('kindly upload') ||
      message.text.toLowerCase().includes('you can upload') ||
      message.text.toLowerCase().includes('click') ||
-     message.text.toLowerCase().includes('proceed with the loan'))
+     message.text.toLowerCase().includes('proceed with the loan') ||
+     message.text.toLowerCase().includes('please proceed to upload') ||
+     message.text.toLowerCase().includes('please proceed to upload both the front and back of the patient\'s aadhaar card to continue with the loan application process'))
   );
   
   // Check if this is a PAN upload request - be very specific
@@ -70,6 +73,14 @@ const ChatMessage: React.FC<ChatMessageProps> = ({ message, onButtonClick, selec
      message.text.toLowerCase().includes('clicking the file upload') ||
      message.text.toLowerCase().includes('enter patient pan') ||
      message.text.toLowerCase().includes('pan card details'))
+  );
+  
+  // Check if this is the No-cost Credit & Debit Card EMI message
+  const isNoCostEmiMessage = !isUser && (
+    message.text.toLowerCase().includes('no-cost credit & debit card emi') ||
+    message.text.toLowerCase().includes('no-cost credit and debit card emi') ||
+    message.text.toLowerCase().includes('no cost credit & debit card emi') ||
+    message.text.toLowerCase().includes('no cost credit and debit card emi')
   );
   
   // Function to detect if message contains question with options
@@ -816,6 +827,25 @@ const ChatMessage: React.FC<ChatMessageProps> = ({ message, onButtonClick, selec
                 <span className="text-sm md:text-base">Upload PAN Card</span>
               </button>
               <p className="text-xs text-gray-500 text-center mt-1">Click here to upload your PAN card</p>
+            </div>
+          )}
+          
+          {/* No-cost Credit & Debit Card EMI Button */}
+          {isNoCostEmiMessage && onIframeOpen && (
+            <div className="mt-3">
+              <button
+                onClick={onIframeOpen}
+                className="w-full px-4 py-2.5 bg-green-500 hover:bg-green-600 text-white font-medium rounded-lg transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-1 flex items-center justify-center space-x-2 shadow-lg"
+              >
+                <img 
+                  src="https://carepay.money/static/media/Cards%202.f655246b233e2a166c74.gif" 
+                  alt="Credit Card" 
+                  className="h-5 w-5 md:h-6 md:w-6" 
+                />
+                <span className="text-sm md:text-base">No-cost Credit & Debit Card EMI</span>
+                <span className="ml-2 text-xs bg-green-600 px-2 py-1 rounded-full">⚡ Quick</span>
+              </button>
+              <p className="text-xs text-gray-500 text-center mt-1">Click here to apply for no-cost EMI</p>
             </div>
           )}
           

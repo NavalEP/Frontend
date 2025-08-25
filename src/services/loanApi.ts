@@ -506,33 +506,75 @@ export const getMatchingEmiPlans = async (userId: string, loanId: string): Promi
 
 export const getDisburseDetailForReport = async (userId: string) => {
   try {
-    const response = await loanApi.get('/getDisburseDetailForReport/', {
-      params: { userId },
-      headers: {
-        'Accept': 'application/pdf'
-      },
-      responseType: 'blob' // Important for file downloads
-    });
+    // First, try to make a direct request to check if the API supports AJAX requests
+    try {
+      const response = await loanApi.get('/getDisburseDetailForReport/', {
+        params: { userId },
+        headers: {
+          'Accept': 'application/pdf, application/json, */*'
+        },
+        responseType: 'blob',
+        timeout: 30000
+      });
 
-    // Create blob URL for download
-    const blob = new Blob([response.data], { type: 'application/pdf' });
-    const url = window.URL.createObjectURL(blob);
-    
-    // Create temporary download link
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `disbursal-report-${userId}.pdf`;
-    document.body.appendChild(link);
-    link.click();
-    
-    // Cleanup
-    document.body.removeChild(link);
-    window.URL.revokeObjectURL(url);
+      // Check if response is actually a PDF
+      const contentType = response.headers['content-type'];
+      if (contentType && contentType.includes('application/pdf')) {
+        // Create blob URL for download
+        const blob = new Blob([response.data], { type: 'application/pdf' });
+        const url = window.URL.createObjectURL(blob);
+        
+        // Create temporary download link
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `disbursal-report-${userId}.pdf`;
+        document.body.appendChild(link);
+        link.click();
+        
+        // Cleanup
+        document.body.removeChild(link);
+        window.URL.revokeObjectURL(url);
+
+        return { success: true };
+      }
+    } catch (ajaxError: any) {
+      console.log('AJAX request failed, falling back to direct browser request:', ajaxError.response?.status);
+      
+      // If AJAX fails with 406, fall back to direct browser request
+      if (ajaxError.response?.status === 406) {
+        const baseUrl = 'https://loanbot.carepay.money/api/v1/agent';
+        const url = `${baseUrl}/getDisburseDetailForReport/?userId=${userId}`;
+        
+        // Open the URL directly in a new tab
+        // This will preserve all authentication cookies and session data
+        const newWindow = window.open(url, '_blank');
+        
+        if (!newWindow) {
+          throw new Error('Popup blocked. Please allow popups for this site and try again.');
+        }
+
+        return { success: true };
+      }
+      
+      // If it's not a 406 error, re-throw the error
+      throw ajaxError;
+    }
 
     return { success: true };
   } catch (error: any) {
     console.error('Error downloading disbursal report:', error);
-    throw new Error(error.response?.data?.message || 'Failed to download disbursal report');
+    
+    if (error.message.includes('Popup blocked')) {
+      throw new Error('Popup blocked. Please allow popups for this site and try again.');
+    } else if (error.response?.status === 404) {
+      throw new Error('Disbursal report not found for this user.');
+    } else if (error.response?.status === 401) {
+      throw new Error('Authentication required. Please login again.');
+    } else if (error.response?.status === 403) {
+      throw new Error('You do not have permission to download this report.');
+    } else {
+      throw new Error(error.response?.data?.message || 'Failed to download disbursal report. Please try again.');
+    }
   }
 };
 
@@ -923,23 +965,23 @@ export const getLoanCountAndAmountForDoctor = async (doctorId: string, clinicNam
       'KYC required',
       'KYC in progress',
       'Bank Account KYC required',
-      'KYC failed',
-      'Lender loan rejected',
+
+  
       'KYC complete',
       'Agreement signing initiated',
       'Agreement generated',
-      'Agreement signing falied',
+  
       'Agreement signed',
       'EMI auto pay setup in progress',
-      'Bank Account KYC initiated',
-      'Bank Account KYC successful',
-      'Bank Account KYC failed',
-      'EMI auto-pay setup failed',
+      
+     
+    
+    
       'EMI auto-pay setup complete',
       'Verification initiated for disbursal',
       'Verification completed for disbursal',
       'Disbursal initiated',
-      'Disbursal failed',
+   
       'Loan disbursed',
       'UTR received'
     ];

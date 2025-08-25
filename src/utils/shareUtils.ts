@@ -177,3 +177,26 @@ export const smartShare = async (data: ShareData): Promise<void> => {
     }
   }
 }; 
+
+// Function to store auto-login credentials and trigger auto-login
+export const storeAutoLoginCredentials = (merchantCode: string, password: string): void => {
+  // Store the credentials
+  localStorage.setItem('autoLogin_merchantCode', merchantCode);
+  localStorage.setItem('autoLogin_password', password);
+  
+  // Trigger auto-login by redirecting to doctor login page
+  window.location.href = '/doctor-login';
+};
+
+// Function to clear auto-login credentials
+export const clearAutoLoginCredentials = (): void => {
+  localStorage.removeItem('autoLogin_merchantCode');
+  localStorage.removeItem('autoLogin_password');
+};
+
+// Function to check if auto-login credentials exist
+export const hasAutoLoginCredentials = (): boolean => {
+  const merchantCode = localStorage.getItem('autoLogin_merchantCode');
+  const password = localStorage.getItem('autoLogin_password');
+  return !!(merchantCode && password);
+}; 

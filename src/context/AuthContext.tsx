@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { setLogoutCallback } from '../services/api';
+import { setLogoutCallback, doctorStaffLogin } from '../services/api';
 
 interface AuthContextType {
   isAuthenticated: boolean;
@@ -10,9 +10,11 @@ interface AuthContextType {
   doctorName: string | null;
   sessionCount: number;
   isInitialized: boolean;
-  login: (tokenData: { token: string; phone_number?: string; doctor_id?: string; doctor_name?: string }) => void;
+  loginRoute: string | null;
+  login: (tokenData: { token: string; phone_number?: string; doctor_id?: string; doctor_name?: string }, route?: string) => void;
   logout: () => void;
   incrementSessionCount: () => void;
+  performAutoLogin: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType>({} as AuthContextType);
@@ -27,6 +29,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [doctorName, setDoctorName] = useState<string | null>(null);
   const [sessionCount, setSessionCount] = useState<number>(0);
   const [isInitialized, setIsInitialized] = useState<boolean>(false);
+  const [isAutoLoggingIn, setIsAutoLoggingIn] = useState<boolean>(false);
+  const [loginRoute, setLoginRoute] = useState<string | null>(null);
   const navigate = useNavigate();
 
   // Utility functions to handle persistent doctor data storage
@@ -59,18 +63,95 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return { doctorId, doctorName };
   };
 
+  // Auto-login function that always calls the doctor staff API
+  const performAutoLogin = async (): Promise<void> => {
+    const autoLoginMerchantCode = localStorage.getItem('autoLogin_merchantCode');
+    const autoLoginPassword = localStorage.getItem('autoLogin_password');
+    
+    if (!autoLoginMerchantCode || !autoLoginPassword || isAutoLoggingIn) {
+      console.log('Auto-login skipped: missing credentials or already in progress');
+      return;
+    }
+
+    setIsAutoLoggingIn(true);
+    
+    try {
+      console.log('Performing auto-login with doctor staff API...');
+      console.log('Merchant Code:', autoLoginMerchantCode);
+      
+      // Always call the doctor staff API to get fresh token and doctor info
+      const response = await doctorStaffLogin(autoLoginMerchantCode.trim(), autoLoginPassword);
+      
+      if (response.data.token) {
+        console.log('Auto-login successful, updating doctor information...');
+        console.log('New Doctor ID:', response.data.doctor_id);
+        console.log('New Doctor Name:', response.data.doctor_name);
+        
+        // Update doctor information from API response
+        const newDoctorId = response.data.doctor_id;
+        const newDoctorName = response.data.doctor_name;
+        
+        // Store the new doctor data
+        storeDoctorData(newDoctorId, newDoctorName);
+        
+        // Update state with new information
+        setDoctorId(newDoctorId);
+        setDoctorName(newDoctorName);
+        setToken(response.data.token);
+        setIsAuthenticated(true);
+        
+        // Store the new token
+        localStorage.setItem('token', response.data.token);
+        
+        // Reset session count for new login
+        setSessionCount(0);
+        localStorage.setItem('sessionCount', '0');
+        
+        // Set flag to indicate fresh login
+        localStorage.setItem('is_fresh_login', 'true');
+        
+        console.log('Auto-login completed successfully');
+      } else {
+        console.error('Auto-login failed: No token received from API');
+        // Clear auto-login credentials if login fails
+        localStorage.removeItem('autoLogin_merchantCode');
+        localStorage.removeItem('autoLogin_password');
+        throw new Error('No authentication token received from server');
+      }
+    } catch (error) {
+      console.error('Auto-login error:', error);
+      // Clear auto-login credentials if login fails
+      localStorage.removeItem('autoLogin_merchantCode');
+      localStorage.removeItem('autoLogin_password');
+      
+      // Re-throw the error so it can be handled by the calling component
+      throw error;
+    } finally {
+      setIsAutoLoggingIn(false);
+    }
+  };
+
   useEffect(() => {
     // Check local storage for existing auth state
     const storedToken = localStorage.getItem('token');
     const storedPhone = localStorage.getItem('phoneNumber');
     const { doctorId, doctorName } = retrieveDoctorData();
     const storedSessionCount = localStorage.getItem('sessionCount');
+    const storedLoginRoute = localStorage.getItem('loginRoute');
 
     // Always set doctorId and doctorName if they exist in storage, regardless of token status
     if (doctorId) setDoctorId(doctorId);
     if (doctorName) setDoctorName(doctorName);
+    if (storedLoginRoute) setLoginRoute(storedLoginRoute);
 
-    if (storedToken && storedToken.trim() !== '') {
+    // Check if auto-login credentials exist
+    const autoLoginMerchantCode = localStorage.getItem('autoLogin_merchantCode');
+    const autoLoginPassword = localStorage.getItem('autoLogin_password');
+
+    if (autoLoginMerchantCode && autoLoginPassword) {
+      // Perform auto-login immediately
+      performAutoLogin();
+    } else if (storedToken && storedToken.trim() !== '') {
       setToken(storedToken);
       if (storedPhone) setPhoneNumber(storedPhone);
       setIsAuthenticated(true);
@@ -84,6 +165,30 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     // Mark as initialized after checking localStorage
     setIsInitialized(true);
   }, []);
+
+  // Periodic auto-login check for doctor staff
+  useEffect(() => {
+    const checkAutoLogin = async () => {
+      const autoLoginMerchantCode = localStorage.getItem('autoLogin_merchantCode');
+      const autoLoginPassword = localStorage.getItem('autoLogin_password');
+      
+      // If auto-login credentials exist and we're not currently auto-logging in
+      if (autoLoginMerchantCode && autoLoginPassword && !isAutoLoggingIn) {
+        console.log('Auto-login credentials found, performing periodic re-login...');
+        try {
+          await performAutoLogin();
+        } catch (error) {
+          console.error('Periodic auto-login failed:', error);
+          // Don't clear credentials on periodic failure, only on initial failure
+        }
+      }
+    };
+
+    // Check every 5 minutes for auto-login
+    const interval = setInterval(checkAutoLogin, 300000); // 5 minutes
+
+    return () => clearInterval(interval);
+  }, [isAutoLoggingIn]);
 
   // Periodic check to ensure token validity and sync with localStorage
   useEffect(() => {
@@ -151,7 +256,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   }, [sessionCount]);
 
-  const login = (tokenData: { token: string; phone_number?: string; doctor_id?: string; doctor_name?: string }) => {
+  const login = (tokenData: { token: string; phone_number?: string; doctor_id?: string; doctor_name?: string }, route?: string) => {
     const { token, phone_number, doctor_id, doctor_name } = tokenData;
     
     // Clear any existing session data to ensure new session on login
@@ -229,6 +334,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     localStorage.setItem('sessionCount', '0');
     setSessionCount(0);
     
+    // Store login route
+    if (route) {
+      setLoginRoute(route);
+      localStorage.setItem('loginRoute', route);
+    }
+    
     // Update auth state
     setToken(token);
     if (phone_number) setPhoneNumber(phone_number);
@@ -271,6 +382,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     localStorage.removeItem('token');
     localStorage.removeItem('phoneNumber');
     localStorage.removeItem('sessionCount');
+    localStorage.removeItem('loginRoute');
     
     // Get doctor data before clearing state to ensure it persists
     const { doctorId: persistedDoctorId, doctorName: persistedDoctorName } = retrieveDoctorData();
@@ -280,6 +392,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setPhoneNumber(null);
     setIsAuthenticated(false);
     setSessionCount(0);
+    setLoginRoute(null);
     
     // Restore doctor data - never allow them to be null
     if (persistedDoctorId) setDoctorId(persistedDoctorId);
@@ -315,9 +428,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     doctorName,
     sessionCount,
     isInitialized,
+    loginRoute,
     login,
     logout,
-    incrementSessionCount
+    incrementSessionCount,
+    performAutoLogin
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

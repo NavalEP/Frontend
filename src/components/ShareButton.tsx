@@ -67,7 +67,7 @@ const ShareButton: React.FC<ShareButtonProps> = ({
       title={isNativeSharingSupported() ? "Share" : "Copy to clipboard"}
     >
       <Share2 className="h-4 w-4" />
-      {children || <span>Share</span>}
+      {children}
     </button>
   );
 };

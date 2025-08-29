@@ -9,8 +9,10 @@ import AadhaarUpload from '../components/AadhaarUpload';
 import Modal from '../components/Modal';
 import EditProfileForm from '../components/EditProfileForm';
 import DoctorSessionsList from '../components/DoctorSessionsList';
-import { SendHorizonal, Plus, Notebook as Robot, History, ArrowLeft, Search, LogOut, User, MapPin, Briefcase, Calendar, Mail, GraduationCap, Heart, Edit3, Phone, Menu } from 'lucide-react';
+import PatientChatHistory from '../components/PatientChatHistory';
+import { SendHorizonal, Plus, Notebook as Robot, History, ArrowLeft, Search, LogOut, User, MapPin, Briefcase, Calendar, Mail, GraduationCap, Heart, Edit3, Phone, Menu, TrendingUp } from 'lucide-react';
 import LoanTransactionsPage from './LoanTransactionsPage';
+import BusinessOverviewPage from './BusinessOverviewPage';
 
 interface Message {
   id: string;
@@ -53,7 +55,7 @@ const ChatPage: React.FC = () => {
   const [chatHistory, setChatHistory] = useState<ChatSession[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const { incrementSessionCount, doctorId, doctorName, logout, sessionCount, loginRoute } = useAuth();
+  const { incrementSessionCount, doctorId, doctorName, clinicName, logout, sessionCount, loginRoute, phoneNumber } = useAuth();
   
   // Debug logging for authentication state
   useEffect(() => {
@@ -67,6 +69,7 @@ const ChatPage: React.FC = () => {
   }, [doctorId, doctorName, loginRoute]);
   const [showOfferButton, setShowOfferButton] = useState(false);
   const [showLoanTransactionsOverlay, setShowLoanTransactionsOverlay] = useState(false);
+  const [showBusinessOverviewOverlay, setShowBusinessOverviewOverlay] = useState(false);
 
   // Utility function to create image preview
   const createImagePreview = (file: File): Promise<string> => {
@@ -110,6 +113,9 @@ const ChatPage: React.FC = () => {
   // Doctor Sessions State
   const [showDoctorSessions, setShowDoctorSessions] = useState(false);
   const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
+  
+  // Patient Chat History State
+  const [showPatientChatHistory, setShowPatientChatHistory] = useState(false);
   
   // Helper function to format welcome message from API response
   const formatWelcomeMessage = (content: string): string => {
@@ -1308,17 +1314,19 @@ const ChatPage: React.FC = () => {
                     
                     {/* Menu Items */}
                     <div className="space-y-2">
-                      {/* Chat History */}
-                      <button
-                        onClick={() => {
-                          setShowHamburgerMenu(false);
-                          setShowHistory(true);
-                        }}
-                        className="w-full flex items-center space-x-2 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 rounded-md transition-colors"
-                      >
-                        <History className="h-4 w-4" />
-                        <span>Chat History</span>
-                      </button>
+                      {/* Chat History - Only for patients */}
+                      {loginRoute !== '/doctor-login' && (
+                        <button
+                          onClick={() => {
+                            setShowHamburgerMenu(false);
+                            setShowPatientChatHistory(true);
+                          }}
+                          className="w-full flex items-center space-x-2 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 rounded-md transition-colors"
+                        >
+                          <History className="h-4 w-4" />
+                          <span>Chat History</span>
+                        </button>
+                      )}
                       
 
                       
@@ -1352,11 +1360,11 @@ const ChatPage: React.FC = () => {
         <div className="flex items-center space-x-1 sm:space-x-2 flex-shrink-0">
           <button
             onClick={handleNewSessionClick}
-            className="flex items-center space-x-1 p-1.5 sm:p-2 hover:bg-gray-100 rounded-full transition-colors chat-button"
+            className="flex items-center space-x-2 p-2 sm:p-3 hover:bg-gray-100 rounded-full transition-colors chat-button"
             title="New Inquiry"
           >
-            <Plus className="h-4 w-4 sm:h-5 sm:w-5" />
-            <span className="text-xs">New Inquiry</span>
+            <Plus className="h-5 w-5 sm:h-6 sm:w-6" />
+            <span className="text-sm">New Inquiry</span>
           </button>
         </div>
       </div>
@@ -1460,6 +1468,18 @@ const ChatPage: React.FC = () => {
           </div>
         )}
 
+        {/* Patient Chat History Sidebar */}
+        {showPatientChatHistory && (
+          <PatientChatHistory
+            phoneNumber={phoneNumber || ''}
+            onClose={() => setShowPatientChatHistory(false)}
+            onSessionSelect={(sessionId) => {
+              setShowPatientChatHistory(false);
+              loadChatSession(sessionId);
+            }}
+          />
+        )}
+
         {/* Hamburger Menu Overlay */}
         {showHamburgerMenu && (
           <div className="absolute inset-0 z-20 bg-white">
@@ -1520,25 +1540,46 @@ const ChatPage: React.FC = () => {
                     </button>
                   )}
                   
+                  {/* Business Overview - Only for doctors */}
+                  {loginRoute === '/doctor-login' && (
+                    <button
+                      onClick={() => {
+                        setShowHamburgerMenu(false);
+                        setShowBusinessOverviewOverlay(true);
+                      }}
+                      className="w-full flex items-center space-x-3 px-4 py-3 text-left hover:bg-gray-50 rounded-lg transition-colors"
+                    >
+                      <div className="flex items-center justify-center w-8 h-8 bg-green-600 rounded-lg">
+                        <TrendingUp className="h-4 w-4 text-white" />
+                      </div>
+                      <div>
+                        <div className="font-medium text-gray-900">Business Overview</div>
+                        <div className="text-sm text-gray-500">View loan statistics and earnings</div>
+                      </div>
+                    </button>
+                  )}
+                  
 
                   
-                  {/* PATIENT & DOCTOR FEATURES - Available to all authenticated users */}
-                  {/* Chat History */}
-                  <button
-                    onClick={() => {
-                      setShowHamburgerMenu(false);
-                      setShowLoanTransactionsOverlay(false);
-                      setShowHistory(true);
-                    }}
-                    className="w-full flex items-center space-x-3 px-4 py-3 text-left hover:bg-gray-50 rounded-lg transition-colors"
-                  >
-                    
-                    <History className="h-5 w-5 text-gray-600" />
-                    <div>
-                      <div className="font-medium text-gray-900">Recent chat history</div>
-                      <div className="text-sm text-gray-500">View previous conversations</div>
-                    </div>
-                  </button>
+                  {/* PATIENT-ONLY FEATURES - Only visible when user came from patient login route */}
+                  {/* Chat History - Only for patients */}
+                  {loginRoute !== '/doctor-login' && (
+                    <button
+                      onClick={() => {
+                        setShowHamburgerMenu(false);
+                        setShowLoanTransactionsOverlay(false);
+                        setShowPatientChatHistory(true);
+                      }}
+                      className="w-full flex items-center space-x-3 px-4 py-3 text-left hover:bg-gray-50 rounded-lg transition-colors"
+                    >
+                      
+                      <History className="h-5 w-5 text-gray-600" />
+                      <div>
+                        <div className="font-medium text-gray-900">Recent chat history</div>
+                        <div className="text-sm text-gray-500">View previous conversations</div>
+                      </div>
+                    </button>
+                  )}
                   
                   {/* New Chat */}
                   <button
@@ -1563,9 +1604,17 @@ const ChatPage: React.FC = () => {
                         <span className="text-sm font-medium text-gray-900">{sessionCount}/10</span>
                       </div>
                       {doctorName && (
-                        <div className="flex items-center justify-between">
-                          <span className="text-sm text-gray-600">{loginRoute === '/doctor-login' ? 'Doctor' : 'Your Doctor'}</span>
-                          <span className="text-sm font-medium text-gray-900">{doctorName.replace('_', ' ')}</span>
+                        <div className="flex flex-col space-y-1">
+                          <div className="flex items-center justify-between">
+                            <span className="text-sm text-gray-600">{loginRoute === '/doctor-login' ? 'Doctor' : 'Your Doctor'}</span>
+                            <span className="text-sm font-medium text-gray-900">{doctorName.replace('_', ' ')}</span>
+                          </div>
+                          {clinicName && (
+                            <div className="flex items-start justify-between">
+                              <span className="text-sm text-gray-600 flex-shrink-0 mr-2">Clinic</span>
+                              <span className="text-sm font-medium text-gray-900 break-words leading-relaxed text-right flex-1">{clinicName}</span>
+                            </div>
+                          )}
                         </div>
                       )}
                     </div>
@@ -1623,6 +1672,18 @@ const ChatPage: React.FC = () => {
                 <User className="h-4 w-4" />
                 <span className="ml-1"> Patient Profile Summary</span>
               </button>
+            </div>
+          )}
+          
+          {/* Clinic name section bar - Fixed */}
+          {clinicName && (
+            <div className="px-4 py-2 bg-blue-50 border-b border-blue-200 text-sm text-blue-800 flex-shrink-0 flex items-center justify-center">
+              <div className="flex items-center space-x-2">
+                <svg className="h-4 w-4" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M4 4a2 2 0 012-2h8a2 2 0 012 2v12a2 2 0 01-2 2H6a2 2 0 01-2-2V4zm3 1h2v2H7V5zm2 4H7v2h2V9zm2-4h2v2h-2V5zm2 4h-2v2h2V9z" clipRule="evenodd" />
+                </svg>
+                <span className="font-medium">Clinic: {clinicName}</span>
+              </div>
             </div>
           )}
           
@@ -2171,6 +2232,13 @@ const ChatPage: React.FC = () => {
       {showLoanTransactionsOverlay && (
         <div className="absolute inset-0 z-20 bg-white overflow-auto">
           <LoanTransactionsPage onClose={() => setShowLoanTransactionsOverlay(false)} />
+        </div>
+      )}
+
+      {/* Business Overview Overlay */}
+      {showBusinessOverviewOverlay && (
+        <div className="absolute inset-0 z-20 bg-white overflow-auto">
+          <BusinessOverviewPage onClose={() => setShowBusinessOverviewOverlay(false)} />
         </div>
       )}
     </div>

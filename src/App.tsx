@@ -3,6 +3,7 @@ import LoginPage from './pages/LoginPage';
 import DoctorStaffLoginPage from './pages/DoctorStaffLoginPage';
 import ChatPage from './pages/ChatPage';
 import LoanTransactionsPage from './pages/LoanTransactionsPage';
+import BusinessOverviewPage from './pages/BusinessOverviewPage';
 import ProtectedRoute from './components/ProtectedRoute';
 import DoctorProtectedRoute from './components/DoctorProtectedRoute';
 import { useAuth } from './context/AuthContext';
@@ -91,6 +92,11 @@ function App() {
       <Route path="/loan-transactions" element={
         <DoctorProtectedRoute>
           <LoanTransactionsPage />
+        </DoctorProtectedRoute>
+      } />
+      <Route path="/business-overview" element={
+        <DoctorProtectedRoute>
+          <BusinessOverviewPage />
         </DoctorProtectedRoute>
       } />
       <Route path="/" element={

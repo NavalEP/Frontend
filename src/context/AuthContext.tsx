@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { setLogoutCallback, doctorStaffLogin } from '../services/api';
+import { setLogoutCallback, doctorStaffLogin, getDoctorProfileDetails } from '../services/api';
 
 interface AuthContextType {
   isAuthenticated: boolean;
@@ -8,6 +8,7 @@ interface AuthContextType {
   phoneNumber: string | null;
   doctorId: string | null;
   doctorName: string | null;
+  clinicName: string | null;
   sessionCount: number;
   isInitialized: boolean;
   loginRoute: string | null;
@@ -15,6 +16,7 @@ interface AuthContextType {
   logout: () => void;
   incrementSessionCount: () => void;
   performAutoLogin: () => Promise<void>;
+  fetchClinicName: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType>({} as AuthContextType);
@@ -27,6 +29,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [phoneNumber, setPhoneNumber] = useState<string | null>(null);
   const [doctorId, setDoctorId] = useState<string | null>(null);
   const [doctorName, setDoctorName] = useState<string | null>(null);
+  const [clinicName, setClinicName] = useState<string | null>(null);
   const [sessionCount, setSessionCount] = useState<number>(0);
   const [isInitialized, setIsInitialized] = useState<boolean>(false);
   const [isAutoLoggingIn, setIsAutoLoggingIn] = useState<boolean>(false);
@@ -248,6 +251,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return () => clearInterval(interval);
   }, [doctorId, doctorName]);
 
+  // Fetch clinic name when doctorId changes
+  useEffect(() => {
+    if (doctorId) {
+      fetchClinicName();
+    } else {
+      setClinicName(null);
+    }
+  }, [doctorId]);
+
   // Auto logout after 10 sessions
   useEffect(() => {
     if (sessionCount >= 10) {
@@ -419,6 +431,26 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setSessionCount(prevCount => prevCount + 1);
   };
 
+  // Fetch clinic name for the current doctor
+  const fetchClinicName = async (): Promise<void> => {
+    if (!doctorId) {
+      setClinicName(null);
+      return;
+    }
+
+    try {
+      const response = await getDoctorProfileDetails(doctorId);
+      if (response.status === 200 && response.data?.clinicName) {
+        setClinicName(response.data.clinicName);
+      } else {
+        setClinicName(null);
+      }
+    } catch (error) {
+      console.error('Error fetching clinic name:', error);
+      setClinicName(null);
+    }
+  };
+
   // Register logout callback with API service for token expiration handling
   useEffect(() => {
     setLogoutCallback(logout);
@@ -430,13 +462,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     phoneNumber,
     doctorId,
     doctorName,
+    clinicName,
     sessionCount,
     isInitialized,
     loginRoute,
     login,
     logout,
     incrementSessionCount,
-    performAutoLogin
+    performAutoLogin,
+    fetchClinicName
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

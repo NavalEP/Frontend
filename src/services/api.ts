@@ -190,6 +190,25 @@ interface SessionDetailsWithHistoryResponse {
   userId: string;
 }
 
+// Interface for patient sessions response
+interface PatientSession {
+  session_id: string;
+  application_id: string;
+  status: string;
+  created_at: string | null;
+  updated_at: string | null;
+  phone_number: string;
+  doctorId?: string;
+  doctorName?: string;
+}
+
+interface PatientSessionsResponse {
+  status: string;
+  phone_number: string;
+  total_sessions: number;
+  sessions: PatientSession[];
+}
+
 // Base URL for API
 const API_BASE_URL = 'https://loanbot.carepay.money/api/v1/agent';
 
@@ -572,6 +591,20 @@ export const getDoctorSessions = async (
   }
 };
 
+// Get doctor profile details (clinic name)
+export const getDoctorProfileDetails = async (
+  doctorId: string
+): Promise<{ status: number; data?: { clinicName: string; doctorId: string }; message: string }> => {
+  try {
+    const response = await api.get('/getDoctorProfDetailsByDoctorId/', {
+      params: { doctorId }
+    });
+    return response.data;
+  } catch (error) {
+    throw error;
+  }
+};
+
 export const getSessionDetailsWithHistory = async (
   sessionId: string
 ): Promise<SessionDetailsWithHistoryResponse> => {
@@ -582,6 +615,24 @@ export const getSessionDetailsWithHistory = async (
     return response.data;
   } catch (error) {
     console.error('🔍 API: Error getting session details:', error);
+    throw error;
+  }
+};
+
+export const getPatientSessions = async (
+  phoneNumber: string
+): Promise<PatientSessionsResponse> => {
+  try {
+    console.log('🔍 API: Getting patient sessions for phone number:', phoneNumber);
+    const response = await api.get('/patient-sessions/', {
+      params: {
+        phone_number: phoneNumber.replace(/\D/g, '') // Remove non-digits
+      }
+    });
+    console.log('🔍 API: Patient sessions response:', response.data);
+    return response.data;
+  } catch (error) {
+    console.error('🔍 API: Error getting patient sessions:', error);
     throw error;
   }
 };

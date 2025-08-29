@@ -193,28 +193,31 @@ const LoanTransactionsPage: React.FC<LoanTransactionsPageProps> = ({ onClose }) 
         <h3 className="ml-3 font-semibold text-lg">All Applications</h3>
       </div>
 
+      {/* Sticky Search Bar */}
+      <div className="bg-white border-b border-gray-200 px-4 py-3 sticky top-0 z-10">
+        <div className="max-w-md mx-auto">
+          <div className="relative">
+            <input
+              type="text"
+              value={query}
+              onChange={e => setQuery(e.target.value)}
+              placeholder="Search by patient name"
+              className="w-full border border-gray-300 rounded-lg py-3 px-4 pl-12 pr-12 text-gray-700 focus:outline-none focus:ring-2 focus:ring-primary-600 focus:border-transparent bg-white shadow-sm"
+            />
+            <Search className="h-5 w-5 text-gray-400 absolute left-4 top-1/2 transform -translate-y-1/2" />
+            <button 
+              onClick={() => setShowFilterModal(true)}
+              className="absolute right-2 top-1/2 transform -translate-y-1/2 p-2 hover:bg-gray-100 rounded-lg transition-colors"
+            >
+              <SlidersHorizontal className="h-5 w-5 text-gray-500" />
+            </button>
+          </div>
+        </div>
+      </div>
+
       {/* Content */}
       <div className="p-4 flex-1 overflow-y-auto">
         <div className="max-w-md mx-auto">
-          {/* Search Bar */}
-          <div className="flex items-center mb-4">
-            <div className="relative flex-1">
-              <input
-                type="text"
-                value={query}
-                onChange={e => setQuery(e.target.value)}
-                placeholder="Search by patient name"
-                className="w-full border border-gray-300 rounded-full py-2 px-4 pl-10 text-gray-700 focus:outline-none focus:ring-2 focus:ring-primary-600"
-              />
-              <Search className="h-5 w-5 text-gray-400 absolute left-3 top-1/2 transform -translate-y-1/2" />
-            </div>
-            <button 
-              onClick={() => setShowFilterModal(true)}
-              className="ml-3 p-2 bg-white border border-gray-300 rounded-lg shadow hover:bg-gray-50 transition-colors"
-            >
-              <SlidersHorizontal className="h-5 w-5 text-gray-600" />
-            </button>
-          </div>
 
           {/* Active Filters Summary */}
           {(filters.status.length > 0 || selectedClinic || filters.dateRange.type !== 'all') && (

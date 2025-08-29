@@ -129,6 +129,20 @@ export interface LoanCountAndAmountData {
   pending_amount: number;
 }
 
+export interface DoctorDashboardData {
+  leadsPerClinic: number;
+  avgApprovalRateCarePay: number;
+  leadsPerClinicCarepay: number;
+  avgApprovalRate: number;
+}
+
+interface DoctorDashboardResponse {
+  status: number;
+  data: DoctorDashboardData;
+  attachment: null;
+  message: string;
+}
+
 interface LoanCountAndAmountResponse {
   status: number;
   data: LoanCountAndAmountData;
@@ -887,11 +901,17 @@ export const getUserLoanTimeline = async (loanId: string, userId?: string): Prom
   }
 };
 
-export const getLoanCountAndAmountForDoctor = async (doctorId: string, clinicName?: string): Promise<LoanCountAndAmountData> => {
+export const getLoanCountAndAmountForDoctor = async (doctorId: string, clinicName?: string, startDate?: string, endDate?: string): Promise<LoanCountAndAmountData> => {
   try {
-    const params: { doctorId: string; clinicName?: string } = { doctorId };
+    const params: { doctorId: string; clinicName?: string; startDate?: string; endDate?: string } = { doctorId };
     if (clinicName) {
       params.clinicName = clinicName;
+    }
+    if (startDate) {
+      params.startDate = startDate;
+    }
+    if (endDate) {
+      params.endDate = endDate;
     }
 
     console.log('Fetching loan count and amount from:', '/getLoanCountAndAmountForDoctor/');
@@ -944,6 +964,69 @@ export const getLoanCountAndAmountForDoctor = async (doctorId: string, clinicNam
       throw new Error(`Backend API Error: ${errorMessage}`);
     }
     throw new Error('An unexpected error occurred while fetching loan count and amount statistics.');
+  }
+};
+
+export const getDoctorDashboardData = async (doctorId: string, startDate?: string, endDate?: string): Promise<DoctorDashboardData> => {
+  try {
+    const params: { doctorId: string; startDate?: string; endDate?: string } = { doctorId };
+    if (startDate) {
+      params.startDate = startDate;
+    }
+    if (endDate) {
+      params.endDate = endDate;
+    }
+
+    console.log('Fetching doctor dashboard data from:', '/getDoctorDashboardData/');
+
+    const response = await loanApi.get<DoctorDashboardResponse>(
+      '/getDoctorDashboardData/',
+      {
+        params,
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
+        },
+        timeout: 30000
+      }
+    );
+
+    console.log('Doctor dashboard data response:', response.data);
+
+    if (response.data.status === 200 && response.data.data) {
+      return response.data.data;
+    }
+
+    throw new Error(response.data.message || 'Failed to fetch doctor dashboard data');
+  } catch (error: any) {
+    console.error('API Error:', error);
+    
+    if (axios.isAxiosError(error)) {
+      if (error.code === 'ECONNABORTED') {
+        throw new Error('Request timed out. Please try again.');
+      }
+      if (!error.response) {
+        console.error('Network Error Details:', {
+          message: error.message,
+          code: error.code,
+          config: error.config,
+          url: '/getDoctorDashboardData/'
+        });
+        throw new Error('Unable to connect to the backend server. Please check your internet connection.');
+      }
+      
+      // Log response error details
+      console.error('Response Error Details:', {
+        status: error.response.status,
+        statusText: error.response.statusText,
+        data: error.response.data,
+        headers: error.response.headers
+      });
+      
+      const errorMessage = error.response.data?.message || error.message;
+      throw new Error(`Backend API Error: ${errorMessage}`);
+    }
+    throw new Error('An unexpected error occurred while fetching doctor dashboard data.');
   }
 };
 

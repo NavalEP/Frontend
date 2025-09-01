@@ -25,7 +25,7 @@ const StructuredInputForm: React.FC<StructuredInputFormProps> = ({ onSubmit, isL
   const fields = [
     {
       key: 'patientName' as keyof FormData,
-      label: "Patient's Full Name",
+      label: "Patient's Full Name (As on Aadhaar Card)",
       placeholder: "Enter patient's full name",
       icon: User,
       type: 'text',

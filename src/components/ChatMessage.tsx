@@ -24,6 +24,8 @@ interface ChatMessageProps {
   selectedTreatment?: string;
   onUploadClick?: (documentType: 'aadhaar' | 'pan') => void;
   onIframeOpen?: () => void;
+  onIframeSliderOpen?: (url: string, title: string) => void;
+  onKycIframeOpen?: (url: string, title: string) => void;
 }
 
 // Component for styled treatment amount display
@@ -91,7 +93,7 @@ const TreatmentAmountDisplay: React.FC<{ text: string }> = ({ text }) => {
   return <span>{parts}</span>;
 };
 
-const ChatMessage: React.FC<ChatMessageProps> = ({ message, onButtonClick, selectedOption, disabledOptions, onLinkClick, onTreatmentSelect, selectedTreatment, onUploadClick, onIframeOpen }) => {
+const ChatMessage: React.FC<ChatMessageProps> = ({ message, onButtonClick, selectedOption, disabledOptions, onLinkClick, onTreatmentSelect, selectedTreatment, onUploadClick, onIframeOpen, onIframeSliderOpen, onKycIframeOpen }) => {
   const isUser = message.sender === 'user';
   const [resolvedUrls, setResolvedUrls] = useState<Record<string, string>>({});
   const [loadingUrls, setLoadingUrls] = useState<Set<string>>(new Set());
@@ -167,6 +169,14 @@ const ChatMessage: React.FC<ChatMessageProps> = ({ message, onButtonClick, selec
     message.text.toLowerCase().includes('no-cost credit and debit card emi') ||
     message.text.toLowerCase().includes('no cost credit & debit card emi') ||
     message.text.toLowerCase().includes('no cost credit and debit card emi')
+  );
+  
+  // Check if this is a KYC message (contains KYC URL and payment steps)
+  const isKycMessage = !isUser && (
+    message.text.toLowerCase().includes('payment is now just 2 steps away') &&
+    message.text.toLowerCase().includes('kyc') &&
+    message.text.toLowerCase().includes('approve emi auto payment') &&
+    /https:\/\/[^\s]+/.test(message.text)
   );
   
   // Function to detect if message contains question with options
@@ -451,24 +461,31 @@ const ChatMessage: React.FC<ChatMessageProps> = ({ message, onButtonClick, selec
     );
   };
 
-  const renderLinkButton = (url: string, index: number = 0) => {
+
+
+  const renderSpecialUrlButton = (url: string, index: number = 0) => {
     const resolvedUrl = resolvedUrls[url];
     const isLoading = loadingUrls.has(url);
     const targetUrl = resolvedUrl || url;
+    const buttonTitle = getSpecialUrlTitle(targetUrl);
     
     return (
-      <div key={`link-button-${index}`} className="mt-2">
+      <div key={`special-url-button-${index}`} className="mt-3">
         <button
           onClick={(e) => {
             e.preventDefault();
-            if (onLinkClick) {
-              onLinkClick(targetUrl);
+            if (onIframeSliderOpen) {
+              onIframeSliderOpen(targetUrl, buttonTitle);
             } else {
               window.open(targetUrl, '_blank');
             }
           }}
-          className="w-full px-4 py-2 bg-primary-600 hover:bg-primary-700 text-white font-medium rounded-lg transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-1 disabled:opacity-50 disabled:cursor-not-allowed"
+          className="w-full px-4 py-3 bg-purple-600 hover:bg-purple-700 text-white font-bold rounded-lg transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-1 disabled:opacity-50 disabled:cursor-not-allowed shadow-lg transform hover:scale-105"
           disabled={isLoading}
+          style={{
+            background: 'linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%)',
+            boxShadow: '0 4px 6px rgba(139, 92, 246, 0.3)'
+          }}
         >
           {isLoading ? (
             <span className="inline-flex items-center">
@@ -476,33 +493,9 @@ const ChatMessage: React.FC<ChatMessageProps> = ({ message, onButtonClick, selec
               Loading...
             </span>
           ) : (
-            'Click here to open link'
+            <span className="text-center">{buttonTitle}</span>
           )}
         </button>
-        <div className="mt-2 flex gap-2">
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              copyToClipboard(targetUrl);
-            }}
-            className="flex-1 px-3 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium rounded-lg transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-1 disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center justify-center"
-            disabled={isLoading}
-          >
-            <Copy className="h-4 w-4 mr-2" />
-            Copy Link
-          </button>
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              handleNativeShare(targetUrl);
-            }}
-            className="flex-1 px-3 py-2 bg-green-600 hover:bg-green-700 text-white font-medium rounded-lg transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-1 disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center justify-center"
-            disabled={isLoading}
-          >
-            <Share2 className="h-4 w-4 mr-2" />
-            Share
-          </button>
-        </div>
       </div>
     );
   };
@@ -556,6 +549,37 @@ const ChatMessage: React.FC<ChatMessageProps> = ({ message, onButtonClick, selec
     // Check if it matches the pattern for short URLs like https://carepay.money/s/E40528y
     const shortUrlPattern = /^https?:\/\/[^\/]+\/s\/[a-zA-Z0-9]+\/?$/;
     return shortUrlPattern.test(url);
+  };
+  
+  // Function to check if a URL should be shown as an image button
+  const isSpecialUrl = (url: string): boolean => {
+    const specialUrls = [
+      'https://uat.carepay.money/patient/bureauapproved/',
+      'https://uat.carepay.money/patient/fibeLoanApproved'
+    ];
+    return specialUrls.some(specialUrl => url.includes(specialUrl));
+  };
+  
+  // Function to get button title for special URLs
+  const getSpecialUrlTitle = (url: string): string => {
+    if (url.includes('bureauapproved')) {
+      return 'Continue with payment plan selection';
+    } else if (url.includes('fibeLoanApproved')) {
+      return 'Continue with payment plan selection';
+    }
+    return 'Continue with payment plan selection';
+  };
+  
+  // Function to extract KYC URL from message
+  const extractKycUrl = (text: string): string | null => {
+    const urlRegex = /(https:\/\/[^\s]+)/g;
+    const urls = text.match(urlRegex);
+    if (urls && urls.length > 0) {
+      // Look for postapprovalAddressdetails URL specifically
+      const kycUrl = urls.find(url => url.includes('postapprovalAddressdetails'));
+      return kycUrl || urls[0]; // Return KYC URL if found, otherwise first URL
+    }
+    return null;
   };
   
   // Function to extract short code from URL
@@ -720,7 +744,13 @@ const ChatMessage: React.FC<ChatMessageProps> = ({ message, onButtonClick, selec
                       return (
                         <div className="my-0 leading-tight" style={{ marginBottom: isUser ? '0.0625rem' : '0.125rem' }}>
                           <span>{parts}</span>
-                          {urls.map((url, i) => renderLinkButton(url, i))}
+                          {urls.map((url, i) => {
+                            if (isSpecialUrl(url)) {
+                              return renderSpecialUrlButton(url, i);
+                            } else {
+                              return null;
+                            }
+                          })}
                         </div>
                       );
                     }
@@ -945,6 +975,60 @@ const ChatMessage: React.FC<ChatMessageProps> = ({ message, onButtonClick, selec
                 />
               </div>
               <p className="text-xs text-gray-500 text-center mt-1">Click here to apply for no-cost EMI or share the offer</p>
+            </div>
+          )}
+          
+          {/* KYC Button */}
+          {isKycMessage && onKycIframeOpen && (
+            <div className="mt-3">
+              {(() => {
+                const kycUrl = extractKycUrl(message.text);
+                if (!kycUrl) return null;
+                
+                return (
+                  <div className="space-y-3">
+                    {/* Main KYC Button */}
+                    <button
+                      onClick={() => onKycIframeOpen(kycUrl, "KYC Verification")}
+                      className="w-full px-4 py-3 bg-purple-600 hover:bg-purple-700 text-white font-bold rounded-lg transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-1 disabled:opacity-50 disabled:cursor-not-allowed shadow-lg transform hover:scale-105"
+                      style={{
+                        background: 'linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%)',
+                        boxShadow: '0 4px 6px rgba(139, 92, 246, 0.3)'
+                      }}
+                    >
+                      Continue with KYC
+                    </button>
+                    
+                    {/* Share and Copy Buttons */}
+                    <div className="flex space-x-2">
+                      <button
+                        onClick={() => {
+                          const whatsappUrl = `https://wa.me/?text=${encodeURIComponent(`Please complete your KYC verification using this link: ${kycUrl}`)}`;
+                          window.open(whatsappUrl, '_blank');
+                        }}
+                        className="flex-1 px-3 py-2 bg-purple-100 hover:bg-purple-200 text-purple-700 font-medium rounded-lg transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-1 flex items-center justify-center space-x-2 text-xs"
+                      >
+                        <Share2 className="h-3 w-3" />
+                        <span>Share KYC link</span>
+                      </button>
+                      <button
+                        onClick={() => {
+                          navigator.clipboard.writeText(kycUrl);
+                          const toast = document.createElement('div');
+                          toast.className = 'fixed bottom-4 right-4 bg-gray-800 text-white py-2 px-4 rounded shadow-lg z-50';
+                          toast.textContent = 'KYC link copied to clipboard!';
+                          document.body.appendChild(toast);
+                          setTimeout(() => toast.remove(), 2000);
+                        }}
+                        className="flex-1 px-3 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium rounded-lg transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-1 flex items-center justify-center space-x-2 text-xs"
+                      >
+                        <Copy className="h-3 w-3" />
+                        <span>Copy link</span>
+                      </button>
+                    </div>
+                  </div>
+                );
+              })()}
             </div>
           )}
           

@@ -10,6 +10,8 @@ import Modal from '../components/Modal';
 import EditProfileForm from '../components/EditProfileForm';
 import DoctorSessionsList from '../components/DoctorSessionsList';
 import PatientChatHistory from '../components/PatientChatHistory';
+import IframeSlider from '../components/IframeSlider';
+import KycIframe from '../components/KycIframe';
 import { SendHorizonal, Plus, Notebook as Robot, History, ArrowLeft, Search, LogOut, User, MapPin, Briefcase, Calendar, Mail, GraduationCap, Heart, Edit3, Phone, Menu, TrendingUp } from 'lucide-react';
 import LoanTransactionsPage from './LoanTransactionsPage';
 import BusinessOverviewPage from './BusinessOverviewPage';
@@ -82,6 +84,12 @@ const ChatPage: React.FC = () => {
     });
   };
   const [showIframePopup, setShowIframePopup] = useState(false);
+  const [showIframeSlider, setShowIframeSlider] = useState(false);
+  const [iframeSliderUrl, setIframeSliderUrl] = useState('');
+  const [iframeSliderTitle, setIframeSliderTitle] = useState('');
+  const [showKycIframe, setShowKycIframe] = useState(false);
+  const [kycIframeUrl, setKycIframeUrl] = useState('');
+  const [kycIframeTitle, setKycIframeTitle] = useState('');
   const [patientInfoSubmitted, setPatientInfoSubmitted] = useState(false);
   const [isLogoutModalOpen, setIsLogoutModalOpen] = useState(false);
   const [isNewSessionModalOpen, setIsNewSessionModalOpen] = useState(false);
@@ -840,6 +848,34 @@ const ChatPage: React.FC = () => {
       return;
     }
     setShowIframePopup(true);
+  };
+
+  // Function to handle opening the iframe slider
+  const handleOpenIframeSlider = (url: string, title: string) => {
+    setIframeSliderUrl(url);
+    setIframeSliderTitle(title);
+    setShowIframeSlider(true);
+  };
+
+  // Function to handle closing the iframe slider
+  const handleCloseIframeSlider = () => {
+    setShowIframeSlider(false);
+    setIframeSliderUrl('');
+    setIframeSliderTitle('');
+  };
+
+  // Function to handle opening the KYC iframe
+  const handleOpenKycIframe = (url: string, title: string) => {
+    setKycIframeUrl(url);
+    setKycIframeTitle(title);
+    setShowKycIframe(true);
+  };
+
+  // Function to handle closing the KYC iframe
+  const handleCloseKycIframe = () => {
+    setShowKycIframe(false);
+    setKycIframeUrl('');
+    setKycIframeTitle('');
   };
 
   // Function to handle closing the iframe popup
@@ -1727,6 +1763,8 @@ const ChatPage: React.FC = () => {
                   selectedTreatment={selectedTreatments[message.id]}
                   onUploadClick={handleUploadButtonClick}
                   onIframeOpen={handleOpenIframe}
+                  onIframeSliderOpen={handleOpenIframeSlider}
+                  onKycIframeOpen={handleOpenKycIframe}
                 />
               ))}
               {isLoading && messages.some(m => m.sender === 'user') && (
@@ -2241,6 +2279,25 @@ const ChatPage: React.FC = () => {
           <BusinessOverviewPage onClose={() => setShowBusinessOverviewOverlay(false)} />
         </div>
       )}
+
+      {/* Iframe Slider */}
+      <IframeSlider
+        isOpen={showIframeSlider}
+        onClose={handleCloseIframeSlider}
+        url={iframeSliderUrl}
+        title={iframeSliderTitle}
+        userId={localStorage.getItem('userId') || undefined}
+        onSendMessage={handleMessageSubmit}
+      />
+
+      {/* KYC Iframe */}
+      <KycIframe
+        isOpen={showKycIframe}
+        onClose={handleCloseKycIframe}
+        url={kycIframeUrl}
+        title={kycIframeTitle}
+        userId={localStorage.getItem('userId') || undefined}
+      />
     </div>
   );
 };

@@ -397,18 +397,94 @@ body.login-page {
   padding-right: env(safe-area-inset-right, 0);
 }
 
-/* Dark mode support */
-@media (prefers-color-scheme: dark) {
-  .chat-bg {
-    background-color: #1a1a1a;
+/* Enhanced iframe content handling for payment plan content */
+.iframe-mobile-container iframe {
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+  touch-action: auto;
+  -webkit-user-select: auto;
+  user-select: auto;
+  -webkit-touch-callout: default;
+  pointer-events: auto;
+  position: relative;
+  z-index: 1;
+  /* Ensure proper content scaling */
+  transform: translateZ(0);
+  -webkit-transform: translateZ(0);
+  /* Allow all touch interactions */
+  touch-action: auto !important;
+  /* Ensure buttons are clickable */
+  pointer-events: auto !important;
+}
+
+/* Specific handling for payment plan content */
+.iframe-mobile-container iframe body {
+  touch-action: auto !important;
+  pointer-events: auto !important;
+  -webkit-user-select: auto !important;
+  user-select: auto !important;
+}
+
+/* Ensure buttons inside iframe are clickable */
+.iframe-mobile-container iframe button,
+.iframe-mobile-container iframe input,
+.iframe-mobile-container iframe a {
+  pointer-events: auto !important;
+  touch-action: auto !important;
+  -webkit-touch-callout: default !important;
+  -webkit-user-select: auto !important;
+  user-select: auto !important;
+}
+
+/* Specific handling for modal overlays in iframe */
+.iframe-mobile-container iframe .bottomPopOverModal {
+  pointer-events: auto !important;
+  touch-action: auto !important;
+  z-index: 999 !important;
+}
+
+/* Handle submit buttons specifically */
+.iframe-mobile-container iframe .submit {
+  pointer-events: auto !important;
+  touch-action: auto !important;
+  -webkit-touch-callout: default !important;
+  -webkit-user-select: auto !important;
+  user-select: auto !important;
+  cursor: pointer !important;
+  /* Ensure button is clickable on mobile */
+  min-height: 44px !important;
+  min-width: 44px !important;
+}
+
+/* Handle popup cards */
+.iframe-mobile-container iframe .popUpCard-custom {
+  pointer-events: auto !important;
+  touch-action: auto !important;
+  z-index: 1000 !important;
+}
+
+/* Ensure all interactive elements work */
+.iframe-mobile-container iframe * {
+  pointer-events: auto !important;
+  touch-action: auto !important;
+}
+
+/* Ensure iframe content is interactive on mobile */
+@media (max-width: 767px) {
+  .iframe-mobile-container iframe {
+    transform: translateZ(0);
+    -webkit-transform: translateZ(0);
+    backface-visibility: hidden;
+    -webkit-backface-visibility: hidden;
   }
   
-  .message-bubble-user {
-    background-color: #2563eb;
+  /* Prevent parent container from interfering with iframe touch events */
+  .iframe-slider-container {
+    touch-action: none;
+    -webkit-overflow-scrolling: touch;
   }
   
-  .message-bubble-agent {
-    background-color: #374151;
-    color: #f9fafb;
+  .iframe-slider-container > div {
+    touch-action: auto;
   }
 }

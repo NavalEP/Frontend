@@ -1,7 +1,7 @@
 import axios from 'axios';
 
 // Base URL configuration - Direct API calls to backend
-const API_BASE_URL = 'https://loanbot.carepay.money/api/v1/agent';
+const API_BASE_URL = 'http://localhost:8000/api/v1/agent';
 
 // Create axios instance with authentication
 const loanApi = axios.create({

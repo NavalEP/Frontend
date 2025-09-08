@@ -210,7 +210,7 @@ interface PatientSessionsResponse {
 }
 
 // Base URL for API
-const API_BASE_URL = 'http://localhost:8000/api/v1/agent';
+const API_BASE_URL = 'https://uatloanbot.carepay.money/api/v1/agent';
 
 // Create axios instance
 const api = axios.create({
@@ -371,6 +371,8 @@ export const doctorStaffLogin = async (
     
     if (response.data.token) {
       localStorage.setItem('token', response.data.token);
+      // Store doctor code in localStorage for future use
+      localStorage.setItem('doctorCode', doctorCode.trim());
       // Store doctor info if provided
       if (response.data.doctor_id) {
         localStorage.setItem('doctorId', response.data.doctor_id);

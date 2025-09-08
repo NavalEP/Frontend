@@ -1,7 +1,7 @@
 import axios from 'axios';
 
 // Base URL configuration - Direct API calls to backend
-const API_BASE_URL = 'http://localhost:8000/api/v1/agent';
+const API_BASE_URL = 'https://uatloanbot.carepay.money/api/v1/agent';
 
 // Create axios instance with authentication
 const loanApi = axios.create({
@@ -173,6 +173,61 @@ export interface ChildClinic {
 interface ChildClinicsResponse {
   status: number;
   data: ChildClinic[];
+  attachment: null;
+  message: string;
+}
+
+// User Address interfaces
+export interface UserAddress {
+  id: number;
+  userId: string;
+  addressType: 'permanent' | 'current';
+  address: string;
+  state: string;
+  city: string;
+  pincode: number;
+  residenceType: string | null;
+  residenceValue: string | null;
+  changeDate: string | null;
+  locality: string | null;
+  landmark: string | null;
+}
+
+interface UserAddressResponse {
+  status: number;
+  data: UserAddress;
+  attachment: null;
+  message: string;
+}
+
+// FinDoc District interfaces
+export interface FinDocDistrict {
+  id: number;
+  name: string;
+  state: string;
+  code?: string;
+}
+
+interface FinDocDistrictsResponse {
+  status: number;
+  data: string[]; // Changed from FinDocDistrict[] to string[]
+  attachment: null;
+  message: string;
+}
+
+// Save Address Details interfaces
+export interface SaveAddressDetailsRequest {
+  userId: string;
+  address: string;
+  addressType: 'permanent' | 'current';
+  city: string;
+  pincode: string;
+  state: string;
+}
+
+interface SaveAddressDetailsResponse {
+  status: number;
+  data: any;
   attachment: null;
   message: string;
 }
@@ -1191,6 +1246,271 @@ export const getLoanDetailsByUserId = async (userId: string): Promise<LoanDetail
     }
     
     return null;
+  }
+};
+
+export const getUserAddress = async (userId: string, type?: 'permanent' | 'current'): Promise<UserAddress | null> => {
+  try {
+    const params: { userId: string; type?: string } = { userId };
+    if (type) {
+      params.type = type;
+    }
+
+    const response = await loanApi.get<UserAddressResponse>('/userDetails/getUserAddress/', {
+      params,
+      headers: {
+        'Accept': 'application/json'
+      }
+    });
+
+    if (response.data.status === 200 && response.data.data) {
+      return response.data.data;
+    }
+
+    return null;
+  } catch (error: any) {
+    console.error('Error getting user address:', error);
+    
+    // Handle 404 case specifically
+    if (error.response?.status === 404) {
+      return null;
+    }
+    
+    // Handle authentication errors
+    if (error.response?.status === 401) {
+      throw new Error('Authentication required. Please login again.');
+    }
+    
+    // Handle validation errors
+    if (error.response?.status === 400) {
+      const errorMessage = error.response.data?.message || 'Invalid request parameters';
+      throw new Error(errorMessage);
+    }
+    
+    return null;
+  }
+};
+
+export const getAllFinDocDistricts = async (): Promise<string[]> => {
+  try {
+    const response = await loanApi.get<FinDocDistrictsResponse>('/finDoc/allFindocDistricts/', {
+      headers: {
+        'Accept': 'application/json'
+      }
+    });
+
+    if (response.data.status === 200 && Array.isArray(response.data.data)) {
+      return response.data.data;
+    }
+
+    return [];
+  } catch (error: any) {
+    console.error('Error getting FinDoc districts:', error);
+    
+    // Handle authentication errors
+    if (error.response?.status === 401) {
+      throw new Error('Authentication required. Please login again.');
+    }
+    
+    // Handle server errors
+    if (error.response?.status === 500) {
+      throw new Error('Server error. Please try again later.');
+    }
+    
+    return [];
+  }
+};
+
+export const saveAddressDetails = async (addressData: SaveAddressDetailsRequest): Promise<{
+  success: boolean;
+  data?: any;
+  message: string;
+}> => {
+  try {
+    const response = await loanApi.post<SaveAddressDetailsResponse>(
+      '/userDetails/addressDetail/',
+      addressData,
+      {
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
+        },
+        timeout: 30000
+      }
+    );
+
+    if (response.data.status === 200) {
+      return {
+        success: true,
+        data: response.data.data,
+        message: response.data.message || 'Address details saved successfully'
+      };
+    }
+
+    // Handle non-200 status responses
+    return {
+      success: false,
+      message: response.data.message || 'Failed to save address details'
+    };
+
+  } catch (error: any) {
+    console.error('Error saving address details:', error);
+    
+    if (axios.isAxiosError(error)) {
+      if (error.code === 'ECONNABORTED') {
+        throw new Error('Request timed out. Please try again.');
+      }
+      
+      if (!error.response) {
+        throw new Error('Unable to connect to the backend server. Please check your internet connection.');
+      }
+      
+      // Handle specific HTTP status codes
+      if (error.response.status === 400) {
+        const errorMessage = error.response.data?.message || 'Invalid request data';
+        throw new Error(`Bad Request: ${errorMessage}`);
+      }
+      
+      if (error.response.status === 401) {
+        throw new Error('Authentication required. Please login again.');
+      }
+      
+      if (error.response.status === 403) {
+        throw new Error('You do not have permission to perform this action.');
+      }
+      
+      if (error.response.status === 500) {
+        const errorMessage = error.response.data?.message || 'Internal server error';
+        throw new Error(`Server Error: ${errorMessage}`);
+      }
+      
+      // Handle other status codes
+      const errorMessage = error.response.data?.message || error.message;
+      throw new Error(`API Error (${error.response.status}): ${errorMessage}`);
+    }
+    
+    // Handle non-axios errors
+    throw new Error(`Unexpected error: ${error.message || 'Unknown error occurred'}`);
+  }
+};
+
+// Interface for save loan details request
+export interface SaveLoanDetailsRequest {
+  userId: string;
+  doctorId: string;
+  treatmentAmount: number;
+  loanAmount: number;
+  loanEMI?: number;
+  productId?: number;
+  internalProductId?: string;
+  advanceEmiAmount?: number;
+}
+
+// Interface for the actual API request (with integer amounts)
+interface SaveLoanDetailsAPIRequest {
+  userId: string;
+  doctorId: string;
+  treatmentAmount: number;
+  loanAmount: number;
+  loanEMI?: number;
+  productId?: number;
+  internalProductId?: string;
+  advanceEmiAmount?: number;
+}
+
+// Interface for save loan details response
+interface SaveLoanDetailsResponse {
+  status: number;
+  data: any;
+  attachment: null;
+  message: string;
+}
+
+/**
+ * Save loan details for a user
+ * @param loanDetails - The loan details to save
+ * @returns Promise with the save result
+ */
+export const saveLoanDetails = async (loanDetails: SaveLoanDetailsRequest): Promise<{
+  success: boolean;
+  data?: any;
+  message: string;
+}> => {
+  try {
+    // Convert amounts to integers for the API
+    const apiRequest: SaveLoanDetailsAPIRequest = {
+      ...loanDetails,
+      treatmentAmount: Math.round(loanDetails.treatmentAmount),
+      loanAmount: Math.round(loanDetails.loanAmount),
+      loanEMI: loanDetails.loanEMI ? Math.round(loanDetails.loanEMI) : undefined,
+      productId: loanDetails.productId ? Math.round(loanDetails.productId) : undefined,
+      advanceEmiAmount: loanDetails.advanceEmiAmount ? Math.round(loanDetails.advanceEmiAmount) : undefined
+    };
+
+    const response = await loanApi.post<SaveLoanDetailsResponse>(
+      '/userDetails/saveLoanDetails/',
+      apiRequest,
+      {
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
+        },
+        timeout: 30000
+      }
+    );
+
+    if (response.data.status === 200) {
+      return {
+        success: true,
+        data: response.data.data,
+        message: response.data.message || 'Loan details saved successfully'
+      };
+    }
+
+    // Handle non-200 status responses
+    return {
+      success: false,
+      message: response.data.message || 'Failed to save loan details'
+    };
+
+  } catch (error: any) {
+    console.error('Error saving loan details:', error);
+    
+    if (axios.isAxiosError(error)) {
+      if (error.code === 'ECONNABORTED') {
+        throw new Error('Request timed out. Please try again.');
+      }
+      
+      if (!error.response) {
+        throw new Error('Unable to connect to the backend server. Please check your internet connection.');
+      }
+      
+      // Handle specific HTTP status codes
+      if (error.response.status === 400) {
+        const errorMessage = error.response.data?.message || 'Invalid request data';
+        throw new Error(`Bad Request: ${errorMessage}`);
+      }
+      
+      if (error.response.status === 401) {
+        throw new Error('Authentication required. Please login again.');
+      }
+      
+      if (error.response.status === 403) {
+        throw new Error('You do not have permission to perform this action.');
+      }
+      
+      if (error.response.status === 500) {
+        const errorMessage = error.response.data?.message || 'Internal server error';
+        throw new Error(`Server Error: ${errorMessage}`);
+      }
+      
+      // Handle other status codes
+      const errorMessage = error.response.data?.message || error.message;
+      throw new Error(`API Error (${error.response.status}): ${errorMessage}`);
+    }
+    
+    // Handle non-axios errors
+    throw new Error(`Unexpected error: ${error.message || 'Unknown error occurred'}`);
   }
 };
 

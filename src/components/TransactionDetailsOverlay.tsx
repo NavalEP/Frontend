@@ -1,7 +1,9 @@
 import React, { useRef, useState } from 'react';
-import { ArrowLeft, User, Phone, Share2, QrCode, Eye, FileText, Download, Check, AlertTriangle, Copy, ExternalLink } from 'lucide-react';
+import { ArrowLeft, User, Phone, Share2, QrCode, Eye, FileText, Download, Check, AlertTriangle, Copy, ExternalLink, FileCheck } from 'lucide-react';
 import { uploadPrescription, getQrCode, getDisburseDetailForReport, getMatchingEmiPlans, BureauEmiPlan, getBureauDecisionData, BureauDecisionData, getUserLoanTimeline, TimelineItem, LoanDetailsByUserId, getUserLoanStatus } from '../services/loanApi';
+import { getMerchantScore, MerchantScoreResponse, isDODownloadAllowed } from '../services/oculonApi';
 import { useAuth } from '../context/AuthContext';
+import DisbursalOrderOverlay from './DisbursalOrderOverlay';
 
 export interface EMIPlan {
   code: string;
@@ -46,7 +48,7 @@ interface Props {
 }
 
 const TransactionDetailsOverlay: React.FC<Props> = ({ transaction, onClose }) => {
-  const { doctorId } = useAuth();
+  const { doctorId, doctorCode } = useAuth();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
@@ -66,6 +68,8 @@ const TransactionDetailsOverlay: React.FC<Props> = ({ transaction, onClose }) =>
   const [assignedProductFailed, setAssignedProductFailed] = useState(false);
   const [loanDetails, setLoanDetails] = useState<LoanDetailsByUserId | null>(null);
   const [hasAllowedStatusInAPI, setHasAllowedStatusInAPI] = useState(false);
+  const [merchantScore, setMerchantScore] = useState<MerchantScoreResponse | null>(null);
+  const [showDisbursalOrder, setShowDisbursalOrder] = useState(false);
 
   // Handle share button click
   const handleShare = async () => {
@@ -350,6 +354,12 @@ const TransactionDetailsOverlay: React.FC<Props> = ({ transaction, onClose }) =>
 
   // Check if disbursal order download should be enabled
   const shouldEnableDisbursalDownload = () => {
+    // First check if we have merchant score data and risk category is A
+    if (merchantScore && isDODownloadAllowed(merchantScore.risk_category)) {
+      return true;
+    }
+
+    // Fallback to original logic if no merchant score or risk category is not A
     // List of allowed doctor IDs
     const allowedDoctorIds = [
       'GzLlAP6dLcbGNngTmDN2lgyywkriAdn7',
@@ -631,6 +641,77 @@ const TransactionDetailsOverlay: React.FC<Props> = ({ transaction, onClose }) =>
 
   const canDownloadDisbursalOrder = shouldEnableDisbursalDownload();
 
+  // Generate disbursal order data from transaction
+  const generateDisbursalOrderData = () => {
+    const currentDate = new Date();
+    const formattedDate = currentDate.toLocaleDateString('en-GB');
+    
+    // Extract EMI plan data if available
+    const selectedPlan = dynamicEmiPlans.length > 0 ? dynamicEmiPlans[0] : null;
+    const staticPlan = transaction.selectedEmiPlan;
+    
+    // Calculate amounts based on available data
+    const transactionAmount = transaction.amount.replace(/[^\d]/g, '');
+    const advanceAmount = selectedPlan?.downPayment?.toString() || staticPlan?.advancePayment?.replace(/[^\d]/g, '') || '0';
+    
+    // Calculate platform charges to merchant (subvention)
+    let platformCharges = '0'; // Default fallback
+    let subventionRate = '0'; // Default rate
+    
+    if (selectedPlan) {
+      const subventionAmount = Math.round(selectedPlan.grossTreatmentAmount * selectedPlan.productDetailsDO.subventionRate / 100);
+      platformCharges = subventionAmount.toString();
+      subventionRate = selectedPlan.productDetailsDO.subventionRate.toString();
+    } else if (staticPlan?.subvention) {
+      // Extract amount from static plan subvention string
+      const subventionMatch = staticPlan.subvention.match(/[\d,]+/);
+      if (subventionMatch) {
+        platformCharges = subventionMatch[0].replace(/,/g, '');
+      }
+    }
+    
+    // Calculate actual processing fees (PF) separately
+    let pfAmount = '0'; // Default fallback
+    let pfRate = '0'; // Default rate
+    if (selectedPlan) {
+      const actualPfAmount = Math.round(selectedPlan.grossTreatmentAmount * selectedPlan.productDetailsDO.processingFesIncludingGSTRate / 100);
+      pfAmount = actualPfAmount.toString();
+      pfRate = selectedPlan.productDetailsDO.processingFesIncludingGSTRate.toString();
+    } else if (staticPlan?.processingFees) {
+      // Extract amount from static plan processing fees string
+      const pfMatch = staticPlan.processingFees.match(/[\d,]+/);
+      if (pfMatch) {
+        pfAmount = pfMatch[0].replace(/,/g, '');
+      }
+    }
+    
+    const gstOnCharges = Math.round(parseInt(platformCharges) * 0.18).toString();
+    const paymentToMerchant = (parseInt(transactionAmount) - parseInt(advanceAmount) - parseInt(platformCharges) - parseInt(gstOnCharges)).toString();
+    
+    return {
+      id: transaction.applicationId || transaction.loanId || 'N/A',
+      patientName: transaction.name,
+      disbursedOn: transaction.disbursedAt || formattedDate,
+      treatmentName: transaction.treatment,
+      customerName: transaction.name,
+      customerNumber: transaction.patientPhoneNo ? `+91 ${transaction.patientPhoneNo}` : 'N/A',
+      transactionAmount: parseInt(transactionAmount).toLocaleString(),
+      paymentPlan: selectedPlan ? `${selectedPlan.productDetailsDO.totalEmi}/${selectedPlan.productDetailsDO.advanceEmi}` : staticPlan ? `${staticPlan.tenure}` : 'N/A',
+      advanceAmount: parseInt(advanceAmount).toLocaleString(),
+      platformCharges: `${parseInt(platformCharges).toLocaleString()} (${subventionRate}%)`,
+      gstOnCharges: parseInt(gstOnCharges).toLocaleString(),
+      paymentToMerchant: parseInt(paymentToMerchant).toLocaleString(),
+      pfAmount: `${parseInt(pfAmount).toLocaleString()} (${pfRate}%)`,
+      financierName: transaction.lender || 'Findoc Finvest Private Limited',
+      merchantName: transaction.clinicName || transaction.doctorName || '' 
+    };
+  };
+
+  // Handle disbursal order button click
+  const handleDisbursalOrderClick = () => {
+    setShowDisbursalOrder(true);
+  };
+
   // Load dynamic EMI plans and bureau decision data on component mount
   React.useEffect(() => {
     const loadEmiPlans = async () => {
@@ -658,6 +739,24 @@ const TransactionDetailsOverlay: React.FC<Props> = ({ transaction, onClose }) =>
 
     loadEmiPlans();
   }, [transaction.userId, transaction.loanId]);
+
+  // Load merchant score data on component mount
+  React.useEffect(() => {
+    const loadMerchantScore = async () => {
+      if (!doctorCode) return;
+      
+      try {
+        const scoreData = await getMerchantScore(doctorCode);
+        setMerchantScore(scoreData);
+        console.log('Merchant score loaded:', scoreData);
+      } catch (error) {
+        console.error('Error loading merchant score:', error);
+        // Don't set error state, just log it as merchant score is optional
+      }
+    };
+
+    loadMerchantScore();
+  }, [doctorCode]);
 
   // Check getUserLoanStatus API for allowed statuses on component mount
   React.useEffect(() => {
@@ -1361,22 +1460,48 @@ const TransactionDetailsOverlay: React.FC<Props> = ({ transaction, onClose }) =>
                   </div>
                   <span className={canDownloadDisbursalOrder ? 'text-gray-900 font-medium' : 'text-gray-400'}>Disbursal Order</span>
                 </div>
-                <button 
-                  onClick={canDownloadDisbursalOrder ? handleDownloadReport : undefined}
-                  disabled={!canDownloadDisbursalOrder || isDownloadingReport}
-                  className={`p-2 rounded-lg transition-colors ${
-                    canDownloadDisbursalOrder 
-                      ? 'bg-primary-600 hover:bg-primary-700 text-white' 
-                      : 'bg-gray-100 cursor-not-allowed'
-                  }`}
-                  title={canDownloadDisbursalOrder ? 'Download Disbursal Report' : 'Available for authorized doctors with specific statuses'}
-                >
-                  {isDownloadingReport ? (
-                    <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
-                  ) : (
-                    <Download className={`h-5 w-5 ${canDownloadDisbursalOrder ? 'text-white' : 'text-gray-400'}`} />
-                  )}
-                </button>
+                <div className="flex items-center space-x-2">
+                  <button 
+                    onClick={canDownloadDisbursalOrder ? handleDisbursalOrderClick : undefined}
+                    disabled={!canDownloadDisbursalOrder}
+                    className={`p-2 rounded-lg transition-colors ${
+                      canDownloadDisbursalOrder 
+                        ? 'bg-indigo-600 hover:bg-indigo-700 text-white' 
+                        : 'bg-gray-100 cursor-not-allowed'
+                    }`}
+                    title={
+                      canDownloadDisbursalOrder 
+                        ? 'View Disbursal Order' 
+                        : merchantScore 
+                          ? `DO View restricted - Risk Category: ${merchantScore.risk_category} (Only Category A allowed)`
+                          : 'Available for authorized doctors with specific statuses'
+                    }
+                  >
+                    <FileCheck className={`h-5 w-5 ${canDownloadDisbursalOrder ? 'text-white' : 'text-gray-400'}`} />
+                  </button>
+                  <button 
+                    onClick={canDownloadDisbursalOrder ? handleDownloadReport : undefined}
+                    disabled={!canDownloadDisbursalOrder || isDownloadingReport}
+                    className={`p-2 rounded-lg transition-colors ${
+                      canDownloadDisbursalOrder 
+                        ? 'bg-primary-600 hover:bg-primary-700 text-white' 
+                        : 'bg-gray-100 cursor-not-allowed'
+                    }`}
+                    title={
+                      canDownloadDisbursalOrder 
+                        ? 'Download Disbursal Report' 
+                        : merchantScore 
+                          ? `DO Download restricted - Risk Category: ${merchantScore.risk_category} (Only Category A allowed)`
+                          : 'Available for authorized doctors with specific statuses'
+                    }
+                  >
+                    {isDownloadingReport ? (
+                      <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
+                    ) : (
+                      <Download className={`h-5 w-5 ${canDownloadDisbursalOrder ? 'text-white' : 'text-gray-400'}`} />
+                    )}
+                  </button>
+                </div>
               </div>
             </div>
           </div>
@@ -1402,6 +1527,14 @@ const TransactionDetailsOverlay: React.FC<Props> = ({ transaction, onClose }) =>
           </div>
         </div>
       </div>
+
+      {/* Disbursal Order Overlay */}
+      {showDisbursalOrder && (
+        <DisbursalOrderOverlay
+          disbursalOrderData={generateDisbursalOrderData()}
+          onClose={() => setShowDisbursalOrder(false)}
+        />
+      )}
     </div>
   );
 };

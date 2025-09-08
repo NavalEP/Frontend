@@ -10,8 +10,9 @@ import Modal from '../components/Modal';
 import EditProfileForm from '../components/EditProfileForm';
 import DoctorSessionsList from '../components/DoctorSessionsList';
 import PatientChatHistory from '../components/PatientChatHistory';
-import IframeSlider from '../components/IframeSlider';
-import KycIframe from '../components/KycIframe';
+import PaymentPlanPopup from '../components/PaymentPlanPopup';
+import AddressDetailsPopup from '../components/AddressDetailsPopup';
+import ProgressBar from '../components/ProgressBar';
 import { SendHorizonal, Plus, Notebook as Robot, History, ArrowLeft, Search, LogOut, User, MapPin, Briefcase, Calendar, Mail, GraduationCap, Heart, Edit3, Phone, Menu, TrendingUp } from 'lucide-react';
 import LoanTransactionsPage from './LoanTransactionsPage';
 import BusinessOverviewPage from './BusinessOverviewPage';
@@ -83,13 +84,11 @@ const ChatPage: React.FC = () => {
       reader.readAsDataURL(file);
     });
   };
-  const [showIframePopup, setShowIframePopup] = useState(false);
-  const [showIframeSlider, setShowIframeSlider] = useState(false);
-  const [iframeSliderUrl, setIframeSliderUrl] = useState('');
-  const [iframeSliderTitle, setIframeSliderTitle] = useState('');
-  const [showKycIframe, setShowKycIframe] = useState(false);
-  const [kycIframeUrl, setKycIframeUrl] = useState('');
-  const [kycIframeTitle, setKycIframeTitle] = useState('');
+
+  const [showPaymentPlanPopup, setShowPaymentPlanPopup] = useState(false);
+  const [paymentPlanUrl, setPaymentPlanUrl] = useState<string | undefined>(undefined);
+  const [showAddressDetailsPopup, setShowAddressDetailsPopup] = useState(false);
+  const [addressDetailsUrl, setAddressDetailsUrl] = useState<string>('');
   const [patientInfoSubmitted, setPatientInfoSubmitted] = useState(false);
   const [isLogoutModalOpen, setIsLogoutModalOpen] = useState(false);
   const [isNewSessionModalOpen, setIsNewSessionModalOpen] = useState(false);
@@ -840,66 +839,37 @@ const ChatPage: React.FC = () => {
 
 
 
-  // Function to handle opening the iframe popup
-  const handleOpenIframe = () => {
-    const userId = localStorage.getItem('userId');
-    if (!userId) {
-      setError('User ID not found. Please try again.');
-      return;
-    }
-    setShowIframePopup(true);
+
+
+
+
+
+
+  // Function to handle opening the payment plan popup
+  const handleOpenPaymentPlanPopup = (url?: string) => {
+    setPaymentPlanUrl(url);
+    setShowPaymentPlanPopup(true);
   };
 
-  // Function to handle opening the iframe slider
-  const handleOpenIframeSlider = (url: string, title: string) => {
-    setIframeSliderUrl(url);
-    setIframeSliderTitle(title);
-    setShowIframeSlider(true);
+  // Function to handle closing the payment plan popup
+  const handleClosePaymentPlanPopup = () => {
+    setShowPaymentPlanPopup(false);
+    setPaymentPlanUrl(undefined);
   };
 
-  // Function to handle closing the iframe slider
-  const handleCloseIframeSlider = () => {
-    setShowIframeSlider(false);
-    setIframeSliderUrl('');
-    setIframeSliderTitle('');
+  // Function to handle opening the address details popup
+  const handleOpenAddressDetailsPopup = (url: string) => {
+    setAddressDetailsUrl(url);
+    setShowAddressDetailsPopup(true);
   };
 
-  // Function to handle opening the KYC iframe
-  const handleOpenKycIframe = (url: string, title: string) => {
-    setKycIframeUrl(url);
-    setKycIframeTitle(title);
-    setShowKycIframe(true);
+  // Function to handle closing the address details popup
+  const handleCloseAddressDetailsPopup = () => {
+    setShowAddressDetailsPopup(false);
+    setAddressDetailsUrl('');
   };
 
-  // Function to handle closing the KYC iframe
-  const handleCloseKycIframe = () => {
-    setShowKycIframe(false);
-    setKycIframeUrl('');
-    setKycIframeTitle('');
-  };
 
-  // Function to handle closing the iframe popup
-  const handleCloseIframe = () => {
-    console.log('handleCloseIframe triggered');
-    setShowIframePopup(false);
-  };
-
-  // Handle escape key to close iframe
-  useEffect(() => {
-    const handleEscapeKey = (event: KeyboardEvent) => {
-      if (event.key === 'Escape' && showIframePopup) {
-        handleCloseIframe();
-      }
-    };
-
-    if (showIframePopup) {
-      document.addEventListener('keydown', handleEscapeKey);
-    }
-
-    return () => {
-      document.removeEventListener('keydown', handleEscapeKey);
-    };
-  }, [showIframePopup]);
 
   // Handle click outside to close avatar menu
   useEffect(() => {
@@ -1293,6 +1263,21 @@ const ChatPage: React.FC = () => {
     } catch (error) {
       console.error('Error loading selected session:', error);
       setError('Failed to load the selected session. Please try again.');
+    }
+  };
+
+  // Function to determine current step based on session status
+  const getCurrentStep = (): number => {
+    if (!sessionDetails?.status) return 1;
+    
+    switch (sessionDetails.status) {
+      
+      case 'collection_step':
+        return 1; // Eligibility
+      case 'post_approval_address_details':
+        return 2; // Select Plan
+      default:
+        return 1; // Default to Eligibility
     }
   };
 
@@ -1723,11 +1708,25 @@ const ChatPage: React.FC = () => {
             </div>
           )}
           
+          {/* Progress Bar - Fixed */}
+          {sessionDetails && (
+            <div className="flex-shrink-0">
+              <ProgressBar currentStep={getCurrentStep()} />
+            </div>
+          )}
+          
           {/* Offer button - Fixed */}
           {showOfferButton && (
             <div className="px-4 py-3 flex justify-center flex-shrink-0 bg-gray-50">
               <button
-                onClick={handleOpenIframe}
+                onClick={() => {
+                  const userId = localStorage.getItem('userId');
+                  if (userId) {
+                    window.open(`https://carepay.money/patient/razorpayoffer/${userId}`, '_blank');
+                  } else {
+                    setError('User ID not found. Please try again.');
+                  }
+                }}
                 className="bg-green-500 hover:bg-green-600 text-white font-medium py-3 px-6 rounded-full flex items-center shadow-lg transition-all duration-300 transform hover:scale-105"
               >
                 <img 
@@ -1762,9 +1761,8 @@ const ChatPage: React.FC = () => {
                   onTreatmentSelect={handleTreatmentSelect}
                   selectedTreatment={selectedTreatments[message.id]}
                   onUploadClick={handleUploadButtonClick}
-                  onIframeOpen={handleOpenIframe}
-                  onIframeSliderOpen={handleOpenIframeSlider}
-                  onKycIframeOpen={handleOpenKycIframe}
+                  onPaymentPlanPopupOpen={handleOpenPaymentPlanPopup}
+                  onAddressDetailsPopupOpen={handleOpenAddressDetailsPopup}
                 />
               ))}
               {isLoading && messages.some(m => m.sender === 'user') && (
@@ -1926,69 +1924,7 @@ const ChatPage: React.FC = () => {
 
       {/* Link Iframe Modal removed: links open in a new tab now */}
 
-      {/* Iframe Popup Modal */}
-      {showIframePopup && (
-        <div className="fixed inset-0 bg-white z-50">
-          <div className="absolute top-4 right-4 z-50">
-            <button
-              onClick={handleCloseIframe}
-              className="bg-white rounded-full p-2 shadow-lg"
-              style={{
-                width: '40px',
-                height: '40px',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center'
-              }}
-            >
-              <svg 
-                className="w-6 h-6 text-gray-600" 
-                fill="none" 
-                stroke="currentColor" 
-                viewBox="0 0 24 24"
-              >
-                <path 
-                  strokeLinecap="round" 
-                  strokeLinejoin="round" 
-                  strokeWidth={2} 
-                  d="M6 18L18 6M6 6l12 12" 
-                />
-              </svg>
-            </button>
-          </div>
-          <iframe
-            src={`https://carepay.money/patient/razorpayoffer/${localStorage.getItem('userId')}`}
-            title="Razorpay Offer"
-            className="w-full h-full iframe-scrollbar"
-            allow="camera; microphone; geolocation; payment; clipboard-write; web-share; fullscreen; publickey-credentials-get; publickey-credentials-create; otp-credentials"
-            sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-modals allow-top-navigation allow-top-navigation-by-user-activation allow-downloads allow-storage-access-by-user-activation"
-            style={{ 
-              overflow: 'auto',
-              border: 'none',
-              WebkitOverflowScrolling: 'touch',
-              width: '100vw',
-              height: '100vh',
-              position: 'fixed',
-              top: 0,
-              left: 0,
-              right: 0,
-              bottom: 0,
-              transform: 'scale(1)',
-              transformOrigin: '0 0',
-              WebkitTransform: 'scale(1)',
-              WebkitTransformOrigin: '0 0',
-              touchAction: 'manipulation',
-              WebkitTouchCallout: 'none',
-              WebkitUserSelect: 'none',
-              userSelect: 'none',
-              scrollbarWidth: 'thin',
-              scrollbarColor: 'rgba(0, 0, 0, 0.2) rgba(0, 0, 0, 0.05)'
-            }}
-            scrolling="auto"
-            onClick={(e) => e.stopPropagation()}
-          ></iframe>
-        </div>
-      )}
+
 
       {/* Logout Confirmation Modal */}
       <Modal
@@ -2280,24 +2216,27 @@ const ChatPage: React.FC = () => {
         </div>
       )}
 
-      {/* Iframe Slider */}
-      <IframeSlider
-        isOpen={showIframeSlider}
-        onClose={handleCloseIframeSlider}
-        url={iframeSliderUrl}
-        title={iframeSliderTitle}
-        userId={localStorage.getItem('userId') || undefined}
-        onSendMessage={handleMessageSubmit}
-      />
 
-      {/* KYC Iframe */}
-      <KycIframe
-        isOpen={showKycIframe}
-        onClose={handleCloseKycIframe}
-        url={kycIframeUrl}
-        title={kycIframeTitle}
-        userId={localStorage.getItem('userId') || undefined}
+
+      {/* Payment Plan Popup */}
+              <PaymentPlanPopup
+          isOpen={showPaymentPlanPopup}
+          onClose={handleClosePaymentPlanPopup}
+          url={paymentPlanUrl}
+          sessionId={sessionId || undefined}
+          onSessionRefresh={fetchSessionDetails}
+        />
+
+      {/* Address Details Popup */}
+      <AddressDetailsPopup
+        isOpen={showAddressDetailsPopup}
+        onClose={handleCloseAddressDetailsPopup}
+        kycUrl={addressDetailsUrl}
+        userId={localStorage.getItem('userId') || ''}
+        onMessageSend={handleMessageSubmit}
+        onSessionRefresh={fetchSessionDetails}
       />
+        
     </div>
   );
 };

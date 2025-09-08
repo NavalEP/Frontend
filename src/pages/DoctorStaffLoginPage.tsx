@@ -10,7 +10,7 @@ const DoctorStaffLoginPage: React.FC = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [consentAccepted, setConsentAccepted] = useState(true);
-  const { login, performAutoLogin } = useAuth();
+  const { login, performAutoLogin, doctorCode: storedDoctorCode } = useAuth();
 
   // Auto-login effect when URL parameters are present
   useEffect(() => {
@@ -27,11 +27,18 @@ const DoctorStaffLoginPage: React.FC = () => {
       setPassword(autoLoginPassword);
       
       // Use the AuthContext performAutoLogin function
-      handleAutoLogin(autoLoginMerchantCode, autoLoginPassword);
+      handleAutoLogin();
     }
   }, [isLoading]);
 
-  const handleAutoLogin = async (merchantCode: string, password: string) => {
+  // Populate doctorCode field with stored value if available
+  useEffect(() => {
+    if (storedDoctorCode && !doctorCode) {
+      setDoctorCode(storedDoctorCode);
+    }
+  }, [storedDoctorCode, doctorCode]);
+
+  const handleAutoLogin = async () => {
     setError(null);
     setIsLoading(true);
     

@@ -4,6 +4,7 @@ import ReactMarkdown from 'react-markdown';
 import { getShortlink, searchTreatments } from '../services/api';
 import { smartShare, isNativeSharingSupported } from '../utils/shareUtils';
 import ShareButton from './ShareButton';
+import PaymentStepsMessage from './PaymentStepsMessage';
 
 interface Message {
   id: string;
@@ -23,9 +24,8 @@ interface ChatMessageProps {
   onTreatmentSelect?: (treatmentName: string, messageId: string) => void;
   selectedTreatment?: string;
   onUploadClick?: (documentType: 'aadhaar' | 'pan') => void;
-  onIframeOpen?: () => void;
-  onIframeSliderOpen?: (url: string, title: string) => void;
-  onKycIframeOpen?: (url: string, title: string) => void;
+  onPaymentPlanPopupOpen?: (url?: string) => void;
+  onAddressDetailsPopupOpen?: (url: string) => void;
 }
 
 // Component for styled treatment amount display
@@ -93,7 +93,7 @@ const TreatmentAmountDisplay: React.FC<{ text: string }> = ({ text }) => {
   return <span>{parts}</span>;
 };
 
-const ChatMessage: React.FC<ChatMessageProps> = ({ message, onButtonClick, selectedOption, disabledOptions, onLinkClick, onTreatmentSelect, selectedTreatment, onUploadClick, onIframeOpen, onIframeSliderOpen, onKycIframeOpen }) => {
+const ChatMessage: React.FC<ChatMessageProps> = ({ message, onButtonClick, selectedOption, disabledOptions, onLinkClick, onTreatmentSelect, selectedTreatment, onUploadClick, onPaymentPlanPopupOpen, onAddressDetailsPopupOpen }) => {
   const isUser = message.sender === 'user';
   const [resolvedUrls, setResolvedUrls] = useState<Record<string, string>>({});
   const [loadingUrls, setLoadingUrls] = useState<Set<string>>(new Set());
@@ -119,17 +119,6 @@ const ChatMessage: React.FC<ChatMessageProps> = ({ message, onButtonClick, selec
     console.log('Amount detected in message:', message.text);
   }
   
-  // Check if this is a treatment amount message (contains approved payment plan and amount)
-  const isTreatmentAmountMessage = !isUser && (
-    (message.text.toLowerCase().includes('we were only able to approve payment plans') && 
-     message.text.toLowerCase().includes('treatment amount up to')) ||
-    (message.text.toLowerCase().includes('congratulations') && 
-     message.text.toLowerCase().includes('eligible for a loan') &&
-     message.text.toLowerCase().includes('₹')) ||
-    (message.text.toLowerCase().includes('patient') && 
-     message.text.toLowerCase().includes('eligible for a loan') &&
-     message.text.toLowerCase().includes('₹'))
-  );
   
   // Check if this is an Aadhaar upload request - be very specific
   const isAadhaarUploadRequest = !isUser && (
@@ -171,13 +160,102 @@ const ChatMessage: React.FC<ChatMessageProps> = ({ message, onButtonClick, selec
     message.text.toLowerCase().includes('no cost credit and debit card emi')
   );
   
-  // Check if this is a KYC message (contains KYC URL and payment steps)
-  const isKycMessage = !isUser && (
-    message.text.toLowerCase().includes('payment is now just 2 steps away') &&
-    message.text.toLowerCase().includes('kyc') &&
-    message.text.toLowerCase().includes('approve emi auto payment') &&
-    /https:\/\/[^\s]+/.test(message.text)
+  // Check if this is an address details message (contains address details confirmation)
+  const isAddressDetailsMessage = !isUser && (
+    message.text.toLowerCase().includes('kindly confirm patient\'s address details by clicking below buttom') ||
+    message.text.toLowerCase().includes('kindly confirm patient\'s address details by clicking below button') ||
+    (message.text.toLowerCase().includes('address details') && message.text.toLowerCase().includes('clicking below')) ||
+    message.text.toLowerCase().includes('address details')
   );
+  
+  // Debug logging for address details message detection
+  if (!isUser && message.text.toLowerCase().includes('address details')) {
+    console.log('Address details message detected:', {
+      messageText: message.text,
+      isAddressDetailsMessage,
+      hasUrl: /https:\/\/[^\s]+/.test(message.text)
+    });
+  }
+  
+  // Check if this is a payment steps message
+  const isPaymentStepsMessage = !isUser && (
+    message.text.toLowerCase().includes('payment is now just 3 steps away') ||
+    message.text.toLowerCase().includes('payment is now just 4 steps away') ||
+    (message.text.toLowerCase().includes('face verification') && 
+     message.text.toLowerCase().includes('emi auto payment approval') && 
+     message.text.toLowerCase().includes('agreement e-signing')) ||
+    (message.text.toLowerCase().includes('adhaar verification') && 
+     message.text.toLowerCase().includes('face verification') && 
+     message.text.toLowerCase().includes('emi auto payment approval') && 
+     message.text.toLowerCase().includes('agreement e-signing'))
+  );
+  
+  // Function to parse payment steps from message text
+  const parsePaymentSteps = (text: string) => {
+    const urlRegex = /(https:\/\/[^\s]+)/g;
+    const urls = text.match(urlRegex) || [];
+    
+    // Check if this is 4 steps or 3 steps format
+    const is4Steps = text.toLowerCase().includes('payment is now just 4 steps away') ||
+                     text.toLowerCase().includes('adhaar verification');
+    
+    // Define step patterns and their corresponding URLs
+    const stepPatterns = is4Steps ? [
+      {
+        title: "Adhaar verification.",
+        description: "Now, let's complete Adhaar verification.",
+        url: urls.find(url => url.includes('adhaar') || url.includes('aadhaar')) || urls[0] || '',
+        primaryButtonText: "Complete Adhaar verification",
+        secondaryButtonText: "Share link with patient"
+      },
+      {
+        title: "Face verification.",
+        description: "Now, let's complete face verification.",
+        url: urls.find(url => url.includes('faceverified') || url.includes('face')) || urls[1] || '',
+        primaryButtonText: "Share link for selfie with Patient",
+        secondaryButtonText: "Share link with patient"
+      },
+      {
+        title: "Approve the EMI auto-pay setup.",
+        description: "Set up automatic EMI payments.",
+        url: urls.find(url => url.includes('emiautopayintro') || url.includes('emi')) || urls[2] || '',
+        primaryButtonText: "Complete auto pay setup",
+        secondaryButtonText: "Share link with patient"
+      },
+      {
+        title: "E-sign agreement using this link.",
+        description: "Complete the agreement e-signing process.",
+        url: urls.find(url => url.includes('agreementesigning') || url.includes('agreement')) || urls[3] || '',
+        primaryButtonText: "E-sign agreement",
+        secondaryButtonText: "Share link with patient"
+      }
+    ] : [
+      {
+        title: "Face verification.",
+        description: "Now, let's complete face verification.",
+        url: urls.find(url => url.includes('faceverified')) || urls[0] || '',
+        primaryButtonText: "Share link for selfie with Patient",
+        secondaryButtonText: "Share link with patient"
+      },
+      {
+        title: "E-sign agreement using this link.",
+        description: "Complete the agreement e-signing process.",
+        url: urls.find(url => url.includes('agreementesigning')) || urls[1] || '',
+        primaryButtonText: "E-sign agreement",
+        secondaryButtonText: "Share link with patient"
+      },
+      {
+        title: "Approve the EMI auto-pay setup.",
+        description: "Set up automatic EMI payments.",
+        url: urls.find(url => url.includes('emiautopayintro')) || urls[2] || '',
+        primaryButtonText: "Complete auto pay setup",
+        secondaryButtonText: "Share link with patient"
+      }
+    ];
+    
+    // Filter out steps that don't have URLs
+    return stepPatterns.filter(step => step.url);
+  };
   
   // Function to detect if message contains question with options
   const detectQuestionWithOptions = (text: string) => {
@@ -463,38 +541,23 @@ const ChatMessage: React.FC<ChatMessageProps> = ({ message, onButtonClick, selec
 
 
 
-  const renderSpecialUrlButton = (url: string, index: number = 0) => {
-    const resolvedUrl = resolvedUrls[url];
-    const isLoading = loadingUrls.has(url);
-    const targetUrl = resolvedUrl || url;
-    const buttonTitle = getSpecialUrlTitle(targetUrl);
-    
+  const renderPaymentPlanButton = () => {
     return (
-      <div key={`special-url-button-${index}`} className="mt-3">
+      <div className="mt-3">
         <button
           onClick={(e) => {
             e.preventDefault();
-            if (onIframeSliderOpen) {
-              onIframeSliderOpen(targetUrl, buttonTitle);
-            } else {
-              window.open(targetUrl, '_blank');
+            if (onPaymentPlanPopupOpen) {
+              onPaymentPlanPopupOpen();
             }
           }}
-          className="w-full px-4 py-3 bg-purple-600 hover:bg-purple-700 text-white font-bold rounded-lg transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-1 disabled:opacity-50 disabled:cursor-not-allowed shadow-lg transform hover:scale-105"
-          disabled={isLoading}
+          className="w-full px-4 py-3 bg-purple-600 hover:bg-purple-700 text-white font-bold rounded-lg transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-1 shadow-lg transform hover:scale-105"
           style={{
             background: 'linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%)',
             boxShadow: '0 4px 6px rgba(139, 92, 246, 0.3)'
           }}
         >
-          {isLoading ? (
-            <span className="inline-flex items-center">
-              <span className="animate-spin h-4 w-4 border border-white border-t-transparent rounded-full mr-2"></span>
-              Loading...
-            </span>
-          ) : (
-            <span className="text-center">{buttonTitle}</span>
-          )}
+          <span className="text-center">Continue with payment plan selection</span>
         </button>
       </div>
     );
@@ -551,33 +614,23 @@ const ChatMessage: React.FC<ChatMessageProps> = ({ message, onButtonClick, selec
     return shortUrlPattern.test(url);
   };
   
-  // Function to check if a URL should be shown as an image button
-  const isSpecialUrl = (url: string): boolean => {
-    const specialUrls = [
-      'https://uat.carepay.money/patient/bureauapproved/',
-      'https://uat.carepay.money/patient/fibeLoanApproved'
-    ];
-    return specialUrls.some(specialUrl => url.includes(specialUrl));
-  };
+  // Check if this is a payment plan selection message
+  const isPaymentPlanMessage = !isUser && (
+    message.text.toLowerCase().includes('continue with payment plan selection') ||
+    message.text.toLowerCase().includes('payment plan selection') ||
+    message.text.toLowerCase().includes('select your payment plan') ||
+    message.text.toLowerCase().includes('choose your payment plan')
+  );
   
-  // Function to get button title for special URLs
-  const getSpecialUrlTitle = (url: string): string => {
-    if (url.includes('bureauapproved')) {
-      return 'Continue with payment plan selection';
-    } else if (url.includes('fibeLoanApproved')) {
-      return 'Continue with payment plan selection';
-    }
-    return 'Continue with payment plan selection';
-  };
   
-  // Function to extract KYC URL from message
-  const extractKycUrl = (text: string): string | null => {
+  // Function to extract address details URL from message
+  const extractAddressDetailsUrl = (text: string): string | null => {
     const urlRegex = /(https:\/\/[^\s]+)/g;
     const urls = text.match(urlRegex);
     if (urls && urls.length > 0) {
       // Look for postapprovalAddressdetails URL specifically
-      const kycUrl = urls.find(url => url.includes('postapprovalAddressdetails'));
-      return kycUrl || urls[0]; // Return KYC URL if found, otherwise first URL
+      const addressDetailsUrl = urls.find(url => url.includes('postapprovalAddressdetails'));
+      return addressDetailsUrl || urls[0]; // Return address details URL if found, otherwise first URL
     }
     return null;
   };
@@ -681,97 +734,93 @@ const ChatMessage: React.FC<ChatMessageProps> = ({ message, onButtonClick, selec
           `}
         >
           <div className="flex flex-col">
-          <div 
-            className={`prose ${isUser ? 'prose-xs text-gray-800' : 'prose-sm text-gray-800'} max-w-none break-words leading-tight`}
-            style={{ lineHeight: isUser ? 1.2 : 1.3 }}
-          >
-            {containsAmount ? (
-              <TreatmentAmountDisplay text={formatText(message.text)} />
-            ) : (
-              <ReactMarkdown
-                components={{
-                                   h3: ({node, ...props}) => <h3 className={`font-bold mt-1 mb-1 ${isUser ? 'text-sm' : 'text-base'}`} {...props} />,
-                   h4: ({node, ...props}) => <h4 className={`font-bold mt-1 mb-1 ${isUser ? 'text-xs' : 'text-sm'}`} {...props} />,
-                  strong: ({node, ...props}) => <strong className="font-semibold" {...props} />,
-                  a: ({node, href, ...props}) => {
-                    if (href && /^https?:\/\//.test(href)) {
-                      const isShort = isShortUrl(href);
-                      const resolvedUrl = resolvedUrls[href];
-                      const isLoading = loadingUrls.has(href);
-                      
-                      if (isShort && !resolvedUrl && !isLoading) {
-                        // Trigger resolution for short URLs that haven't been resolved yet
-                        resolveShortUrl(href);
+          {/* Only show regular text content if it's NOT a payment steps message */}
+          {!isPaymentStepsMessage && (
+            <div 
+              className={`prose ${isUser ? 'prose-xs text-gray-800' : 'prose-sm text-gray-800'} max-w-none break-words leading-tight`}
+              style={{ lineHeight: isUser ? 1.2 : 1.3 }}
+            >
+              {containsAmount ? (
+                <TreatmentAmountDisplay text={formatText(message.text)} />
+              ) : (
+                <ReactMarkdown
+                  components={{
+                                     h3: ({node, ...props}) => <h3 className={`font-bold mt-1 mb-1 ${isUser ? 'text-sm' : 'text-base'}`} {...props} />,
+                     h4: ({node, ...props}) => <h4 className={`font-bold mt-1 mb-1 ${isUser ? 'text-xs' : 'text-sm'}`} {...props} />,
+                    strong: ({node, ...props}) => <strong className="font-semibold" {...props} />,
+                    a: ({node, href, ...props}) => {
+                      if (href && /^https?:\/\//.test(href)) {
+                        const isShort = isShortUrl(href);
+                        const resolvedUrl = resolvedUrls[href];
+                        const isLoading = loadingUrls.has(href);
+                        
+                        if (isShort && !resolvedUrl && !isLoading) {
+                          // Trigger resolution for short URLs that haven't been resolved yet
+                          resolveShortUrl(href);
+                        }
+                        
+                        return renderLink(href);
                       }
+                      return <a {...props} href={href} />;
+                    },
+                    p: ({node, ...props}) => {
+                      const content = props.children?.toString() || '';
+                      const { urls, indices } = extractUrls(content);
                       
-                      return renderLink(href);
-                    }
-                    return <a {...props} href={href} />;
-                  },
-                  p: ({node, ...props}) => {
-                    const content = props.children?.toString() || '';
-                    const { urls, indices } = extractUrls(content);
-                    
-                    if (urls.length > 0) {
-                      const parts = [];
-                      let lastIndex = 0;
-                      
-                      indices.forEach((range, i) => {
-                        // Add text before URL
-                        if (range[0] > lastIndex) {
+                      if (urls.length > 0) {
+                        const parts = [];
+                        let lastIndex = 0;
+                        
+                        indices.forEach((range, i) => {
+                          // Add text before URL
+                          if (range[0] > lastIndex) {
+                            parts.push(
+                              <React.Fragment key={`text-${i}-before`}>
+                                {content.substring(lastIndex, range[0])}
+                              </React.Fragment>
+                            );
+                          }
+                          
+                          // Add rendered URL
+                          parts.push(renderLink(urls[i], i));
+                          
+                          lastIndex = range[1];
+                        });
+                        
+                        // Add text after last URL
+                        if (lastIndex < content.length) {
                           parts.push(
-                            <React.Fragment key={`text-${i}-before`}>
-                              {content.substring(lastIndex, range[0])}
+                            <React.Fragment key="text-after">
+                              {content.substring(lastIndex)}
                             </React.Fragment>
                           );
                         }
                         
-                        // Add rendered URL
-                        parts.push(renderLink(urls[i], i));
-                        
-                        lastIndex = range[1];
-                      });
-                      
-                      // Add text after last URL
-                      if (lastIndex < content.length) {
-                        parts.push(
-                          <React.Fragment key="text-after">
-                            {content.substring(lastIndex)}
-                          </React.Fragment>
+                        return (
+                          <div className="my-0 leading-tight" style={{ marginBottom: isUser ? '0.0625rem' : '0.125rem' }}>
+                            <span>{parts}</span>
+                          </div>
                         );
                       }
                       
-                      return (
-                        <div className="my-0 leading-tight" style={{ marginBottom: isUser ? '0.0625rem' : '0.125rem' }}>
-                          <span>{parts}</span>
-                          {urls.map((url, i) => {
-                            if (isSpecialUrl(url)) {
-                              return renderSpecialUrlButton(url, i);
-                            } else {
-                              return null;
-                            }
-                          })}
-                        </div>
-                      );
-                    }
-                    
-                    return <p className="my-0 leading-tight" style={{ marginBottom: isUser ? '0.0625rem' : '0.125rem' }} {...props} />;
-                  },
-                                   li: ({node, ...props}) => <li className={`leading-tight pl-0 ${isUser ? 'my-0' : 'my-0.5'}`} {...props} />,
-                   ol: ({node, ...props}) => <ol className={`${isUser ? 'pl-2 my-0.5 space-y-0' : 'pl-3 my-1 space-y-0.5'} list-decimal`} {...props} />,
-                   ul: ({node, ...props}) => <ul className={`${isUser ? 'pl-2 my-0.5 space-y-0' : 'pl-3 my-1 space-y-0.5'} list-disc`} {...props} />,
-                  em: ({node, ...props}) => <em className="italic" {...props} />,
-                                   blockquote: ({node, ...props}) => (
-                     <blockquote className={`border-l-2 border-gray-300 italic text-gray-700 ${isUser ? 'pl-1 my-0.5' : 'pl-2 my-1'}`} {...props} />
-                   ),
-                   pre: ({node, ...props}) => <pre className={`bg-gray-100 rounded overflow-x-auto ${isUser ? 'p-1 my-0.5 text-xs' : 'p-1.5 my-1 text-xs'}`} {...props} />,
-                  code: ({node, ...props}) => <code className="bg-gray-100 px-1.5 py-0.5 rounded text-xs" {...props} />
-                }}
-              >
-                {formatText(message.text)}
-              </ReactMarkdown>
-            )}
-          </div>
+                      return <p className="my-0 leading-tight" style={{ marginBottom: isUser ? '0.0625rem' : '0.125rem' }} {...props} />;
+                    },
+                                     li: ({node, ...props}) => <li className={`leading-tight pl-0 ${isUser ? 'my-0' : 'my-0.5'}`} {...props} />,
+                     ol: ({node, ...props}) => <ol className={`${isUser ? 'pl-2 my-0.5 space-y-0' : 'pl-3 my-1 space-y-0.5'} list-decimal`} {...props} />,
+                     ul: ({node, ...props}) => <ul className={`${isUser ? 'pl-2 my-0.5 space-y-0' : 'pl-3 my-1 space-y-0.5'} list-disc`} {...props} />,
+                    em: ({node, ...props}) => <em className="italic" {...props} />,
+                                     blockquote: ({node, ...props}) => (
+                       <blockquote className={`border-l-2 border-gray-300 italic text-gray-700 ${isUser ? 'pl-1 my-0.5' : 'pl-2 my-1'}`} {...props} />
+                     ),
+                     pre: ({node, ...props}) => <pre className={`bg-gray-100 rounded overflow-x-auto ${isUser ? 'p-1 my-0.5 text-xs' : 'p-1.5 my-1 text-xs'}`} {...props} />,
+                    code: ({node, ...props}) => <code className="bg-gray-100 px-1.5 py-0.5 rounded text-xs" {...props} />
+                  }}
+                >
+                  {formatText(message.text)}
+                </ReactMarkdown>
+              )}
+            </div>
+          )}
           
           {/* Image Preview for uploaded files */}
           {message.imagePreview && (
@@ -951,11 +1000,16 @@ const ChatMessage: React.FC<ChatMessageProps> = ({ message, onButtonClick, selec
           )}
           
           {/* No-cost Credit & Debit Card EMI Button */}
-          {isNoCostEmiMessage && onIframeOpen && (
+          {isNoCostEmiMessage && (
             <div className="mt-3">
               <div className="flex space-x-2">
                 <button
-                  onClick={onIframeOpen}
+                  onClick={() => {
+                    const userId = localStorage.getItem('userId');
+                    if (userId) {
+                      window.open(`https://carepay.money/patient/razorpayoffer/${userId}`, '_blank');
+                    }
+                  }}
                   className="flex-1 px-4 py-2.5 bg-green-500 hover:bg-green-600 text-white font-medium rounded-lg transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-1 flex items-center justify-center space-x-2 shadow-lg"
                 >
                   <img 
@@ -978,57 +1032,82 @@ const ChatMessage: React.FC<ChatMessageProps> = ({ message, onButtonClick, selec
             </div>
           )}
           
-          {/* KYC Button */}
-          {isKycMessage && onKycIframeOpen && (
+          {/* Payment Plan Button */}
+          {isPaymentPlanMessage && onPaymentPlanPopupOpen && (
+            renderPaymentPlanButton()
+          )}
+          
+          {/* Address Details Button */}
+          {isAddressDetailsMessage && (
             <div className="mt-3">
               {(() => {
-                const kycUrl = extractKycUrl(message.text);
-                if (!kycUrl) return null;
+                const addressDetailsUrl = extractAddressDetailsUrl(message.text);
+                console.log('Address Details Button - URL extracted:', addressDetailsUrl);
+                
+                // Use a fallback URL if no URL is found in the message
+                const finalUrl = addressDetailsUrl || 'https://carepay.money/address-details';
+                console.log('Address Details Button - Using URL:', finalUrl);
                 
                 return (
                   <div className="space-y-3">
-                    {/* Main KYC Button */}
+                    {/* Main Address Details Button */}
                     <button
-                      onClick={() => onKycIframeOpen(kycUrl, "KYC Verification")}
+                      onClick={() => {
+                        if (onAddressDetailsPopupOpen) {
+                          onAddressDetailsPopupOpen(finalUrl);
+                        }
+                      }}
                       className="w-full px-4 py-3 bg-purple-600 hover:bg-purple-700 text-white font-bold rounded-lg transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-1 disabled:opacity-50 disabled:cursor-not-allowed shadow-lg transform hover:scale-105"
                       style={{
                         background: 'linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%)',
                         boxShadow: '0 4px 6px rgba(139, 92, 246, 0.3)'
                       }}
                     >
-                      Continue with KYC
+                      Fill the Address Details
                     </button>
                     
-                    {/* Share and Copy Buttons */}
-                    <div className="flex space-x-2">
-                      <button
-                        onClick={() => {
-                          const whatsappUrl = `https://wa.me/?text=${encodeURIComponent(`Please complete your KYC verification using this link: ${kycUrl}`)}`;
-                          window.open(whatsappUrl, '_blank');
-                        }}
-                        className="flex-1 px-3 py-2 bg-purple-100 hover:bg-purple-200 text-purple-700 font-medium rounded-lg transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-1 flex items-center justify-center space-x-2 text-xs"
-                      >
-                        <Share2 className="h-3 w-3" />
-                        <span>Share KYC link</span>
-                      </button>
-                      <button
-                        onClick={() => {
-                          navigator.clipboard.writeText(kycUrl);
-                          const toast = document.createElement('div');
-                          toast.className = 'fixed bottom-4 right-4 bg-gray-800 text-white py-2 px-4 rounded shadow-lg z-50';
-                          toast.textContent = 'KYC link copied to clipboard!';
-                          document.body.appendChild(toast);
-                          setTimeout(() => toast.remove(), 2000);
-                        }}
-                        className="flex-1 px-3 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium rounded-lg transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-1 flex items-center justify-center space-x-2 text-xs"
-                      >
-                        <Copy className="h-3 w-3" />
-                        <span>Copy link</span>
-                      </button>
-                    </div>
+                    {/* Share and Copy Buttons - Only show if we have a real URL */}
+                    {addressDetailsUrl && (
+                      <div className="flex space-x-2">
+                        <button
+                          onClick={() => {
+                            const whatsappUrl = `https://wa.me/?text=${encodeURIComponent(`Please complete your address details verification using this link: ${addressDetailsUrl}`)}`;
+                            window.open(whatsappUrl, '_blank');
+                          }}
+                          className="flex-1 px-3 py-2 bg-purple-100 hover:bg-purple-200 text-purple-700 font-medium rounded-lg transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-1 flex items-center justify-center space-x-2 text-xs"
+                        >
+                          <Share2 className="h-3 w-3" />
+                          <span>Share Address Details link</span>
+                        </button>
+                        <button
+                          onClick={() => {
+                            navigator.clipboard.writeText(addressDetailsUrl);
+                            const toast = document.createElement('div');
+                            toast.className = 'fixed bottom-4 right-4 bg-gray-800 text-white py-2 px-4 rounded shadow-lg z-50';
+                            toast.textContent = 'Address Details link copied to clipboard!';
+                            document.body.appendChild(toast);
+                            setTimeout(() => toast.remove(), 2000);
+                          }}
+                          className="flex-1 px-3 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium rounded-lg transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-1 flex items-center justify-center space-x-2 text-xs"
+                        >
+                          <Copy className="h-3 w-3" />
+                          <span>Copy link</span>
+                        </button>
+                      </div>
+                    )}
                   </div>
                 );
               })()}
+            </div>
+          )}
+          
+          {/* Payment Steps Message */}
+          {isPaymentStepsMessage && (
+            <div className="mt-3">
+              <PaymentStepsMessage 
+                steps={parsePaymentSteps(message.text)}
+                onLinkClick={onLinkClick}
+              />
             </div>
           )}
           
@@ -1056,6 +1135,7 @@ const ChatMessage: React.FC<ChatMessageProps> = ({ message, onButtonClick, selec
           </div>
         </div>
       )}
+
     </div>
   );
 };

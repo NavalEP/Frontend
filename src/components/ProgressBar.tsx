@@ -24,11 +24,12 @@ const ProgressBar: React.FC<ProgressBarProps> = ({
                   className={`
                     relative flex items-center justify-center px-2 py-1 min-w-[60px] text-xs font-medium
                     ${isActive 
-                      ? 'bg-purple-700 text-white' 
+                      ? 'text-white' 
                       : 'bg-gray-100 text-gray-500 border border-gray-200'
                     }
                   `}
                   style={{
+                    backgroundColor: isActive ? '#514c9f' : undefined,
                     clipPath: index === 0 
                       ? 'polygon(0% 0%, 90% 0%, 100% 50%, 90% 100%, 0% 100%)'
                       : index === steps.length - 1
@@ -45,7 +46,7 @@ const ProgressBar: React.FC<ProgressBarProps> = ({
                     <div 
                       className="w-0 h-0 border-l-[8px] border-r-0 border-t-[10px] border-b-[10px] border-t-transparent border-b-transparent"
                       style={{
-                        borderLeftColor: isActive ? '#7c3aed' : '#f3f4f6'
+                        borderLeftColor: isActive ? '#514c9f' : '#f3f4f6'
                       }}
                     />
                   </div>

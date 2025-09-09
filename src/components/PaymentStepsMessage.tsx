@@ -96,10 +96,10 @@ const PaymentStepsMessage: React.FC<PaymentStepsMessageProps> = ({ steps, onLink
           {/* Primary Action Button */}
           <button
             onClick={() => handleLinkClick(step.url)}
-            className="w-full px-4 py-3 bg-purple-600 hover:bg-purple-700 text-white font-bold rounded-lg transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-1 shadow-lg transform hover:scale-105 mb-3"
+            className="w-full px-4 py-3 text-white font-bold rounded-lg transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-offset-1 shadow-lg transform hover:scale-105 mb-3"
             style={{
-              background: 'linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%)',
-              boxShadow: '0 4px 6px rgba(139, 92, 246, 0.3)'
+              background: 'linear-gradient(135deg, #514c9f 0%, #3d3a7a 100%)',
+              boxShadow: '0 4px 6px rgba(81, 76, 159, 0.3)'
             }}
           >
             {step.primaryButtonText}
@@ -109,7 +109,17 @@ const PaymentStepsMessage: React.FC<PaymentStepsMessageProps> = ({ steps, onLink
           <div className="flex space-x-2">
             <button
               onClick={() => handleNativeShare(step.url)}
-              className="flex-1 px-3 py-2 bg-purple-100 hover:bg-purple-200 text-purple-700 font-medium rounded-lg transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-1 flex items-center justify-center space-x-2 text-xs"
+              className="flex-1 px-3 py-2 font-medium rounded-lg transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-offset-1 flex items-center justify-center space-x-2 text-xs"
+              style={{
+                backgroundColor: '#f3f2ff',
+                color: '#514c9f'
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.backgroundColor = '#e8e5ff';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.backgroundColor = '#f3f2ff';
+              }}
             >
               <Share2 className="h-3 w-3" />
               <span>{step.secondaryButtonText}</span>

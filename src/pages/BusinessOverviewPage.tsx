@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { getLoanCountAndAmountForDoctor, getDoctorDashboardData, getAllChildClinics, LoanCountAndAmountData, DoctorDashboardData, ChildClinic } from '../services/loanApi';
-import { ArrowLeft, XCircle, Search, SlidersHorizontal, Calendar } from 'lucide-react';
+import { ArrowLeft, XCircle, SlidersHorizontal, Calendar } from 'lucide-react';
 
 interface BusinessOverviewPageProps {
   onClose?: () => void;
@@ -469,7 +469,7 @@ const BusinessOverviewPage: React.FC<BusinessOverviewPageProps> = ({ onClose }) 
                       {dashboardData.avgApprovalRate.toFixed(1)}%
                     </div>
                   </div>
-                  <div className="bg-purple-600 text-white px-3 py-2">
+                  <div className="text-white px-3 py-2" style={{ backgroundColor: '#514c9f' }}>
                     <div className="flex justify-between items-center">
                       <span className="text-sm">CarePay average</span>
                       <span className="text-sm font-semibold">{dashboardData.avgApprovalRateCarePay.toFixed(1)}%</span>
@@ -485,7 +485,7 @@ const BusinessOverviewPage: React.FC<BusinessOverviewPageProps> = ({ onClose }) 
                       {dashboardData.leadsPerClinic.toFixed(1)}
                     </div>
                   </div>
-                  <div className="bg-purple-600 text-white px-3 py-2">
+                  <div className="text-white px-3 py-2" style={{ backgroundColor: '#514c9f' }}>
                     <div className="flex justify-between items-center">
                       <span className="text-sm">CarePay average</span>
                       <span className="text-sm font-semibold">{dashboardData.leadsPerClinicCarepay.toFixed(1)}</span>

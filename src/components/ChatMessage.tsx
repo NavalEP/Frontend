@@ -551,10 +551,10 @@ const ChatMessage: React.FC<ChatMessageProps> = ({ message, onButtonClick, selec
               onPaymentPlanPopupOpen();
             }
           }}
-          className="w-full px-4 py-3 bg-purple-600 hover:bg-purple-700 text-white font-bold rounded-lg transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-1 shadow-lg transform hover:scale-105"
+          className="w-full px-4 py-3 text-white font-bold rounded-lg transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-offset-1 shadow-lg transform hover:scale-105"
           style={{
-            background: 'linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%)',
-            boxShadow: '0 4px 6px rgba(139, 92, 246, 0.3)'
+            background: 'linear-gradient(135deg, #514c9f 0%, #3d3a7a 100%)',
+            boxShadow: '0 4px 6px rgba(81, 76, 159, 0.3)'
           }}
         >
           <span className="text-center">Continue with payment plan selection</span>
@@ -976,7 +976,8 @@ const ChatMessage: React.FC<ChatMessageProps> = ({ message, onButtonClick, selec
             <div className="mt-3">
               <button
                 onClick={() => onUploadClick('aadhaar')}
-                className="w-full px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1 flex items-center justify-center space-x-2"
+                className="w-full px-4 py-2.5 hover:opacity-90 text-white font-medium rounded-lg transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-offset-1 flex items-center justify-center space-x-2"
+                style={{ backgroundColor: '#514c9f' }}
               >
                 <Upload className="h-4 w-4 md:h-5 md:w-5" />
                 <span className="text-sm md:text-base">Upload Aadhaar Card (Front & Back)</span>
@@ -1025,7 +1026,7 @@ const ChatMessage: React.FC<ChatMessageProps> = ({ message, onButtonClick, selec
                   title="No-cost EMI Offer"
                   text="Check out this amazing no-cost EMI offer for medical treatments!"
                   url={`https://carepay.money/patient/razorpayoffer/${localStorage.getItem('userId')}`}
-                  className="px-3 py-2.5 bg-blue-500 hover:bg-blue-600 text-white font-medium rounded-lg transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1 shadow-lg"
+                  className="px-3 py-2.5 hover:opacity-90 text-white font-medium rounded-lg transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-offset-1 shadow-lg"
                 />
               </div>
               <p className="text-xs text-gray-500 text-center mt-1">Click here to apply for no-cost EMI or share the offer</p>
@@ -1057,10 +1058,10 @@ const ChatMessage: React.FC<ChatMessageProps> = ({ message, onButtonClick, selec
                           onAddressDetailsPopupOpen(finalUrl);
                         }
                       }}
-                      className="w-full px-4 py-3 bg-purple-600 hover:bg-purple-700 text-white font-bold rounded-lg transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-1 disabled:opacity-50 disabled:cursor-not-allowed shadow-lg transform hover:scale-105"
+                      className="w-full px-4 py-3 text-white font-bold rounded-lg transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-offset-1 disabled:opacity-50 disabled:cursor-not-allowed shadow-lg transform hover:scale-105"
                       style={{
-                        background: 'linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%)',
-                        boxShadow: '0 4px 6px rgba(139, 92, 246, 0.3)'
+                        background: 'linear-gradient(135deg, #514c9f 0%, #3d3a7a 100%)',
+                        boxShadow: '0 4px 6px rgba(81, 76, 159, 0.3)'
                       }}
                     >
                       Fill the Address Details
@@ -1074,7 +1075,13 @@ const ChatMessage: React.FC<ChatMessageProps> = ({ message, onButtonClick, selec
                             const whatsappUrl = `https://wa.me/?text=${encodeURIComponent(`Please complete your address details verification using this link: ${addressDetailsUrl}`)}`;
                             window.open(whatsappUrl, '_blank');
                           }}
-                          className="flex-1 px-3 py-2 bg-purple-100 hover:bg-purple-200 text-purple-700 font-medium rounded-lg transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-1 flex items-center justify-center space-x-2 text-xs"
+                          className="flex-1 px-3 py-2 font-medium rounded-lg transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-offset-1 flex items-center justify-center space-x-2 text-xs"
+                          style={{ 
+                            backgroundColor: '#f3f2ff',
+                            color: '#514c9f'
+                          }}
+                          onMouseEnter={(e) => (e.target as HTMLElement).style.backgroundColor = '#e6e3ff'}
+                          onMouseLeave={(e) => (e.target as HTMLElement).style.backgroundColor = '#f3f2ff'}
                         >
                           <Share2 className="h-3 w-3" />
                           <span>Share Address Details link</span>

@@ -332,6 +332,14 @@ const AddressDetailsPopup: React.FC<AddressDetailsPopupProps> = ({
 
   return (
     <>
+      <style>
+        {`
+          .address-input:focus {
+            --tw-ring-color: #514c9f;
+            border-color: #514c9f;
+          }
+        `}
+      </style>
       {/* Backdrop */}
       <div 
         className="fixed inset-0 bg-black bg-opacity-50 z-40 transition-opacity duration-300"
@@ -342,12 +350,12 @@ const AddressDetailsPopup: React.FC<AddressDetailsPopupProps> = ({
       <div className="fixed inset-0 flex items-center justify-center z-50 transition-all duration-300 ease-out">
         <div className="bg-white rounded-3xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-hidden">
           {/* Header */}
-          <div className="bg-gradient-to-r from-purple-600 to-purple-700 text-white px-6 py-4 rounded-t-3xl">
+          <div className="text-white px-6 py-4 rounded-t-3xl" style={{ background: 'linear-gradient(to right, #514c9f, #514c9f)' }}>
             <div className="flex items-center justify-between">
               <h2 className="text-xl font-bold">Address Details</h2>
               <button
                 onClick={onClose}
-                className="text-white hover:text-purple-200 transition-colors"
+                className="text-white hover:opacity-70 transition-colors"
               >
                 <X className="h-6 w-6" />
               </button>
@@ -358,7 +366,7 @@ const AddressDetailsPopup: React.FC<AddressDetailsPopupProps> = ({
           <div className="p-6 overflow-y-auto max-h-[calc(90vh-120px)]">
             {isLoading ? (
               <div className="flex items-center justify-center py-12">
-                <Loader2 className="h-8 w-8 animate-spin text-purple-600" />
+                <Loader2 className="h-8 w-8 animate-spin" style={{ color: '#514c9f' }} />
                 <span className="ml-3 text-gray-600">Loading address details...</span>
               </div>
             ) : (
@@ -371,7 +379,7 @@ const AddressDetailsPopup: React.FC<AddressDetailsPopupProps> = ({
                 {/* Permanent Address Section */}
                 <div className="space-y-4">
                   <h4 className="font-medium text-gray-900 flex items-center space-x-2">
-                    <Home className="h-5 w-5 text-purple-600" />
+                    <Home className="h-5 w-5" style={{ color: '#514c9f' }} />
                     <span>Permanent Address</span>
                   </h4>
                   
@@ -382,7 +390,7 @@ const AddressDetailsPopup: React.FC<AddressDetailsPopupProps> = ({
                         type="text"
                         value={addressForm.permanentAddress}
                         onChange={(e) => handleAddressChange('permanentAddress', e.target.value)}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-offset-2 address-input"
                         placeholder="Enter permanent address"
                       />
                     </div>
@@ -393,7 +401,7 @@ const AddressDetailsPopup: React.FC<AddressDetailsPopupProps> = ({
                         type="text"
                         value={addressForm.permanentPincode}
                         onChange={(e) => handleAddressChange('permanentPincode', e.target.value)}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-offset-2 address-input"
                         placeholder="Enter pincode"
                       />
                     </div>
@@ -409,7 +417,7 @@ const AddressDetailsPopup: React.FC<AddressDetailsPopupProps> = ({
                             filterCities(e.target.value, addressForm.permanentState);
                           }}
                           onFocus={() => setShowPermanentCitySearch(true)}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-offset-2 address-input"
                           placeholder="Search city..."
                         />
                         <Search className="absolute right-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
@@ -440,7 +448,7 @@ const AddressDetailsPopup: React.FC<AddressDetailsPopupProps> = ({
                       <select
                         value={addressForm.permanentState}
                         onChange={(e) => handleAddressChange('permanentState', e.target.value)}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-offset-2 address-input"
                       >
                         <option value="">Select State</option>
                         {states.map(state => (
@@ -458,7 +466,7 @@ const AddressDetailsPopup: React.FC<AddressDetailsPopupProps> = ({
                     id="sameAddress"
                     checked={addressForm.sameAsPermanent}
                     onChange={(e) => handleAddressChange('sameAsPermanent', e.target.checked)}
-                    className="h-4 w-4 text-purple-600 focus:ring-purple-500 border-gray-300 rounded"
+                    className="h-4 w-4 border-gray-300 rounded" style={{ color: '#514c9f' }}
                   />
                   <label htmlFor="sameAddress" className="text-sm text-gray-700">
                     My current address is the same as my permanent address.
@@ -468,7 +476,7 @@ const AddressDetailsPopup: React.FC<AddressDetailsPopupProps> = ({
                 {/* Current Address Section */}
                 <div className="space-y-4">
                   <h4 className="font-medium text-gray-900 flex items-center space-x-2">
-                    <MapPin className="h-5 w-5 text-purple-600" />
+                    <MapPin className="h-5 w-5" style={{ color: '#514c9f' }} />
                     <span>Current Address</span>
                   </h4>
                   
@@ -480,7 +488,7 @@ const AddressDetailsPopup: React.FC<AddressDetailsPopupProps> = ({
                         value={addressForm.currentAddress}
                         onChange={(e) => handleAddressChange('currentAddress', e.target.value)}
                         placeholder="Enter address"
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-offset-2 address-input"
                       />
                     </div>
                     
@@ -491,7 +499,7 @@ const AddressDetailsPopup: React.FC<AddressDetailsPopupProps> = ({
                         value={addressForm.currentPincode}
                         onChange={(e) => handleAddressChange('currentPincode', e.target.value)}
                         placeholder="Enter pincode"
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-offset-2 address-input"
                       />
                     </div>
                     
@@ -506,7 +514,7 @@ const AddressDetailsPopup: React.FC<AddressDetailsPopupProps> = ({
                             filterCities(e.target.value, addressForm.currentState);
                           }}
                           onFocus={() => setShowCurrentCitySearch(true)}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-offset-2 address-input"
                           placeholder="Search city..."
                         />
                         <Search className="absolute right-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
@@ -537,7 +545,7 @@ const AddressDetailsPopup: React.FC<AddressDetailsPopupProps> = ({
                       <select
                         value={addressForm.currentState}
                         onChange={(e) => handleAddressChange('currentState', e.target.value)}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-offset-2 address-input"
                       >
                         <option value="">Select state</option>
                         {states.map(state => (
@@ -553,7 +561,10 @@ const AddressDetailsPopup: React.FC<AddressDetailsPopupProps> = ({
                   <button
                     onClick={handleAddressSubmit}
                     disabled={isLoading}
-                    className="w-full px-6 py-3 bg-purple-600 hover:bg-purple-700 disabled:bg-purple-400 disabled:cursor-not-allowed text-white font-medium rounded-xl transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 flex items-center justify-center space-x-2"
+                    className="w-full px-6 py-3 hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed text-white font-medium rounded-xl transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 flex items-center justify-center space-x-2"
+                    style={{ 
+                      backgroundColor: '#514c9f'
+                    }}
                   >
                     {isLoading ? (
                       <>

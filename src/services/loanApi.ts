@@ -1426,6 +1426,72 @@ interface SaveLoanDetailsResponse {
   message: string;
 }
 
+// Interface for disbursement data response
+export interface DisbursementData {
+  userId: string;
+  firstName: string;
+  mobileNumber: string;
+  loanId: string;
+  applicationId: string;
+  treatmentAmount: number;
+  loanAmount: number;
+  loanReason: string;
+  loanApplyDate: number;
+  disburseDate: number;
+  patientName: string | null;
+  patientPhoneNumber: string | null;
+  doctorId: string;
+  doctorName: string;
+  doctorCode: string;
+  clinicName: string;
+  productId: string;
+  productName: string;
+  totalEmi: number;
+  advanceEmi: number;
+  subventionRate: number;
+  advanceEmiAmount: number;
+  totalTenure: number;
+  effectiveTenure: number;
+  netLoanAmount: number;
+  subventionExcludingGSt: number;
+  subventionIncludingGSt: number;
+  gstOnSubvention: number;
+  processingFee: number;
+  disburseAmount: number;
+  nbfcName: string;
+  internalProductId: string;
+  loanCalculationDetails: {
+    apr: number;
+    totalTenure: number;
+    effectiveTenure: number;
+    processingFee: number;
+    principal: number;
+    reschedule: Array<{
+      principal: number;
+      emiDate: string;
+      month: number;
+      emiAmount: number;
+      balance: number;
+      interest: number;
+    }>;
+    emiAmount: number;
+    subventionExcludingGSt: number;
+    interest: number;
+    netLoanAmount: number;
+    treatmentAmount: number;
+    disburseAmount: number;
+    subventionIncludingGST: number;
+  };
+  reportGenerationDate: number;
+}
+
+interface DisbursementDataResponse {
+  status: number;
+  data: DisbursementData | null;
+  attachment: any;
+  message: string;
+}
+
 /**
  * Save loan details for a user
  * @param loanDetails - The loan details to save
@@ -1497,6 +1563,88 @@ export const saveLoanDetails = async (loanDetails: SaveLoanDetailsRequest): Prom
       
       if (error.response.status === 403) {
         throw new Error('You do not have permission to perform this action.');
+      }
+      
+      if (error.response.status === 500) {
+        const errorMessage = error.response.data?.message || 'Internal server error';
+        throw new Error(`Server Error: ${errorMessage}`);
+      }
+      
+      // Handle other status codes
+      const errorMessage = error.response.data?.message || error.message;
+      throw new Error(`API Error (${error.response.status}): ${errorMessage}`);
+    }
+    
+    // Handle non-axios errors
+    throw new Error(`Unexpected error: ${error.message || 'Unknown error occurred'}`);
+  }
+};
+
+/**
+ * Get disbursement data by loan ID
+ * @param loanId - The loan ID to fetch disbursement data for
+ * @returns Promise with the disbursement data
+ */
+export const getDisburseDataByLoanId = async (loanId: string): Promise<{
+  success: boolean;
+  data?: DisbursementData;
+  message: string;
+}> => {
+  try {
+    const response = await loanApi.get<DisbursementDataResponse>('/getDisburseDataByLoanId/', {
+      params: { loanId },
+      headers: {
+        'Accept': 'application/json'
+      },
+      timeout: 30000
+    });
+
+    if (response.data.status === 200 && response.data.data) {
+      return {
+        success: true,
+        data: response.data.data,
+        message: response.data.message || 'Disbursement data retrieved successfully'
+      };
+    }
+
+    // Handle 404 case specifically
+    if (response.data.status === 404) {
+      return {
+        success: false,
+        message: response.data.message || 'Disbursement data not found'
+      };
+    }
+
+    // Handle other error cases
+    return {
+      success: false,
+      message: response.data.message || 'Failed to fetch disbursement data'
+    };
+
+  } catch (error: any) {
+    console.error('Error getting disbursement data by loan ID:', error);
+    
+    if (axios.isAxiosError(error)) {
+      if (error.code === 'ECONNABORTED') {
+        throw new Error('Request timed out. Please try again.');
+      }
+      
+      if (!error.response) {
+        throw new Error('Unable to connect to the backend server. Please check your internet connection.');
+      }
+      
+      // Handle specific HTTP status codes
+      if (error.response.status === 400) {
+        const errorMessage = error.response.data?.message || 'Invalid loan ID provided';
+        throw new Error(`Bad Request: ${errorMessage}`);
+      }
+      
+      if (error.response.status === 401) {
+        throw new Error('Authentication required. Please login again.');
+      }
+      
+      if (error.response.status === 404) {
+        throw new Error('Disbursement data not found for this loan ID.');
       }
       
       if (error.response.status === 500) {

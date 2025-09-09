@@ -208,7 +208,7 @@ const PaymentPlanPopup: React.FC<PaymentPlanPopupProps> = ({
           // Send detailed message to agent about the selected payment plan
           const agentMessage = `Great! Selected payment plan details:
 
-Plan: ${selectedPlan.productDetailsDO.advanceEmi}/${selectedPlan.productDetailsDO.totalEmi - selectedPlan.productDetailsDO.advanceEmi}\n\n
+Plan: ${selectedPlan.productDetailsDO.totalEmi - selectedPlan.productDetailsDO.advanceEmi}/${selectedPlan.productDetailsDO.advanceEmi}\n\n
 
 Effective tenure: ${selectedPlan.productDetailsDO.totalEmi} months\n\n
 EMI amount: ${selectedPlan.emi}\n\n
@@ -403,12 +403,6 @@ IMPORTANT: You must collect ${selectedPlan.productDetailsDO.advanceEmi * selecte
                   {!extractedUserId ? 'Extracting user ID...' : 
                    !extractedLoanId ? 'Loading loan details...' : 'Loading payment plans...'}
                 </p>
-                {extractedUserId && (
-                  <p className="text-sm text-gray-500 mt-2">User ID: {extractedUserId}</p>
-                )}
-                {extractedLoanId && (
-                  <p className="text-sm text-gray-500 mt-2">Loan ID: {extractedLoanId}</p>
-                )}
               </div>
             ) : error ? (
               <div className="flex flex-col items-center justify-center py-12">
@@ -424,14 +418,11 @@ IMPORTANT: You must collect ${selectedPlan.productDetailsDO.advanceEmi * selecte
                         initializeData();
                       }
                     }}
-                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                    className="px-4 py-2 text-white rounded-lg hover:opacity-90 transition-colors"
+                    style={{ backgroundColor: '#514c9f' }}
                   >
                     Try Again
                   </button>
-                  <div className="text-xs text-gray-500 text-center">
-                    {extractedUserId && `User ID: ${extractedUserId}`}
-                    {extractedLoanId && ` • Loan ID: ${extractedLoanId}`}
-                  </div>
                 </div>
               </div>
                         ) : (
@@ -442,7 +433,7 @@ IMPORTANT: You must collect ${selectedPlan.productDetailsDO.advanceEmi * selecte
                     <label className="block text-lg font-bold text-gray-900">
                       Enter treatment amount
                     </label>
-                    <div className="bg-purple-100 rounded-xl p-4">
+                    <div className="rounded-xl p-4" style={{ backgroundColor: '#f3f2ff' }}>
                       <input
                         type="number"
                         value={treatmentAmount}
@@ -474,8 +465,11 @@ IMPORTANT: You must collect ${selectedPlan.productDetailsDO.advanceEmi * selecte
                     className={`w-full px-6 py-3 rounded-xl font-medium text-white transition-colors ${
                       isCheckingEmiPlans || !loanDetails
                         ? 'bg-gray-400 cursor-not-allowed'
-                        : 'bg-purple-600 hover:bg-purple-700'
+                        : 'hover:opacity-90'
                     }`}
+                    style={{
+                      backgroundColor: isCheckingEmiPlans || !loanDetails ? undefined : '#514c9f'
+                    }}
                   >
                     {isCheckingEmiPlans ? (
                       <div className="flex items-center justify-center space-x-2">
@@ -514,7 +508,7 @@ IMPORTANT: You must collect ${selectedPlan.productDetailsDO.advanceEmi * selecte
                           >
                             <div className="text-center">
                               <div className="text-xl font-bold text-blue-600 mb-2">
-                                {plan.productDetailsDO.advanceEmi}/{plan.productDetailsDO.totalEmi - plan.productDetailsDO.advanceEmi}
+                                {plan.productDetailsDO.totalEmi - plan.productDetailsDO.advanceEmi}/{plan.productDetailsDO.advanceEmi}
                               </div>
                               <div className="text-sm text-gray-600 mb-2">
                                 {plan.productDetailsDO.advanceEmi} Advance EMIs
@@ -578,7 +572,7 @@ IMPORTANT: You must collect ${selectedPlan.productDetailsDO.advanceEmi * selecte
                             >
                               <div className="text-center">
                                 <div className="text-xl font-bold text-blue-600 mb-2">
-                                  {plan.productDetailsDO.advanceEmi}/{plan.productDetailsDO.totalEmi - plan.productDetailsDO.advanceEmi}
+                                  {plan.productDetailsDO.totalEmi - plan.productDetailsDO.advanceEmi}/{plan.productDetailsDO.advanceEmi}
                                 </div>
                                 <div className="text-sm text-gray-600 mb-2">
                                   {plan.productDetailsDO.advanceEmi} Advance EMIs
@@ -690,7 +684,8 @@ IMPORTANT: You must collect ${selectedPlan.productDetailsDO.advanceEmi * selecte
               <div className="flex justify-center">
                 <button
                   onClick={handleContinue}
-                  className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
+                  className="px-6 py-2 text-white rounded-lg hover:opacity-90 transition-colors font-medium"
+                  style={{ backgroundColor: '#514c9f' }}
                 >
                   Continue with Payment Plan
                 </button>

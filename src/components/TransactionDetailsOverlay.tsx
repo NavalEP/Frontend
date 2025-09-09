@@ -1,6 +1,6 @@
 import React, { useRef, useState } from 'react';
-import { ArrowLeft, User, Phone, Share2, QrCode, Eye, FileText, Download, Check, AlertTriangle, Copy, ExternalLink, FileCheck } from 'lucide-react';
-import { uploadPrescription, getQrCode, getDisburseDetailForReport, getMatchingEmiPlans, BureauEmiPlan, getBureauDecisionData, BureauDecisionData, getUserLoanTimeline, TimelineItem, LoanDetailsByUserId, getUserLoanStatus } from '../services/loanApi';
+import { ArrowLeft, User, Phone, Share2, QrCode, Eye, FileText, Check, AlertTriangle, Copy, ExternalLink } from 'lucide-react';
+import { uploadPrescription, getQrCode, getMatchingEmiPlans, BureauEmiPlan, getBureauDecisionData, BureauDecisionData, getUserLoanTimeline, TimelineItem, LoanDetailsByUserId, getUserLoanStatus } from '../services/loanApi';
 import { getMerchantScore, MerchantScoreResponse, isDODownloadAllowed } from '../services/oculonApi';
 import { useAuth } from '../context/AuthContext';
 import DisbursalOrderOverlay from './DisbursalOrderOverlay';
@@ -60,7 +60,6 @@ const TransactionDetailsOverlay: React.FC<Props> = ({ transaction, onClose }) =>
   const [showTimeline, setShowTimeline] = useState(false);
   const [timelineData, setTimelineData] = useState<TimelineItem[]>([]);
   const [timelineLoading, setTimelineLoading] = useState(false);
-  const [isDownloadingReport, setIsDownloadingReport] = useState(false);
   const [dynamicEmiPlans, setDynamicEmiPlans] = useState<BureauEmiPlan[]>([]);
   const [emiPlansLoading, setEmiPlansLoading] = useState(false);
   const [hasMatchingProduct, setHasMatchingProduct] = useState(false);
@@ -316,7 +315,7 @@ const TransactionDetailsOverlay: React.FC<Props> = ({ transaction, onClose }) =>
       case 'findoc':
         return 'bg-green-100 text-green-800';
       case 'sure_pass':
-        return 'bg-purple-100 text-purple-800';
+        return 'text-white bg-[#514c9f]';
       case 'bureau decision':
         return 'bg-orange-100 text-orange-800';
       case 'loan_activity':
@@ -330,27 +329,6 @@ const TransactionDetailsOverlay: React.FC<Props> = ({ transaction, onClose }) =>
     }
   };
 
-  // Handle disbursal report download
-  const handleDownloadReport = async () => {
-    if (!transaction.userId) {
-      console.error('User ID not found');
-      return;
-    }
-
-    setIsDownloadingReport(true);
-    try {
-      await getDisburseDetailForReport(transaction.userId);
-      // Show success message
-      alert('Disbursal report downloaded.');
-    } catch (error: any) {
-      console.error('Error downloading report:', error);
-      // Show more specific error message
-      const errorMessage = error.message || 'Failed to download disbursal report. Please try again.';
-      alert(errorMessage);
-    } finally {
-      setIsDownloadingReport(false);
-    }
-  };
 
   // Check if disbursal order download should be enabled
   const shouldEnableDisbursalDownload = () => {
@@ -641,71 +619,6 @@ const TransactionDetailsOverlay: React.FC<Props> = ({ transaction, onClose }) =>
 
   const canDownloadDisbursalOrder = shouldEnableDisbursalDownload();
 
-  // Generate disbursal order data from transaction
-  const generateDisbursalOrderData = () => {
-    const currentDate = new Date();
-    const formattedDate = currentDate.toLocaleDateString('en-GB');
-    
-    // Extract EMI plan data if available
-    const selectedPlan = dynamicEmiPlans.length > 0 ? dynamicEmiPlans[0] : null;
-    const staticPlan = transaction.selectedEmiPlan;
-    
-    // Calculate amounts based on available data
-    const transactionAmount = transaction.amount.replace(/[^\d]/g, '');
-    const advanceAmount = selectedPlan?.downPayment?.toString() || staticPlan?.advancePayment?.replace(/[^\d]/g, '') || '0';
-    
-    // Calculate platform charges to merchant (subvention)
-    let platformCharges = '0'; // Default fallback
-    let subventionRate = '0'; // Default rate
-    
-    if (selectedPlan) {
-      const subventionAmount = Math.round(selectedPlan.grossTreatmentAmount * selectedPlan.productDetailsDO.subventionRate / 100);
-      platformCharges = subventionAmount.toString();
-      subventionRate = selectedPlan.productDetailsDO.subventionRate.toString();
-    } else if (staticPlan?.subvention) {
-      // Extract amount from static plan subvention string
-      const subventionMatch = staticPlan.subvention.match(/[\d,]+/);
-      if (subventionMatch) {
-        platformCharges = subventionMatch[0].replace(/,/g, '');
-      }
-    }
-    
-    // Calculate actual processing fees (PF) separately
-    let pfAmount = '0'; // Default fallback
-    let pfRate = '0'; // Default rate
-    if (selectedPlan) {
-      const actualPfAmount = Math.round(selectedPlan.grossTreatmentAmount * selectedPlan.productDetailsDO.processingFesIncludingGSTRate / 100);
-      pfAmount = actualPfAmount.toString();
-      pfRate = selectedPlan.productDetailsDO.processingFesIncludingGSTRate.toString();
-    } else if (staticPlan?.processingFees) {
-      // Extract amount from static plan processing fees string
-      const pfMatch = staticPlan.processingFees.match(/[\d,]+/);
-      if (pfMatch) {
-        pfAmount = pfMatch[0].replace(/,/g, '');
-      }
-    }
-    
-    const gstOnCharges = Math.round(parseInt(platformCharges) * 0.18).toString();
-    const paymentToMerchant = (parseInt(transactionAmount) - parseInt(advanceAmount) - parseInt(platformCharges) - parseInt(gstOnCharges)).toString();
-    
-    return {
-      id: transaction.applicationId || transaction.loanId || 'N/A',
-      patientName: transaction.name,
-      disbursedOn: transaction.disbursedAt || formattedDate,
-      treatmentName: transaction.treatment,
-      customerName: transaction.name,
-      customerNumber: transaction.patientPhoneNo ? `+91 ${transaction.patientPhoneNo}` : 'N/A',
-      transactionAmount: parseInt(transactionAmount).toLocaleString(),
-      paymentPlan: selectedPlan ? `${selectedPlan.productDetailsDO.totalEmi}/${selectedPlan.productDetailsDO.advanceEmi}` : staticPlan ? `${staticPlan.tenure}` : 'N/A',
-      advanceAmount: parseInt(advanceAmount).toLocaleString(),
-      platformCharges: `${parseInt(platformCharges).toLocaleString()} (${subventionRate}%)`,
-      gstOnCharges: parseInt(gstOnCharges).toLocaleString(),
-      paymentToMerchant: parseInt(paymentToMerchant).toLocaleString(),
-      pfAmount: `${parseInt(pfAmount).toLocaleString()} (${pfRate}%)`,
-      financierName: transaction.lender || 'Findoc Finvest Private Limited',
-      merchantName: transaction.clinicName || transaction.doctorName || '' 
-    };
-  };
 
   // Handle disbursal order button click
   const handleDisbursalOrderClick = () => {
@@ -1367,7 +1280,9 @@ const TransactionDetailsOverlay: React.FC<Props> = ({ transaction, onClose }) =>
               <User className="h-5 w-5 text-primary-600" />
               <div>
                 <p className="text-sm text-gray-600">Lender:</p>
-                <p className="text-sm font-medium text-gray-900">{transaction.lender}</p>
+                <p className="text-sm font-medium text-gray-900">
+                  {transaction.lender === 'Fibe' ? 'Fibe: Earlysalary Services Private Limited' : transaction.lender}
+                </p>
               </div>
             </div>
           )}
@@ -1477,29 +1392,7 @@ const TransactionDetailsOverlay: React.FC<Props> = ({ transaction, onClose }) =>
                           : 'Available for authorized doctors with specific statuses'
                     }
                   >
-                    <FileCheck className={`h-5 w-5 ${canDownloadDisbursalOrder ? 'text-white' : 'text-gray-400'}`} />
-                  </button>
-                  <button 
-                    onClick={canDownloadDisbursalOrder ? handleDownloadReport : undefined}
-                    disabled={!canDownloadDisbursalOrder || isDownloadingReport}
-                    className={`p-2 rounded-lg transition-colors ${
-                      canDownloadDisbursalOrder 
-                        ? 'bg-primary-600 hover:bg-primary-700 text-white' 
-                        : 'bg-gray-100 cursor-not-allowed'
-                    }`}
-                    title={
-                      canDownloadDisbursalOrder 
-                        ? 'Download Disbursal Report' 
-                        : merchantScore 
-                          ? `DO Download restricted - Risk Category: ${merchantScore.risk_category} (Only Category A allowed)`
-                          : 'Available for authorized doctors with specific statuses'
-                    }
-                  >
-                    {isDownloadingReport ? (
-                      <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
-                    ) : (
-                      <Download className={`h-5 w-5 ${canDownloadDisbursalOrder ? 'text-white' : 'text-gray-400'}`} />
-                    )}
+                    <Eye className={`h-5 w-5 ${canDownloadDisbursalOrder ? 'text-white' : 'text-gray-400'}`} />
                   </button>
                 </div>
               </div>
@@ -1531,7 +1424,7 @@ const TransactionDetailsOverlay: React.FC<Props> = ({ transaction, onClose }) =>
       {/* Disbursal Order Overlay */}
       {showDisbursalOrder && (
         <DisbursalOrderOverlay
-          disbursalOrderData={generateDisbursalOrderData()}
+          loanId={transaction.loanId}
           onClose={() => setShowDisbursalOrder(false)}
         />
       )}

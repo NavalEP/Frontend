@@ -1662,4 +1662,187 @@ export const getDisburseDataByLoanId = async (loanId: string): Promise<{
   }
 };
 
+// Interface for update product detail response
+interface UpdateProductDetailResponse {
+  status: number;
+  data: string;
+  attachment: null;
+  message: string;
+}
+
+// Interface for update treatment and loan amount response
+interface UpdateTreatmentAndLoanAmountResponse {
+  status: number;
+  data: string;
+  attachment: null;
+  message: string;
+}
+
+/**
+ * Update product detail for a loan
+ * @param loanId - The loan ID
+ * @param productId - The product ID
+ * @param changeBy - Who made the change (default: 'user')
+ * @returns Promise with the update result
+ */
+export const updateProductDetail = async (
+  loanId: string, 
+  productId: string, 
+  changeBy: string = 'user'
+): Promise<{
+  success: boolean;
+  data?: string;
+  message: string;
+}> => {
+  try {
+    const response = await loanApi.get<UpdateProductDetailResponse>('/updateProductDetail/', {
+      params: { loanId, productId, changeBy },
+      headers: {
+        'Accept': 'application/json'
+      },
+      timeout: 30000
+    });
+
+    if (response.data.status === 200) {
+      return {
+        success: true,
+        data: response.data.data,
+        message: response.data.message || 'Product detail updated successfully'
+      };
+    }
+
+    // Handle non-200 status responses
+    return {
+      success: false,
+      message: response.data.message || 'Failed to update product detail'
+    };
+
+  } catch (error: any) {
+    console.error('Error updating product detail:', error);
+    
+    if (axios.isAxiosError(error)) {
+      if (error.code === 'ECONNABORTED') {
+        throw new Error('Request timed out. Please try again.');
+      }
+      
+      if (!error.response) {
+        throw new Error('Unable to connect to the backend server. Please check your internet connection.');
+      }
+      
+      // Handle specific HTTP status codes
+      if (error.response.status === 400) {
+        const errorMessage = error.response.data?.message || 'Invalid request parameters';
+        throw new Error(`Bad Request: ${errorMessage}`);
+      }
+      
+      if (error.response.status === 401) {
+        throw new Error('Authentication required. Please login again.');
+      }
+      
+      if (error.response.status === 403) {
+        throw new Error('You do not have permission to perform this action.');
+      }
+      
+      if (error.response.status === 500) {
+        const errorMessage = error.response.data?.message || 'Internal server error';
+        throw new Error(`Server Error: ${errorMessage}`);
+      }
+      
+      // Handle other status codes
+      const errorMessage = error.response.data?.message || error.message;
+      throw new Error(`API Error (${error.response.status}): ${errorMessage}`);
+    }
+    
+    // Handle non-axios errors
+    throw new Error(`Unexpected error: ${error.message || 'Unknown error occurred'}`);
+  }
+};
+
+/**
+ * Update treatment and loan amount for a loan
+ * @param loanId - The loan ID
+ * @param treatmentAmount - The treatment amount
+ * @param loanAmount - The loan amount
+ * @param changeBy - Who made the change (default: 'user')
+ * @returns Promise with the update result
+ */
+export const updateTreatmentAndLoanAmount = async (
+  loanId: string,
+  treatmentAmount: number,
+  loanAmount: number,
+  changeBy: string = 'user'
+): Promise<{
+  success: boolean;
+  data?: string;
+  message: string;
+}> => {
+  try {
+    const response = await loanApi.get<UpdateTreatmentAndLoanAmountResponse>('/updateTreatmentAndLoanAmount/', {
+      params: { 
+        loanId, 
+        treatmentAmount: treatmentAmount.toString(), 
+        loanAmount: loanAmount.toString(), 
+        changeBy 
+      },
+      headers: {
+        'Accept': 'application/json'
+      },
+      timeout: 30000
+    });
+
+    if (response.data.status === 200) {
+      return {
+        success: true,
+        data: response.data.data,
+        message: response.data.message || 'Treatment and loan amount updated successfully'
+      };
+    }
+
+    // Handle non-200 status responses
+    return {
+      success: false,
+      message: response.data.message || 'Failed to update treatment and loan amount'
+    };
+
+  } catch (error: any) {
+    console.error('Error updating treatment and loan amount:', error);
+    
+    if (axios.isAxiosError(error)) {
+      if (error.code === 'ECONNABORTED') {
+        throw new Error('Request timed out. Please try again.');
+      }
+      
+      if (!error.response) {
+        throw new Error('Unable to connect to the backend server. Please check your internet connection.');
+      }
+      
+      // Handle specific HTTP status codes
+      if (error.response.status === 400) {
+        const errorMessage = error.response.data?.message || 'Invalid request parameters';
+        throw new Error(`Bad Request: ${errorMessage}`);
+      }
+      
+      if (error.response.status === 401) {
+        throw new Error('Authentication required. Please login again.');
+      }
+      
+      if (error.response.status === 403) {
+        throw new Error('You do not have permission to perform this action.');
+      }
+      
+      if (error.response.status === 500) {
+        const errorMessage = error.response.data?.message || 'Internal server error';
+        throw new Error(`Server Error: ${errorMessage}`);
+      }
+      
+      // Handle other status codes
+      const errorMessage = error.response.data?.message || error.message;
+      throw new Error(`API Error (${error.response.status}): ${errorMessage}`);
+    }
+    
+    // Handle non-axios errors
+    throw new Error(`Unexpected error: ${error.message || 'Unknown error occurred'}`);
+  }
+};
+
 export default loanApi;

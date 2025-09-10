@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Loader2, CheckCircle, AlertCircle } from 'lucide-react';
-import { getLoanDetailsByUserId, getBureauDecisionData, saveLoanDetails, BureauDecisionData, BureauEmiPlan, LoanDetailsByUserId } from '../services/loanApi';
+import { getLoanDetailsByUserId, getBureauDecisionData, saveLoanDetails, updateTreatmentAndLoanAmount, updateProductDetail, BureauDecisionData, BureauEmiPlan, LoanDetailsByUserId } from '../services/loanApi';
 import { createSession, sendMessage } from '../services/api';
 
 interface PaymentPlanPopupProps {
@@ -183,9 +183,23 @@ const PaymentPlanPopup: React.FC<PaymentPlanPopupProps> = ({
   };
 
   const handleContinue = async () => {
-    if (selectedPlan && extractedUserId && loanDetails) {
+    if (selectedPlan && extractedUserId && loanDetails && extractedLoanId) {
       try {
-        // Prepare the payload for save loan details API
+        // Step 1: Update product detail using the new API
+        console.log('Updating product detail for loanId:', extractedLoanId, 'with productId:', selectedPlan.productDetailsDO.id);
+        const updateProductResult = await updateProductDetail(
+          extractedLoanId,
+          selectedPlan.productDetailsDO.id.toString(),
+          'user'
+        );
+
+        if (!updateProductResult.success) {
+          throw new Error(updateProductResult.message || 'Failed to update product detail');
+        }
+
+        console.log('Product detail updated successfully:', updateProductResult.message);
+
+        // Step 2: Prepare the payload for save loan details API (keeping for compatibility)
         const savePayload = {
           userId: extractedUserId,
           doctorId: loanDetails.doctorId,
@@ -199,75 +213,71 @@ const PaymentPlanPopup: React.FC<PaymentPlanPopupProps> = ({
 
         console.log('Saving loan details with payload:', savePayload);
 
-        // Call the save loan details API
+        // Step 3: Call the save loan details API (keeping for compatibility)
         const saveResult = await saveLoanDetails(savePayload);
 
-        if (saveResult.success) {
+        if (!saveResult.success) {
+          console.warn('Warning: saveLoanDetails failed but updateProductDetail succeeded:', saveResult.message);
+          // Continue execution as the main update was successful
+        } else {
           console.log('Loan details saved successfully');
-          
-          // Send detailed message to agent about the selected payment plan
-          const agentMessage = `Great! Selected payment plan details:
+        }
+        
+        // Send detailed message to agent about the selected payment plan
+        const agentMessage = `I have selected my preferred EMI plan:
 
-Plan: ${selectedPlan.productDetailsDO.totalEmi - selectedPlan.productDetailsDO.advanceEmi}/${selectedPlan.productDetailsDO.advanceEmi}\n\n
+Plan: ${selectedPlan.productDetailsDO.totalEmi}/${selectedPlan.productDetailsDO.advanceEmi}\n\n
 
-Effective tenure: ${selectedPlan.productDetailsDO.totalEmi} months\n\n
+Effective tenure: ${selectedPlan.productDetailsDO.totalEmi - selectedPlan.productDetailsDO.advanceEmi} months\n\n
 EMI amount: ${selectedPlan.emi}\n\n
-Processing fees: ${selectedPlan.productDetailsDO.processingFesIncludingGSTINR} (${selectedPlan.productDetailsDO.processingFesIncludingGSTRate}%)\n\n
-Advance payment: ${selectedPlan.productDetailsDO.advanceEmi * selectedPlan.emi}\n\n
-Subvention: ${selectedPlan.productDetailsDO.subventionRate}% (${selectedPlan.productDetailsDO.subventionRate * selectedPlan.netLoanAmount / 100})\n\n
-
 Treatment Amount: ${treatmentAmount}\n\n
 Loan Amount: ${selectedPlan.netLoanAmount}\n\n
 
-IMPORTANT: You must collect ${selectedPlan.productDetailsDO.advanceEmi * selectedPlan.emi} as advance EMI payment from the patient.`;
+`;
+        
+        console.log('Agent message:', agentMessage);
+        
+        // Close the popup first
+        onClose();
+        
+        // Send message to chat page after popup closes using setTimeout
+        console.log('Current sessionId state:', sessionId);
+        console.log('Prop sessionId:', propSessionId);
+        
+        if (sessionId) {
+          console.log('Sending message to session:', sessionId);
+          console.log('Message content:', agentMessage);
           
-          console.log('Agent message:', agentMessage);
-          
-          // Close the popup first
-          onClose();
-          
-          // Send message to chat page after popup closes using setTimeout
-          console.log('Current sessionId state:', sessionId);
-          console.log('Prop sessionId:', propSessionId);
-          
-          if (sessionId) {
-            console.log('Sending message to session:', sessionId);
-            console.log('Message content:', agentMessage);
-            
-            setTimeout(async () => {
-              try {
-                console.log('Attempting to send message to session:', sessionId);
-                const response = await sendMessage(sessionId, agentMessage);
-                console.log('Message sent to chat successfully. Response:', response.data);
-                
-                // Call session refresh callback to fetch updated chat history
-                if (onSessionRefresh) {
-                  console.log('Calling session refresh callback to fetch updated chat history');
-                  onSessionRefresh();
-                }
-              } catch (error: any) {
-                console.error('Error sending message to chat:', error);
-                console.error('Error details:', error.response?.data || error.message);
+          setTimeout(async () => {
+            try {
+              console.log('Attempting to send message to session:', sessionId);
+              const response = await sendMessage(sessionId, agentMessage);
+              console.log('Message sent to chat successfully. Response:', response.data);
+              
+              // Call session refresh callback to fetch updated chat history
+              if (onSessionRefresh) {
+                console.log('Calling session refresh callback to fetch updated chat history');
+                onSessionRefresh();
               }
-            }, 100); // Small delay to ensure popup is closed
-          } else {
-            console.warn('No sessionId available, cannot send message to chat');
-            console.warn('Available sessionId sources:', { propSessionId, sessionId });
-          }
+            } catch (error: any) {
+              console.error('Error sending message to chat:', error);
+              console.error('Error details:', error.response?.data || error.message);
+            }
+          }, 100); // Small delay to ensure popup is closed
         } else {
-          console.error('Failed to save loan details:', saveResult.message);
-          setError('Failed to save loan details. Please try again.');
+          console.warn('No sessionId available, cannot send message to chat');
+          console.warn('Available sessionId sources:', { propSessionId, sessionId });
         }
       } catch (error) {
-        console.error('Error saving loan details:', error);
-        setError('Error saving loan details. Please try again.');
+        console.error('Error updating product detail:', error);
+        setError('Error updating product detail. Please try again.');
       }
     }
   };
 
   const handleCheckEmiPlans = async () => {
-    if (!extractedUserId || !loanDetails) {
-      setError('User ID or loan details not available');
+    if (!extractedUserId || !loanDetails || !extractedLoanId) {
+      setError('User ID, loan details, or loan ID not available');
       return;
     }
 
@@ -279,7 +289,22 @@ IMPORTANT: You must collect ${selectedPlan.productDetailsDO.advanceEmi * selecte
       setBureauDecision(null);
       setSelectedPlan(null);
 
-      // Step 1: Save the updated loan details
+      // Step 1: Update treatment and loan amount using the new API
+      console.log('Updating treatment and loan amount for loanId:', extractedLoanId, 'with amount:', treatmentAmount);
+      const updateResult = await updateTreatmentAndLoanAmount(
+        extractedLoanId,
+        treatmentAmount,
+        treatmentAmount, // Using treatment amount as loan amount
+        'user'
+      );
+
+      if (!updateResult.success) {
+        throw new Error(updateResult.message || 'Failed to update treatment and loan amount');
+      }
+
+      console.log('Treatment and loan amount updated successfully:', updateResult.message);
+
+      // Step 2: Save the updated loan details (keeping existing saveLoanDetails call for compatibility)
       const saveResult = await saveLoanDetails({
         userId: extractedUserId,
         doctorId: loanDetails.doctorId,
@@ -292,29 +317,28 @@ IMPORTANT: You must collect ${selectedPlan.productDetailsDO.advanceEmi * selecte
       });
 
       if (!saveResult.success) {
-        throw new Error(saveResult.message || 'Failed to save loan details');
+        console.warn('Warning: saveLoanDetails failed but updateTreatmentAndLoanAmount succeeded:', saveResult.message);
+        // Continue execution as the main update was successful
       }
 
       console.log('Loan details saved successfully with new treatment amount:', treatmentAmount);
 
-      // Step 2: Fetch updated bureau decision with new treatment amount
-      if (extractedLoanId) {
-        console.log('Fetching new bureau decision for loanId:', extractedLoanId);
-        const bureauDecisionResult = await getBureauDecisionData(extractedLoanId);
+      // Step 3: Fetch updated bureau decision with new treatment amount
+      console.log('Fetching new bureau decision for loanId:', extractedLoanId);
+      const bureauDecisionResult = await getBureauDecisionData(extractedLoanId);
+      
+      if (bureauDecisionResult && bureauDecisionResult.emiPlanList && bureauDecisionResult.emiPlanList.length > 0) {
+        console.log('New EMI plans received:', bureauDecisionResult.emiPlanList.length, 'plans available');
+        setBureauDecision(bureauDecisionResult);
         
-        if (bureauDecisionResult && bureauDecisionResult.emiPlanList && bureauDecisionResult.emiPlanList.length > 0) {
-          console.log('New EMI plans received:', bureauDecisionResult.emiPlanList.length, 'plans available');
-          setBureauDecision(bureauDecisionResult);
-          
-          // Reset selected plan when new plans are loaded
-          setSelectedPlan(bureauDecisionResult.emiPlanList[0]);
-          
-          // Keep hasAmountChanged as true to show the new results section
-          // This will display the "New EMI Plan Results Section" instead of the legacy section
-          console.log('New EMI plans loaded successfully for updated treatment amount');
-        } else {
-          throw new Error('No new EMI plans available for the updated treatment amount. Please try a different amount.');
-        }
+        // Reset selected plan when new plans are loaded
+        setSelectedPlan(bureauDecisionResult.emiPlanList[0]);
+        
+        // Keep hasAmountChanged as true to show the new results section
+        // This will display the "New EMI Plan Results Section" instead of the legacy section
+        console.log('New EMI plans loaded successfully for updated treatment amount');
+      } else {
+        throw new Error('No new EMI plans available for the updated treatment amount. Please try a different amount.');
       }
 
     } catch (err: any) {
@@ -434,13 +458,16 @@ IMPORTANT: You must collect ${selectedPlan.productDetailsDO.advanceEmi * selecte
                       Enter treatment amount
                     </label>
                     <div className="rounded-xl p-4" style={{ backgroundColor: '#f3f2ff' }}>
-                      <input
-                        type="number"
-                        value={treatmentAmount}
-                        onChange={(e) => handleTreatmentAmountChange(parseFloat(e.target.value) || 0)}
-                        className="w-full text-center text-2xl font-bold text-gray-900 bg-transparent border-none outline-none"
-                        placeholder="Enter amount"
-                      />
+                      <div className="flex items-center">
+                        <span className="text-2xl font-bold text-gray-900 mr-2">₹</span>
+                        <input
+                          type="number"
+                          value={treatmentAmount}
+                          onChange={(e) => handleTreatmentAmountChange(parseFloat(e.target.value) || 0)}
+                          className="flex-1 text-left text-2xl font-bold text-gray-900 bg-transparent border-none outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                          placeholder="Enter amount"
+                        />
+                      </div>
                     </div>
                   </div>
                 )}
@@ -482,8 +509,8 @@ IMPORTANT: You must collect ${selectedPlan.productDetailsDO.advanceEmi * selecte
                   </button>
                 </div>
 
-                                {/* Select Preferred Payment Plan */}
-                {bureauDecision?.emiPlanList && bureauDecision.emiPlanList.length > 0 && !hasAmountChanged && (
+                                {/* Select Preferred Payment Plan - Only show when amount hasn't changed */}
+                {bureauDecision?.emiPlanList && bureauDecision.emiPlanList.length > 0 && !hasAmountChanged && !isCheckingEmiPlans && (
                   <div className="space-y-4">
                     <h3 className="text-lg font-semibold text-gray-800">Select preferred payment plan:</h3>
                     
@@ -498,7 +525,7 @@ IMPORTANT: You must collect ${selectedPlan.productDetailsDO.advanceEmi * selecte
                       >
                         {bureauDecision.emiPlanList.map((plan, index) => (
                           <div
-                            key={index}
+                            key={`original-${index}`}
                             onClick={() => handlePlanSelect(plan)}
                             className={`border-2 rounded-xl p-4 cursor-pointer transition-all duration-200 flex-shrink-0 min-w-[200px] snap-start ${
                               selectedPlan === plan
@@ -596,7 +623,7 @@ IMPORTANT: You must collect ${selectedPlan.productDetailsDO.advanceEmi * selecte
                           <div className="flex justify-center mt-4 space-x-2">
                             {Array.from({ length: Math.ceil(bureauDecision.emiPlanList.length / 3) }).map((_, index) => (
                               <div
-                                key={index}
+                                key={`new-dots-${index}`}
                                 className="w-2 h-2 bg-gray-300 rounded-full"
                               />
                             ))}

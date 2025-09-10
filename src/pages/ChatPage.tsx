@@ -92,7 +92,7 @@ const ChatPage: React.FC = () => {
   const [patientInfoSubmitted, setPatientInfoSubmitted] = useState(false);
   const [isLogoutModalOpen, setIsLogoutModalOpen] = useState(false);
   const [isNewSessionModalOpen, setIsNewSessionModalOpen] = useState(false);
-  const [selectedOption, setSelectedOption] = useState<string | undefined>(undefined);
+  const [selectedOptions, setSelectedOptions] = useState<Record<string, string>>({});
   const [disabledOptions, setDisabledOptions] = useState<Record<string, boolean>>({});
   const [selectedTreatments, setSelectedTreatments] = useState<Record<string, string>>({});
 
@@ -359,6 +359,7 @@ const ChatPage: React.FC = () => {
       setSessionId(sessionId);
       setShowHistory(false);
       setShowDoctorSessions(false);
+      setSelectedOptions({}); // Clear selected options when loading a session
       setSelectedTreatments({}); // Clear selected treatments when loading a session
       setDisabledOptions({}); // Clear disabled options when loading a session
       
@@ -623,7 +624,6 @@ const ChatPage: React.FC = () => {
     setIsLoading(true);
     setLoadingStartTime(Date.now());
     setError(null);
-    setSelectedOption(undefined); // Clear selected option when sending a new message
     
     // Save chat session if it's the first message
     const isFirstMessage = messages.length === 0 || (messages.length === 1 && messages[0].sender === 'agent');
@@ -695,7 +695,12 @@ const ChatPage: React.FC = () => {
   // Handle button option clicks
   const handleButtonClick = async (optionText: string, optionValue: string, messageId: string) => {
     console.log('Button clicked, option text:', optionText, 'option value:', optionValue, 'for message:', messageId);
-    setSelectedOption(optionValue);
+    
+    // Store the selected option for this specific message
+    setSelectedOptions(prev => ({
+      ...prev,
+      [messageId]: optionValue
+    }));
     
     // Set the input message to the selected option text (not the number)
     setInputMessage(optionText);
@@ -746,7 +751,7 @@ const ChatPage: React.FC = () => {
     setSessionDetails(null);
     setShowStructuredForm(true); // Reset to show structured form for new session
     setPatientInfoSubmitted(false);
-    setSelectedOption(undefined); // Clear selected option for new session
+    setSelectedOptions({}); // Clear selected options for new session
     setDisabledOptions({}); // Clear disabled options for new session
     setSelectedTreatments({}); // Clear selected treatments for new session
     
@@ -755,9 +760,10 @@ const ChatPage: React.FC = () => {
     
     if (doctorId) {
       localStorage.removeItem(`session_id_doctor_${doctorId}`);
-      // Clear all disabled options and selected treatments for this doctor
+      // Clear all disabled options, selected options, and selected treatments for this doctor
       Object.keys(localStorage).forEach(key => {
         if (key.startsWith(`disabled_options_doctor_${doctorId}_`) || 
+            key.startsWith(`selected_options_doctor_${doctorId}_`) ||
             key.startsWith(`selected_treatments_doctor_${doctorId}_`)) {
           localStorage.removeItem(key);
         }
@@ -815,9 +821,10 @@ const ChatPage: React.FC = () => {
     localStorage.removeItem('current_session_id');
     if (doctorId) {
       localStorage.removeItem(`session_id_doctor_${doctorId}`);
-      // Clear disabled options and selected treatments for the current session
+      // Clear disabled options, selected options, and selected treatments for the current session
       if (sessionId) {
         localStorage.removeItem(`disabled_options_doctor_${doctorId}_session_${sessionId}`);
+        localStorage.removeItem(`selected_options_doctor_${doctorId}_session_${sessionId}`);
         localStorage.removeItem(`selected_treatments_doctor_${doctorId}_session_${sessionId}`);
       }
     }
@@ -826,7 +833,7 @@ const ChatPage: React.FC = () => {
     setMessages([]);
     setShowStructuredForm(true);
     setPatientInfoSubmitted(false);
-    setSelectedOption(undefined);
+    setSelectedOptions({});
     setDisabledOptions({});
     setSelectedTreatments({});
   };
@@ -1217,10 +1224,11 @@ const ChatPage: React.FC = () => {
     return sessionDetails?.status === 'additional_details_completed';
   };
 
-  // Load disabled options and selected treatments from localStorage on component mount
+  // Load disabled options, selected options, and selected treatments from localStorage on component mount
   useEffect(() => {
     if (doctorId && sessionId) {
       const savedDisabledOptions = localStorage.getItem(`disabled_options_doctor_${doctorId}_session_${sessionId}`);
+      const savedSelectedOptions = localStorage.getItem(`selected_options_doctor_${doctorId}_session_${sessionId}`);
       const savedSelectedTreatments = localStorage.getItem(`selected_treatments_doctor_${doctorId}_session_${sessionId}`);
       
       if (savedDisabledOptions) {
@@ -1228,6 +1236,14 @@ const ChatPage: React.FC = () => {
           setDisabledOptions(JSON.parse(savedDisabledOptions));
         } catch (error) {
           console.error('Error parsing saved disabled options:', error);
+        }
+      }
+      
+      if (savedSelectedOptions) {
+        try {
+          setSelectedOptions(JSON.parse(savedSelectedOptions));
+        } catch (error) {
+          console.error('Error parsing saved selected options:', error);
         }
       }
       
@@ -1241,12 +1257,18 @@ const ChatPage: React.FC = () => {
     }
   }, [doctorId, sessionId]);
 
-  // Save disabled options and selected treatments to localStorage whenever they change
+  // Save disabled options, selected options, and selected treatments to localStorage whenever they change
   useEffect(() => {
     if (doctorId && sessionId) {
       localStorage.setItem(`disabled_options_doctor_${doctorId}_session_${sessionId}`, JSON.stringify(disabledOptions));
     }
   }, [disabledOptions, doctorId, sessionId]);
+
+  useEffect(() => {
+    if (doctorId && sessionId) {
+      localStorage.setItem(`selected_options_doctor_${doctorId}_session_${sessionId}`, JSON.stringify(selectedOptions));
+    }
+  }, [selectedOptions, doctorId, sessionId]);
 
   useEffect(() => {
     if (doctorId && sessionId) {
@@ -1755,7 +1777,7 @@ const ChatPage: React.FC = () => {
                   key={message.id} 
                   message={message} 
                   onButtonClick={handleButtonClick}
-                  selectedOption={selectedOption}
+                  selectedOption={selectedOptions[message.id]}
                   disabledOptions={disabledOptions[message.id] || false}
                   onLinkClick={handleLinkClick}
                   onTreatmentSelect={handleTreatmentSelect}

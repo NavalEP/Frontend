@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Copy, ExternalLink, Share2, Search, ArrowDown, Upload } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import { getShortlink, searchTreatments } from '../services/api';
@@ -101,6 +101,7 @@ const ChatMessage: React.FC<ChatMessageProps> = ({ message, onButtonClick, selec
   const [treatmentSearchQuery, setTreatmentSearchQuery] = useState('');
   const [treatmentSearchResults, setTreatmentSearchResults] = useState<any[]>([]);
   const [isSearchingTreatments, setIsSearchingTreatments] = useState(false);
+  const treatmentSearchRef = useRef<HTMLDivElement>(null);
   
   // Check if this is an OCR result message
   const isOcrResult = message.text.includes('📋 **Aadhaar Card Details Extracted Successfully!**') || 
@@ -110,6 +111,11 @@ const ChatMessage: React.FC<ChatMessageProps> = ({ message, onButtonClick, selec
   const isTreatmentNameQuestion = message.text.toLowerCase().includes('what is the name of treatment') || 
                                  message.text.toLowerCase().includes('treatment name') ||
                                  message.text.toLowerCase().includes('name of treatment');
+  
+  // Debug: Log when treatment question is detected
+  if (isTreatmentNameQuestion && !isUser) {
+    console.log('Treatment name question detected:', message.text);
+  }
   
   // Check if message contains any rupee amount (₹)
   const containsAmount = /₹\s*[\d,]+(?:\.\d{2})?/.test(message.text);
@@ -393,12 +399,16 @@ const ChatMessage: React.FC<ChatMessageProps> = ({ message, onButtonClick, selec
       return;
     }
 
+    console.log('Searching treatments for query:', query);
     setIsSearchingTreatments(true);
     try {
       const response = await searchTreatments(query, 10);
+      console.log('Treatment search response:', response.data);
       if (response.data.status === 'success') {
         setTreatmentSearchResults(response.data.data.treatments);
+        console.log('Treatment search results:', response.data.data.treatments);
       } else {
+        console.log('Treatment search failed:', response.data);
         setTreatmentSearchResults([]);
       }
     } catch (error) {
@@ -433,6 +443,23 @@ const ChatMessage: React.FC<ChatMessageProps> = ({ message, onButtonClick, selec
 
     return () => clearTimeout(timeoutId);
   }, [treatmentSearchQuery]);
+
+  // Click outside handler to close dropdown
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (treatmentSearchRef.current && !treatmentSearchRef.current.contains(event.target as Node)) {
+        setShowTreatmentSearch(false);
+      }
+    };
+
+    if (showTreatmentSearch) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [showTreatmentSearch]);
 
   // Extract question and options from message
   const questionData = detectQuestionWithOptions(message.text);
@@ -867,7 +894,7 @@ const ChatMessage: React.FC<ChatMessageProps> = ({ message, onButtonClick, selec
                     disabled={isDisabled}
                     className={`w-full text-left px-2.5 md:px-3 py-1.5 md:py-2 border rounded-lg font-medium transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-1 hover:shadow-sm chat-button text-xs md:text-sm ${
                       isSelected 
-                        ? 'bg-blue-50 border-blue-200 text-blue-700 shadow-sm' 
+                        ? 'bg-green-50 border-green-200 text-green-700 shadow-sm' 
                         : isDisabled
                         ? 'bg-gray-100 border-gray-200 text-gray-400 cursor-not-allowed opacity-60'
                         : 'bg-gray-50 hover:bg-gray-100 border-gray-200 text-gray-800'
@@ -890,7 +917,7 @@ const ChatMessage: React.FC<ChatMessageProps> = ({ message, onButtonClick, selec
             <div className="mt-3 space-y-2">
               {!selectedTreatment ? (
                 <>
-                  <div className="relative">
+                  <div className="relative" ref={treatmentSearchRef}>
                     <div className="flex items-center space-x-2">
                       <div className="flex-1 relative">
                         <Search className="absolute left-2.5 md:left-3 top-1/2 transform -translate-y-1/2 h-3.5 w-3.5 md:h-4 md:w-4 text-gray-400" />
@@ -912,8 +939,8 @@ const ChatMessage: React.FC<ChatMessageProps> = ({ message, onButtonClick, selec
                     </div>
                     
                     {/* Search Results Dropdown */}
-                    {showTreatmentSearch && (treatmentSearchQuery.trim() || isSearchingTreatments) && (
-                      <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-10 max-h-60 overflow-y-auto">
+                    {showTreatmentSearch && (
+                      <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-50 max-h-60 overflow-y-auto">
                         {isSearchingTreatments ? (
                           <div className="p-3 text-center text-gray-500">
                             <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600 mx-auto mb-2"></div>
@@ -931,14 +958,16 @@ const ChatMessage: React.FC<ChatMessageProps> = ({ message, onButtonClick, selec
                                 <div className="text-xs text-gray-500">{treatment.category}</div>
                               </button>
                             ))}
-                            {/* Always show "Other" option */}
-                            <button
-                              onClick={() => handleTreatmentSelect(treatmentSearchQuery, true)}
-                              className="w-full text-left px-2.5 md:px-3 py-1.5 md:py-2 hover:bg-gray-50 focus:bg-gray-50 focus:outline-none text-xs md:text-sm border-t border-gray-200 bg-gray-50"
-                            >
-                              <div className="font-medium text-gray-900">Other: "{treatmentSearchQuery}"</div>
-                              <div className="text-xs text-gray-500">Custom treatment name</div>
-                            </button>
+                            {/* Always show "Other" option when there's a search query */}
+                            {treatmentSearchQuery.trim() && (
+                              <button
+                                onClick={() => handleTreatmentSelect(treatmentSearchQuery, true)}
+                                className="w-full text-left px-2.5 md:px-3 py-1.5 md:py-2 hover:bg-gray-50 focus:bg-gray-50 focus:outline-none text-xs md:text-sm border-t border-gray-200 bg-gray-50"
+                              >
+                                <div className="font-medium text-gray-900">Other: "{treatmentSearchQuery}"</div>
+                                <div className="text-xs text-gray-500">Custom treatment name</div>
+                              </button>
+                            )}
                           </div>
                         ) : treatmentSearchQuery.trim() ? (
                           <div className="py-1">
@@ -950,7 +979,12 @@ const ChatMessage: React.FC<ChatMessageProps> = ({ message, onButtonClick, selec
                               <div className="text-xs text-gray-500">Custom treatment name</div>
                             </button>
                           </div>
-                        ) : null}
+                        ) : (
+                          <div className="p-3 text-center text-gray-500">
+                            <div className="text-sm">Start typing to search for treatments</div>
+                            <div className="text-xs mt-1">Or type the treatment name manually in the chat input below</div>
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>

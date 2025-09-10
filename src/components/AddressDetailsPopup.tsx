@@ -373,7 +373,6 @@ const AddressDetailsPopup: React.FC<AddressDetailsPopupProps> = ({
               <div className="space-y-6">
                 <div className="text-center space-y-2">
                   <h3 className="text-lg font-semibold text-gray-900">Address Details</h3>
-                  <p className="text-gray-600">Please provide your address information for verification</p>
                 </div>
 
                 {/* Permanent Address Section */}

@@ -1,7 +1,42 @@
 import React, { useRef, useState, useEffect } from 'react';
 import { ArrowLeft, Download } from 'lucide-react';
+import Lottie from 'lottie-react';
 import { getDisburseDataByLoanId, DisbursementData } from '../services/loanApi';
 import generateDisbursalOrderReceipt from './generateDisbursalOrderReceipt';
+import writingAnimation from '../../public/animations/writing-on-paper.json';
+
+// Custom CSS for success animation and fade-in
+const loadingStyles = `
+  @keyframes successPulse {
+    0% { transform: scale(1); opacity: 1; }
+    50% { transform: scale(1.1); opacity: 0.8; }
+    100% { transform: scale(1); opacity: 1; }
+  }
+  
+  @keyframes fadeIn {
+    0% { opacity: 0; }
+    100% { opacity: 1; }
+  }
+  
+  @keyframes slideUpFadeIn {
+    0% { 
+      opacity: 0; 
+      transform: translateY(30px);
+    }
+    100% { 
+      opacity: 1; 
+      transform: translateY(0);
+    }
+  }
+  
+  .success-animation {
+    animation: successPulse 0.6s ease-in-out;
+  }
+  
+  .animate-fadeIn {
+    animation: slideUpFadeIn 0.8s ease-out;
+  }
+`;
 
 interface DisbursalOrderData {
   id: string;
@@ -14,9 +49,11 @@ interface DisbursalOrderData {
   paymentPlan: string;
   advanceAmount: string;
   platformCharges: string;
+  platformChargesPercentage: number;
   gstOnCharges: string;
   paymentToMerchant: string;
   pfAmount: string;
+  pfAmountPercentage: number;
   financierName: string;
   merchantName: string;
 }
@@ -31,8 +68,19 @@ const DisbursalOrderOverlay: React.FC<Props> = ({ loanId, onClose }) => {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [disbursalOrderData, setDisbursalOrderData] = useState<DisbursalOrderData | null>(null);
-  const [scale, setScale] = useState(0.8);
+  const [loadingProgress, setLoadingProgress] = useState(0);
   const contentRef = useRef<HTMLDivElement>(null);
+
+  // Inject custom styles
+  useEffect(() => {
+    const styleElement = document.createElement('style');
+    styleElement.textContent = loadingStyles;
+    document.head.appendChild(styleElement);
+    
+    return () => {
+      document.head.removeChild(styleElement);
+    };
+  }, []);
 
   // Helper function to format date
   const formatDate = (timestamp: number): string => {
@@ -63,6 +111,9 @@ const DisbursalOrderOverlay: React.FC<Props> = ({ loanId, onClose }) => {
     // Format payment plan as "10/2" format
     const paymentPlan = `${data.totalEmi}/${data.advanceEmi}`;
 
+    // Calculate PF percentage based on treatment amount and processing fee
+    const pfPercentage = data.treatmentAmount > 0 ? (data.processingFee / data.treatmentAmount) * 100 : 0;
+
     return {
       id: data.applicationId,
       patientName: data.patientName || data.firstName,
@@ -74,9 +125,11 @@ const DisbursalOrderOverlay: React.FC<Props> = ({ loanId, onClose }) => {
       paymentPlan: paymentPlan,
       advanceAmount: formatCurrency(data.advanceEmiAmount),
       platformCharges: formatCurrency(data.subventionExcludingGSt),
+      platformChargesPercentage: data.subventionRate,
       gstOnCharges: formatCurrency(data.gstOnSubvention),
       paymentToMerchant: formatCurrency(data.disburseAmount),
       pfAmount: formatCurrency(data.processingFee),
+      pfAmountPercentage: pfPercentage,
       financierName: financierName,
       merchantName: data.clinicName
     };
@@ -88,11 +141,29 @@ const DisbursalOrderOverlay: React.FC<Props> = ({ loanId, onClose }) => {
       try {
         setIsLoading(true);
         setError(null);
+        setLoadingProgress(0);
+        
+        // Simulate progress updates
+        const progressInterval = setInterval(() => {
+          setLoadingProgress(prev => {
+            if (prev >= 90) return prev; // Don't go to 100% until API call completes
+            return prev + Math.random() * 12; // Slower increments for better trace visibility
+          });
+        }, 250);
         
         const result = await getDisburseDataByLoanId(loanId);
         
+        // Complete the progress to 100%
+        setLoadingProgress(100);
+        clearInterval(progressInterval);
+        
+        // Wait for the loading animation to complete (show 100% for a moment)
+        await new Promise(resolve => setTimeout(resolve, 800));
+        
         if (result.success && result.data) {
           const mappedData = mapDisbursementDataToOrderData(result.data);
+          // Add a small delay to make the trace opening effect more visible
+          await new Promise(resolve => setTimeout(resolve, 200));
           setDisbursalOrderData(mappedData);
         } else {
           setError(result.message || 'Failed to fetch disbursement data');
@@ -110,38 +181,6 @@ const DisbursalOrderOverlay: React.FC<Props> = ({ loanId, onClose }) => {
     }
   }, [loanId]);
 
-  // Handle responsive scaling for different screen sizes
-  React.useEffect(() => {
-    const updateScale = () => {
-      const width = window.innerWidth;
-      const height = window.innerHeight;
-      
-      // Calculate optimal scale based on screen size for better mobile experience
-      if (width < 480) {
-        // Small phones - scale based on height with minimal padding
-        const availableHeight = height - 180; // Reduced space for header and button
-        const scaleY = availableHeight / 700; // Reduced receipt height estimate
-        setScale(Math.min(Math.max(scaleY, 0.6), 1.0)); // Min 60% scale, max 100%
-      } else if (width < 768) {
-        // Larger phones and small tablets
-        const availableHeight = height - 160;
-        const scaleY = availableHeight / 700;
-        setScale(Math.min(Math.max(scaleY, 0.7), 1.0)); // Min 70% scale, max 100%
-      } else if (width < 1024) {
-        // Tablets and small laptops
-        const availableHeight = height - 140;
-        const scaleY = availableHeight / 700;
-        setScale(Math.min(Math.max(scaleY, 0.8), 1.0)); // Min 80% scale, max 100%
-      } else {
-        // Desktop and large screens - full scale
-        setScale(1.0);
-      }
-    };
-
-    updateScale();
-    window.addEventListener('resize', updateScale);
-    return () => window.removeEventListener('resize', updateScale);
-  }, []);
 
 
   // Download as PDF function
@@ -192,7 +231,7 @@ const DisbursalOrderOverlay: React.FC<Props> = ({ loanId, onClose }) => {
         />
         
         {/* Bottom Sheet / Modal */}
-        <div className="relative bg-white w-full max-w-[800px] rounded-t-3xl sm:rounded-lg shadow-xl transform transition-transform duration-300 ease-out">
+        <div className="relative bg-white w-full max-w-[800px] rounded-t-3xl sm:rounded-lg shadow-xl">
           {/* Header */}
           <div className="bg-primary-600 text-white px-4 py-3 rounded-t-3xl sm:rounded-t-lg">
             <div className="flex items-center space-x-3">
@@ -209,14 +248,52 @@ const DisbursalOrderOverlay: React.FC<Props> = ({ loanId, onClose }) => {
           {/* Loading Content */}
           <div className="p-8">
             <div className="flex flex-col items-center space-y-6">
-              {/* Loading dots animation */}
-              <div className="flex space-x-2">
-                <div className="w-3 h-3 bg-primary-600 rounded-full animate-bounce"></div>
-                <div className="w-3 h-3 bg-primary-400 rounded-full animate-bounce" style={{animationDelay: '0.1s'}}></div>
-                <div className="w-3 h-3 bg-primary-400 rounded-full animate-bounce" style={{animationDelay: '0.2s'}}></div>
+              {/* Lottie Writing Animation */}
+              <div className="w-72 h-48 flex items-center justify-center">
+                <Lottie
+                  animationData={writingAnimation}
+                  loop={true}
+                  autoplay={true}
+                  style={{ width: '100%', height: '100%' }}
+                />
               </div>
+              
               <div className="text-center">
-                <h3 className="font-semibold text-lg text-gray-900 mb-2">Loading Disbursal Order</h3>
+                <h3 className="font-semibold text-lg text-gray-900 mb-2">Generating Disbursal Order</h3>
+                <p className="text-sm text-gray-600">
+                  {loadingProgress < 30 ? 'Fetching disbursement data...' :
+                   loadingProgress < 60 ? 'Processing document details...' :
+                   loadingProgress < 90 ? 'Finalizing disbursal order...' :
+                   loadingProgress < 100 ? 'Almost ready...' :
+                   'Disbursal Order Generated Successfully!'}
+                </p>
+                <div className="mt-2 text-xs text-gray-500 flex items-center justify-center space-x-2">
+                  <span>{Math.round(loadingProgress)}% complete</span>
+                  {loadingProgress >= 100 && (
+                    <div className="success-animation">
+                      <svg className="w-4 h-4 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                      </svg>
+                    </div>
+                  )}
+                </div>
+              </div>
+              
+              {/* Enhanced Progress indicator */}
+              <div className="w-64 h-2 bg-gray-200 rounded-full overflow-hidden shadow-inner">
+                <div 
+                  className={`h-full rounded-full transition-all duration-500 ease-out relative ${
+                    loadingProgress >= 100 
+                      ? 'bg-gradient-to-r from-green-500 to-green-600' 
+                      : 'bg-gradient-to-r from-primary-500 to-primary-600'
+                  }`}
+                  style={{ width: `${loadingProgress}%` }}
+                >
+                  <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white to-transparent opacity-30 animate-pulse"></div>
+                  {loadingProgress >= 100 && (
+                    <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white to-transparent opacity-50 animate-pulse"></div>
+                  )}
+                </div>
               </div>
             </div>
           </div>
@@ -236,7 +313,7 @@ const DisbursalOrderOverlay: React.FC<Props> = ({ loanId, onClose }) => {
         />
         
         {/* Bottom Sheet / Modal */}
-        <div className="relative bg-white w-full max-w-[800px] rounded-t-3xl sm:rounded-lg shadow-xl transform transition-transform duration-300 ease-out">
+        <div className="relative bg-white w-full max-w-[800px] rounded-t-3xl sm:rounded-lg shadow-xl">
           {/* Header */}
           <div className="bg-primary-600 text-white px-4 py-3 rounded-t-3xl sm:rounded-t-lg">
             <div className="flex items-center space-x-3">
@@ -295,7 +372,7 @@ const DisbursalOrderOverlay: React.FC<Props> = ({ loanId, onClose }) => {
       />
       
       {/* Bottom Sheet / Modal */}
-      <div className="relative bg-white w-full h-full sm:h-auto sm:max-w-[800px] sm:max-h-[95vh] rounded-none sm:rounded-lg shadow-xl transform transition-transform duration-300 ease-out flex flex-col">
+      <div className="relative bg-white w-full h-full sm:h-auto sm:max-w-[800px] sm:max-h-[95vh] rounded-none sm:rounded-lg shadow-xl flex flex-col animate-fadeIn">
         {/* Header */}
         <div className="bg-primary-600 text-white px-4 py-3 rounded-none sm:rounded-t-lg flex-shrink-0">
           <div className="flex items-center justify-between">
@@ -318,10 +395,8 @@ const DisbursalOrderOverlay: React.FC<Props> = ({ loanId, onClose }) => {
           <div className="w-full h-full flex justify-center">
             <div 
               ref={contentRef}
-              className="bg-white w-full max-w-full"
+              className="bg-white w-full max-w-full animate-fadeIn"
               style={{ 
-                transform: `scale(${scale})`,
-                transformOrigin: 'top center',
                 width: '100%',
                 minHeight: 'fit-content',
                 maxHeight: '100%'

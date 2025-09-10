@@ -1,6 +1,6 @@
 import React, { useRef, useState } from 'react';
 import { ArrowLeft, User, Phone, Share2, QrCode, Eye, FileText, Check, AlertTriangle, Copy, ExternalLink } from 'lucide-react';
-import { uploadPrescription, getQrCode, getMatchingEmiPlans, BureauEmiPlan, getBureauDecisionData, BureauDecisionData, getUserLoanTimeline, TimelineItem, LoanDetailsByUserId, getUserLoanStatus } from '../services/loanApi';
+import { uploadPrescription, getQrCode, getMatchingEmiPlans, BureauEmiPlan, getBureauDecisionData, BureauDecisionData, LoanDetailsByUserId, getLoanStatusWithUserStatus, LoanStatusWithUserStatusItem } from '../services/loanApi';
 import { getMerchantScore, MerchantScoreResponse, isDODownloadAllowed } from '../services/oculonApi';
 import { useAuth } from '../context/AuthContext';
 import DisbursalOrderOverlay from './DisbursalOrderOverlay';
@@ -58,8 +58,8 @@ const TransactionDetailsOverlay: React.FC<Props> = ({ transaction, onClose }) =>
   const [qrCodeUrl, setQrCodeUrl] = useState<string | null>(null);
   const [qrLoading, setQrLoading] = useState(false);
   const [showTimeline, setShowTimeline] = useState(false);
-  const [timelineData, setTimelineData] = useState<TimelineItem[]>([]);
   const [timelineLoading, setTimelineLoading] = useState(false);
+  const [loanStatusData, setLoanStatusData] = useState<LoanStatusWithUserStatusItem[]>([]);
   const [dynamicEmiPlans, setDynamicEmiPlans] = useState<BureauEmiPlan[]>([]);
   const [emiPlansLoading, setEmiPlansLoading] = useState(false);
   const [hasMatchingProduct, setHasMatchingProduct] = useState(false);
@@ -271,12 +271,12 @@ const TransactionDetailsOverlay: React.FC<Props> = ({ transaction, onClose }) =>
 
     setTimelineLoading(true);
     try {
-      // Use new getUserLoanTimeline with fallback mechanism
-      const timeline = await getUserLoanTimeline(transaction.loanId, transaction.userId);
-      setTimelineData(timeline);
+      // Use the new getLoanStatusWithUserStatus API for timeline view
+      const loanStatusResponse = await getLoanStatusWithUserStatus(transaction.loanId);
+      setLoanStatusData(loanStatusResponse);
       setShowTimeline(true);
     } catch (error) {
-      console.error('Error getting timeline:', error);
+      console.error('Error getting loan status with user status:', error);
       // Show error message to user
       setUploadError('Failed to load timeline data. Please try again.');
       setTimeout(() => setUploadError(null), 3000);
@@ -285,15 +285,9 @@ const TransactionDetailsOverlay: React.FC<Props> = ({ transaction, onClose }) =>
     }
   };
 
-  // Format timestamp - now handles both string dates and timestamps
-  const formatTimestamp = (dateInput: string | number) => {
-    if (typeof dateInput === 'string') {
-      // Already formatted string from getUserLoanStatus
-      return dateInput;
-    }
-    
-    // Legacy timestamp format from activitiesLog
-    const date = new Date(dateInput);
+  // Format timestamp for loan status with user status (number timestamp)
+  const formatLoanStatusTimestamp = (timestamp: number) => {
+    const date = new Date(timestamp);
     return date.toLocaleString('en-GB', {
       year: 'numeric',
       month: '2-digit',
@@ -302,31 +296,6 @@ const TransactionDetailsOverlay: React.FC<Props> = ({ transaction, onClose }) =>
       minute: '2-digit',
       hour12: true
     });
-  };
-
-  // Get activity type color
-  const getActivityTypeColor = (type: string) => {
-    switch (type.toLowerCase()) {
-      case 'loan_status':
-        return 'bg-indigo-100 text-indigo-800';
-      case 'onboarding':
-        return 'bg-blue-100 text-blue-800';
-      case 'cashfree':
-      case 'findoc':
-        return 'bg-green-100 text-green-800';
-      case 'sure_pass':
-        return 'text-white bg-[#514c9f]';
-      case 'bureau decision':
-        return 'bg-orange-100 text-orange-800';
-      case 'loan_activity':
-        return 'bg-teal-100 text-teal-800';
-      case 'payment':
-        return 'bg-emerald-100 text-emerald-800';
-      case 'verification':
-        return 'bg-yellow-100 text-yellow-800';
-      default:
-        return 'bg-gray-100 text-gray-800';
-    }
   };
 
 
@@ -586,10 +555,10 @@ const TransactionDetailsOverlay: React.FC<Props> = ({ transaction, onClose }) =>
     const isAllowedDoctor = doctorId && allowedDoctorIds.includes(doctorId);
     
     // Use the API result from state (set by useEffect)
-    // Fallback to timeline data if API hasn't been called yet
-    const hasAllowedStatusInTimeline = timelineData.some(timelineItem => 
+    // Fallback to loan status data if API hasn't been called yet
+    const hasAllowedStatusInTimeline = loanStatusData.some(statusItem => 
       allowedStatuses.some(status => 
-        timelineItem.status.toLowerCase().includes(status.toLowerCase())
+        statusItem.userStatus.toLowerCase().includes(status.toLowerCase())
       )
     );
 
@@ -607,6 +576,10 @@ const TransactionDetailsOverlay: React.FC<Props> = ({ transaction, onClose }) =>
     // For allowed doctors: enable if they have allowed status, disbursed status, or allowed status in API response
     if (isAllowedDoctor) {
       return isAllowedStatus || isDisbursedStatus || hasAllowedStatusInAPI || hasAllowedStatusInTimeline;
+    }
+
+    if ( isDisbursedStatus || hasAllowedStatusInTimeline || hasAllowedStatusInAPI) {
+      return true;
     }
 
     // For other clinics: enable if they have uploaded treatment invoice
@@ -671,14 +644,14 @@ const TransactionDetailsOverlay: React.FC<Props> = ({ transaction, onClose }) =>
     loadMerchantScore();
   }, [doctorCode]);
 
-  // Check getUserLoanStatus API for allowed statuses on component mount
+  // Check getLoanStatusWithUserStatus API for allowed statuses on component mount
   React.useEffect(() => {
-    const checkUserLoanStatus = async () => {
+    const checkLoanStatusWithUserStatus = async () => {
       if (!transaction.loanId) return;
       
       try {
-        const userLoanStatusResponse = await getUserLoanStatus(transaction.loanId);
-        const hasAllowedStatus = userLoanStatusResponse.some(statusItem => {
+        const loanStatusResponse = await getLoanStatusWithUserStatus(transaction.loanId);
+        const hasAllowedStatus = loanStatusResponse.some(statusItem => {
           const allowedStatuses = [
             'EMI auto-pay setup complete',
             'Disbursal initiated', 
@@ -690,14 +663,14 @@ const TransactionDetailsOverlay: React.FC<Props> = ({ transaction, onClose }) =>
           );
         });
         setHasAllowedStatusInAPI(hasAllowedStatus);
-        console.log('getUserLoanStatus API response checked for allowed statuses:', hasAllowedStatus);
+        console.log('getLoanStatusWithUserStatus API response checked for allowed statuses:', hasAllowedStatus);
       } catch (error) {
-        console.error('Error calling getUserLoanStatus API:', error);
+        console.error('Error calling getLoanStatusWithUserStatus API:', error);
         setHasAllowedStatusInAPI(false);
       }
     };
 
-    checkUserLoanStatus();
+    checkLoanStatusWithUserStatus();
   }, [transaction.loanId]);
 
   return (
@@ -1043,7 +1016,7 @@ const TransactionDetailsOverlay: React.FC<Props> = ({ transaction, onClose }) =>
           {showTimeline && (
             <div className="mt-4 p-4 bg-gray-50 rounded-lg border border-gray-200 shadow-sm">
               <div className="flex items-center justify-between mb-4">
-                <h4 className="text-base font-semibold text-gray-900">Activity Timeline</h4>
+                <h4 className="text-base font-semibold text-gray-900">User Status Timeline</h4>
                 <button
                   onClick={() => setShowTimeline(false)}
                   className="text-gray-500 hover:text-gray-700"
@@ -1052,38 +1025,23 @@ const TransactionDetailsOverlay: React.FC<Props> = ({ transaction, onClose }) =>
                 </button>
               </div>
               
-              {timelineData.length > 0 ? (
+              {loanStatusData.length > 0 ? (
                 <div className="space-y-4">
-                  {timelineData.map((item, index) => (
-                    <div key={item.id || index} className="flex items-start space-x-3">
+                  {loanStatusData.map((item, index) => (
+                    <div key={item.statusCode || index} className="flex items-start space-x-3">
                       {/* Timeline connector */}
                       <div className="flex flex-col items-center">
                         <div className="w-3 h-3 bg-indigo-600 rounded-full"></div>
-                        {index < timelineData.length - 1 && (
+                        {index < loanStatusData.length - 1 && (
                           <div className="w-0.5 h-8 bg-gray-300 mt-1"></div>
                         )}
                       </div>
                       
-                      {/* Activity content */}
+                      {/* Status content */}
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center space-x-2 mb-1">
-                          <h5 className="text-sm font-medium text-gray-900">{item.status}</h5>
-                          {item.type && (
-                            <span className={`text-xs px-2 py-1 rounded-full ${getActivityTypeColor(item.type)}`}>
-                              {item.type}
-                            </span>
-                          )}
+                          <h5 className="text-sm font-medium text-gray-900">{item.userStatus}</h5>
                         </div>
-                        
-                        <p className="text-xs text-gray-500 mb-1">
-                          {formatTimestamp(item.addedOn)}
-                        </p>
-                        
-                        {item.addedBy && (
-                          <p className="text-xs text-gray-500 mt-1">
-                            Added by: {item.addedBy}
-                          </p>
-                        )}
                       </div>
                     </div>
                   ))}
@@ -1091,7 +1049,7 @@ const TransactionDetailsOverlay: React.FC<Props> = ({ transaction, onClose }) =>
               ) : (
                 <div className="text-center py-8 text-gray-500">
                   <Eye className="h-8 w-8 mx-auto mb-2 opacity-50" />
-                  <p>No timeline activities found</p>
+                  <p>No loan status data found</p>
                 </div>
               )}
             </div>

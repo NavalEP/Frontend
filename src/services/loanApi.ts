@@ -163,6 +163,19 @@ interface UserLoanStatusResponse {
   message: string;
 }
 
+export interface LoanStatusWithUserStatusItem {
+  statusCode: number;
+  userStatus: string;
+  addedOn: number;
+}
+
+interface LoanStatusWithUserStatusResponse {
+  status: number;
+  data: LoanStatusWithUserStatusItem[];
+  attachment: null;
+  message: string;
+}
+
 export interface ChildClinic {
   clinicName: string;
   doctorName: string;
@@ -866,6 +879,61 @@ export const getUserLoanStatus = async (loanId: string): Promise<UserLoanStatusI
   }
 };
 
+export const getLoanStatusWithUserStatus = async (loanId: string): Promise<LoanStatusWithUserStatusItem[]> => {
+  try {
+    console.log('Fetching loan status with user status from:', '/status/getLoanStatusWithUserStatus/');
+
+    const response = await loanApi.get<LoanStatusWithUserStatusResponse>(
+      '/status/getLoanStatusWithUserStatus/',
+      {
+        params: { loanId },
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
+        },
+        timeout: 30000
+      }
+    );
+
+    console.log('Loan status with user status response:', response.data);
+
+    if (response.data.status === 200 && Array.isArray(response.data.data)) {
+      return response.data.data;
+    }
+
+    throw new Error(response.data.message || 'Failed to fetch loan status with user status');
+  } catch (error: any) {
+    console.error('API Error:', error);
+    
+    if (axios.isAxiosError(error)) {
+      if (error.code === 'ECONNABORTED') {
+        throw new Error('Request timed out. Please try again.');
+      }
+      if (!error.response) {
+        console.error('Network Error Details:', {
+          message: error.message,
+          code: error.code,
+          config: error.config,
+          url: '/status/getLoanStatusWithUserStatus/'
+        });
+        throw new Error('Unable to connect to the backend server. Please check your internet connection.');
+      }
+      
+      // Log response error details
+      console.error('Response Error Details:', {
+        status: error.response.status,
+        statusText: error.response.statusText,
+        data: error.response.data,
+        headers: error.response.headers
+      });
+      
+      const errorMessage = error.response.data?.message || error.message;
+      throw new Error(`Backend API Error: ${errorMessage}`);
+    }
+    throw new Error('An unexpected error occurred while fetching loan status with user status.');
+  }
+};
+
 // Helper function to convert ActivityLogItem to TimelineItem
 const convertActivityLogToTimeline = (activityItem: ActivityLogItem): TimelineItem => {
   // Convert timestamp to readable date format
@@ -910,6 +978,33 @@ const convertUserLoanStatusToTimeline = (statusItem: UserLoanStatusItem): Timeli
   };
 };
 
+// Helper function to convert LoanStatusWithUserStatusItem to TimelineItem
+const convertLoanStatusWithUserStatusToTimeline = (statusItem: LoanStatusWithUserStatusItem): TimelineItem => {
+  // Convert timestamp to readable date format
+  const formatTimestamp = (timestamp: number): string => {
+    try {
+      const date = new Date(timestamp);
+      return date.toLocaleString('en-GB', {
+        hour: 'numeric',
+        minute: '2-digit',
+        hour12: false,
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric'
+      });
+    } catch (e) {
+      return 'Invalid Date';
+    }
+  };
+
+  return {
+    status: statusItem.userStatus,
+    addedOn: formatTimestamp(statusItem.addedOn),
+    activity: statusItem.userStatus
+    // Note: loanId is not available in this response format
+  };
+};
+
 // Unified function to get timeline with fallback mechanism
 export const getUserLoanTimeline = async (loanId: string, userId?: string): Promise<TimelineItem[]> => {
   try {
@@ -927,31 +1022,48 @@ export const getUserLoanTimeline = async (loanId: string, userId?: string): Prom
     throw new Error('No user loan status data available');
     
   } catch (error: any) {
-    console.warn('getUserLoanStatus failed, falling back to activitiesLog:', error.message);
-    
-    if (!userId) {
-      throw new Error('userId is required when falling back to activitiesLog');
-    }
+    console.warn('getUserLoanStatus failed, trying getLoanStatusWithUserStatus:', error.message);
     
     try {
-      // Fallback to activitiesLog API
-      console.log('Attempting to fetch activities log as fallback...');
-      const activitiesLog = await getActivitiesLog(userId);
+      // Second fallback to getLoanStatusWithUserStatus API
+      console.log('Attempting to fetch loan status with user status as fallback...');
+      const loanStatusWithUserStatus = await getLoanStatusWithUserStatus(loanId);
       
-      if (activitiesLog && activitiesLog.length > 0) {
-        // Filter activities related to the specific loan if loanId is provided
-        const filteredActivities = activitiesLog.filter(activity => 
-          !loanId || activity.loanId === loanId || !activity.loanId
-        );
-        
-        console.log(`Successfully retrieved ${filteredActivities.length} activities from activitiesLog`);
-        return filteredActivities.map(convertActivityLogToTimeline);
+      if (loanStatusWithUserStatus && loanStatusWithUserStatus.length > 0) {
+        console.log(`Successfully retrieved ${loanStatusWithUserStatus.length} status items from getLoanStatusWithUserStatus`);
+        return loanStatusWithUserStatus.map(convertLoanStatusWithUserStatusToTimeline);
       }
       
-      return [];
-    } catch (fallbackError: any) {
-      console.error('Both getUserLoanStatus and activitiesLog failed:', fallbackError.message);
-      throw new Error('Failed to retrieve timeline data from both primary and fallback APIs');
+      // If no data from getLoanStatusWithUserStatus, throw error to trigger final fallback
+      throw new Error('No loan status with user status data available');
+      
+    } catch (secondFallbackError: any) {
+      console.warn('getLoanStatusWithUserStatus failed, falling back to activitiesLog:', secondFallbackError.message);
+      
+      if (!userId) {
+        throw new Error('userId is required when falling back to activitiesLog');
+      }
+      
+      try {
+        // Final fallback to activitiesLog API
+        console.log('Attempting to fetch activities log as final fallback...');
+        const activitiesLog = await getActivitiesLog(userId);
+        
+        if (activitiesLog && activitiesLog.length > 0) {
+          // Filter activities related to the specific loan if loanId is provided
+          const filteredActivities = activitiesLog.filter(activity => 
+            !loanId || activity.loanId === loanId || !activity.loanId
+          );
+          
+          console.log(`Successfully retrieved ${filteredActivities.length} activities from activitiesLog`);
+          return filteredActivities.map(convertActivityLogToTimeline);
+        }
+        
+        return [];
+      } catch (finalFallbackError: any) {
+        console.error('All timeline APIs failed:', finalFallbackError.message);
+        throw new Error('Failed to retrieve timeline data from all available APIs');
+      }
     }
   }
 };

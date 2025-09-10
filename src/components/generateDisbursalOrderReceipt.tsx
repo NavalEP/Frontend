@@ -3,7 +3,7 @@
 const generateDisbursalOrderReceipt = (disbursalOrderData: any) => {
   return (
     <div style={{
-      margin: 0,
+      // margin: 0,
       padding: '0.1rem',
       boxSizing: 'border-box',
       fontFamily: "'DM Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif",
@@ -375,7 +375,7 @@ const generateDisbursalOrderReceipt = (disbursalOrderData: any) => {
                 fontWeight: '300',
                 textAlign: 'right'
               }}>
-                Rs. {disbursalOrderData.platformCharges}
+                Rs. {disbursalOrderData.platformCharges} ({disbursalOrderData.platformChargesPercentage}%)
               </div>
             </div>
             <div style={{
@@ -453,7 +453,7 @@ const generateDisbursalOrderReceipt = (disbursalOrderData: any) => {
                 fontWeight: '300',
                 textAlign: 'right'
               }}>
-                Rs. {disbursalOrderData.pfAmount}
+                Rs. {disbursalOrderData.pfAmount} ({disbursalOrderData.pfAmountPercentage.toFixed(2)}%)
               </div>
             </div>
             <div style={{

@@ -1,6 +1,7 @@
-import React from 'react';
-import { Share2, Copy } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Share2, Copy, CheckCircle } from 'lucide-react';
 import { smartShare } from '../utils/shareUtils';
+import { getPostApprovalStatus, PostApprovalStatusData } from '../services/postApprovalApi';
 
 interface PaymentStep {
   title: string;
@@ -13,9 +14,69 @@ interface PaymentStep {
 interface PaymentStepsMessageProps {
   steps: PaymentStep[];
   onLinkClick?: (url: string) => void;
+  loanId?: string;
 }
 
-const PaymentStepsMessage: React.FC<PaymentStepsMessageProps> = ({ steps, onLinkClick }) => {
+const PaymentStepsMessage: React.FC<PaymentStepsMessageProps> = ({ steps, onLinkClick, loanId }) => {
+  const [postApprovalStatus, setPostApprovalStatus] = useState<PostApprovalStatusData | null>(null);
+
+  // Fetch post-approval status when component mounts or loanId changes
+  useEffect(() => {
+    const fetchPostApprovalStatus = async () => {
+      if (!loanId) return;
+      
+      try {
+        const result = await getPostApprovalStatus(loanId);
+        if (result.success && result.data) {
+          setPostApprovalStatus(result.data);
+        }
+      } catch (error) {
+        console.error('Error fetching post-approval status:', error);
+      }
+    };
+
+    fetchPostApprovalStatus();
+  }, [loanId]);
+
+  // Function to check if a step is completed based on the step title
+  const isStepCompleted = (stepTitle: string): boolean => {
+    if (!postApprovalStatus) return false;
+    
+    const title = stepTitle.toLowerCase();
+    if (title.includes('adhaar') || title.includes('aadhaar')) {
+      return postApprovalStatus.aadhaar_verified;
+    }
+    if (title.includes('face') || title.includes('selfie')) {
+      return postApprovalStatus.selfie;
+    }
+    if (title.includes('emi') || title.includes('auto-pay') || title.includes('auto pay')) {
+      return postApprovalStatus.auto_pay;
+    }
+    if (title.includes('agreement') || title.includes('e-sign')) {
+      return postApprovalStatus.agreement_setup;
+    }
+    
+    return false;
+  };
+
+  // Function to get completion status text based on step title
+  const getCompletionStatusText = (stepTitle: string): string => {
+    const title = stepTitle.toLowerCase();
+    if (title.includes('adhaar') || title.includes('aadhaar')) {
+      return 'Aadhaar verification completed';
+    }
+    if (title.includes('face') || title.includes('selfie')) {
+      return 'Face verification completed';
+    }
+    if (title.includes('emi') || title.includes('auto-pay') || title.includes('auto pay')) {
+      return 'EMI auto-pay setup completed';
+    }
+    if (title.includes('agreement') || title.includes('e-sign')) {
+      return 'E-sign agreement completed';
+    }
+    return 'Completed';
+  };
+
   // Function to copy text to clipboard
   const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text);
@@ -87,23 +148,41 @@ const PaymentStepsMessage: React.FC<PaymentStepsMessageProps> = ({ steps, onLink
       </div>
 
       {/* Payment Steps Cards */}
-      {steps.map((step, index) => (
-        <div key={index} className="bg-white rounded-lg p-4 shadow-sm border border-gray-100">
-          <h4 className="text-sm font-medium text-gray-700 mb-3">
-            {step.title}
-          </h4>
-          
-          {/* Primary Action Button */}
-          <button
-            onClick={() => handleLinkClick(step.url)}
-            className="w-full px-4 py-3 text-white font-bold rounded-lg transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-offset-1 shadow-lg transform hover:scale-105 mb-3"
-            style={{
-              background: 'linear-gradient(135deg, #514c9f 0%, #3d3a7a 100%)',
-              boxShadow: '0 4px 6px rgba(81, 76, 159, 0.3)'
-            }}
-          >
-            {step.primaryButtonText}
-          </button>
+      {steps.map((step, index) => {
+        const isCompleted = isStepCompleted(step.title);
+        const completionText = getCompletionStatusText(step.title);
+        
+        return (
+          <div key={index} className="bg-white rounded-lg p-4 shadow-sm border border-gray-100">
+            <div className="flex items-center justify-between mb-3">
+              <h4 className="text-sm font-medium text-gray-700">
+                {step.title}
+              </h4>
+              {isCompleted && (
+                <div className="flex items-center text-green-600">
+                  <CheckCircle className="h-4 w-4 mr-1" />
+                  <span className="text-xs font-medium">Completed</span>
+                </div>
+              )}
+            </div>
+            
+            {/* Primary Action Button */}
+            <button
+              onClick={() => handleLinkClick(step.url)}
+              className={`w-full px-4 py-3 text-white font-bold rounded-lg transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-offset-1 shadow-lg transform hover:scale-105 mb-3 ${
+                isCompleted ? 'opacity-75 cursor-not-allowed' : ''
+              }`}
+              style={isCompleted ? {
+                background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                boxShadow: '0 4px 6px rgba(16, 185, 129, 0.3)'
+              } : {
+                background: 'linear-gradient(135deg, #514c9f 0%, #3d3a7a 100%)',
+                boxShadow: '0 4px 6px rgba(81, 76, 159, 0.3)'
+              }}
+              disabled={isCompleted}
+            >
+              {isCompleted ? `✓ ${completionText}` : step.primaryButtonText}
+            </button>
           
           {/* Secondary Action Buttons */}
           <div className="flex space-x-2">
@@ -132,7 +211,8 @@ const PaymentStepsMessage: React.FC<PaymentStepsMessageProps> = ({ steps, onLink
             </button>
           </div>
         </div>
-      ))}
+        );
+      })}
     </div>
   );
 };

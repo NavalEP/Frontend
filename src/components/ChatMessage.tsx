@@ -26,6 +26,7 @@ interface ChatMessageProps {
   onUploadClick?: (documentType: 'aadhaar' | 'pan') => void;
   onPaymentPlanPopupOpen?: (url?: string) => void;
   onAddressDetailsPopupOpen?: (url: string) => void;
+  loanId?: string;
 }
 
 // Component for styled treatment amount display
@@ -93,7 +94,7 @@ const TreatmentAmountDisplay: React.FC<{ text: string }> = ({ text }) => {
   return <span>{parts}</span>;
 };
 
-const ChatMessage: React.FC<ChatMessageProps> = ({ message, onButtonClick, selectedOption, disabledOptions, onLinkClick, onTreatmentSelect, selectedTreatment, onUploadClick, onPaymentPlanPopupOpen, onAddressDetailsPopupOpen }) => {
+const ChatMessage: React.FC<ChatMessageProps> = ({ message, onButtonClick, selectedOption, disabledOptions, onLinkClick, onTreatmentSelect, selectedTreatment, onUploadClick, onPaymentPlanPopupOpen, onAddressDetailsPopupOpen, loanId }) => {
   const isUser = message.sender === 'user';
   const [resolvedUrls, setResolvedUrls] = useState<Record<string, string>>({});
   const [loadingUrls, setLoadingUrls] = useState<Set<string>>(new Set());
@@ -1148,6 +1149,7 @@ const ChatMessage: React.FC<ChatMessageProps> = ({ message, onButtonClick, selec
               <PaymentStepsMessage 
                 steps={parsePaymentSteps(message.text)}
                 onLinkClick={onLinkClick}
+                loanId={loanId}
               />
             </div>
           )}

@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { createSession, sendMessage, getSessionDetails, uploadDocument, uploadPanCard, getUserDetailsBySessionId, getSessionDetailsWithHistory } from '../services/api';
+import { getLoanDetailsByUserId } from '../services/loanApi';
 import { useAuth } from '../context/AuthContext';
 import ChatMessage from '../components/ChatMessage';
 import StructuredInputForm from '../components/StructuredInputForm';
@@ -13,6 +14,8 @@ import PatientChatHistory from '../components/PatientChatHistory';
 import PaymentPlanPopup from '../components/PaymentPlanPopup';
 import AddressDetailsPopup from '../components/AddressDetailsPopup';
 import ProgressBar from '../components/ProgressBar';
+import { useProgressBarState } from '../utils/progressUtils';
+import { PostApprovalStatusData } from '../services/postApprovalApi';
 import { SendHorizonal, Plus, Notebook as Robot, History, ArrowLeft, Search, LogOut, User, MapPin, Briefcase, Calendar, Mail, GraduationCap, Heart, Edit3, Phone, Menu, TrendingUp } from 'lucide-react';
 import LoanTransactionsPage from './LoanTransactionsPage';
 import BusinessOverviewPage from './BusinessOverviewPage';
@@ -57,6 +60,16 @@ const ChatPage: React.FC = () => {
   const [showHistory, setShowHistory] = useState(false);
   const [chatHistory, setChatHistory] = useState<ChatSession[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
+  const [userStatuses, setUserStatuses] = useState<string[]>([]);
+  const [loanId, setLoanId] = useState<string | null>(null);
+  const [postApprovalData, setPostApprovalData] = useState<PostApprovalStatusData | null>(null);
+  const [stepCompletion, setStepCompletion] = useState<{
+    eligibility: boolean;
+    selectPlan: boolean;
+    kyc: boolean;
+    autopaySetup: boolean;
+    authorize: boolean;
+  } | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const { incrementSessionCount, doctorId, doctorName, clinicName, logout, sessionCount, loginRoute, phoneNumber } = useAuth();
   
@@ -326,6 +339,13 @@ const ChatPage: React.FC = () => {
       fetchSessionDetails();
     }
   }, [sessionId]);
+
+  // Fetch user statuses when sessionDetails change
+  useEffect(() => {
+    if (sessionDetails?.userId) {
+      fetchUserStatuses();
+    }
+  }, [sessionDetails?.userId]);
   
   // Load chat history from localStorage using doctorId instead of phoneNumber
   useEffect(() => {
@@ -1289,17 +1309,28 @@ const ChatPage: React.FC = () => {
   };
 
   // Function to determine current step based on session status
-  const getCurrentStep = (): number => {
-    if (!sessionDetails?.status) return 1;
+  
+
+  // Function to fetch user statuses and post-approval data for progress bar
+  const fetchUserStatuses = async () => {
+    if (!sessionDetails?.userId) return;
     
-    switch (sessionDetails.status) {
-      
-      case 'collection_step':
-        return 1; // Eligibility
-      case 'post_approval_address_details':
-        return 2; // Select Plan
-      default:
-        return 1; // Default to Eligibility
+    try {
+      // First, get loan details to get loanId
+      const loanDetails = await getLoanDetailsByUserId(sessionDetails.userId);
+      if (loanDetails?.loanId) {
+        // Store the loanId for use in other components
+        setLoanId(loanDetails.loanId);
+        
+        // Fetch both user statuses and post-approval data
+        const progressData = await useProgressBarState(loanDetails.loanId);
+        
+        setUserStatuses(progressData.userStatuses);
+        setPostApprovalData(progressData.postApprovalData);
+        setStepCompletion(progressData.stepCompletion);
+      }
+    } catch (error) {
+      console.error('Error fetching user statuses and post-approval data:', error);
     }
   };
 
@@ -1733,7 +1764,10 @@ const ChatPage: React.FC = () => {
           {/* Progress Bar - Fixed */}
           {sessionDetails && (
             <div className="flex-shrink-0">
-              <ProgressBar currentStep={getCurrentStep()} />
+              <ProgressBar 
+                userStatuses={userStatuses}
+                stepCompletion={stepCompletion || undefined}
+              />
             </div>
           )}
           
@@ -1784,6 +1818,7 @@ const ChatPage: React.FC = () => {
                   selectedTreatment={selectedTreatments[message.id]}
                   onUploadClick={handleUploadButtonClick}
                   onPaymentPlanPopupOpen={handleOpenPaymentPlanPopup}
+                  loanId={loanId || undefined}
                   onAddressDetailsPopupOpen={handleOpenAddressDetailsPopup}
                 />
               ))}

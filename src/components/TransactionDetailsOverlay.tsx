@@ -1042,6 +1042,9 @@ const TransactionDetailsOverlay: React.FC<Props> = ({ transaction, onClose }) =>
                         <div className="flex items-center space-x-2 mb-1">
                           <h5 className="text-sm font-medium text-gray-900">{item.userStatus}</h5>
                         </div>
+                        <div className="text-xs text-gray-500">
+                          {formatLoanStatusTimestamp(item.addedOn)}
+                        </div>
                       </div>
                     </div>
                   ))}

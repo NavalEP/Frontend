@@ -156,7 +156,7 @@ const ProgressBar: React.FC<ProgressBarProps> = ({
             if (isCompleted) {
               stepClasses += " bg-green-600 text-white";
             } else if (isCurrent) {
-              stepClasses += " bg-purple-600 text-white";
+              stepClasses += " text-white";
             } else {
               stepClasses += " bg-gray-300 text-gray-600";
             }
@@ -178,9 +178,8 @@ const ProgressBar: React.FC<ProgressBarProps> = ({
                 style={{
                   clipPath: clipPathStyle,
                   flex:1,
-                  // alignItems: "end",
-
-                  paddingRight : 0
+                  paddingRight : 0,
+                  backgroundColor: isCurrent ? '#514c9f' : undefined
                 }}
               >
                 <span className="whitespace-nowrap text-center">{step}</span>

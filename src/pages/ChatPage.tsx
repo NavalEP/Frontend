@@ -70,6 +70,7 @@ const ChatPage: React.FC = () => {
     autopaySetup: boolean;
     authorize: boolean;
   } | null>(null);
+  const [userHasSentFirstMessage, setUserHasSentFirstMessage] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const { incrementSessionCount, doctorId, doctorName, clinicName, logout, sessionCount, loginRoute, phoneNumber } = useAuth();
   
@@ -166,6 +167,13 @@ const ChatPage: React.FC = () => {
   
   // Function to restore existing session
   const restoreExistingSession = async () => {
+    // Clear progress bar and lead data when restoring session
+    setUserStatuses([]);
+    setPostApprovalData(null);
+    setStepCompletion(null);
+    setLoanId(null);
+    setUserHasSentFirstMessage(false);
+    
     // Check if there's an existing session for this doctor
     const existingSessionData = localStorage.getItem(`session_id_doctor_${doctorId}`);
     const currentSessionId = localStorage.getItem('current_session_id');
@@ -340,12 +348,12 @@ const ChatPage: React.FC = () => {
     }
   }, [sessionId]);
 
-  // Fetch user statuses when sessionDetails change
+  // Fetch user statuses when sessionDetails change and first message is sent
   useEffect(() => {
-    if (sessionDetails?.userId) {
+    if (sessionDetails?.userId && userHasSentFirstMessage) {
       fetchUserStatuses();
     }
-  }, [sessionDetails?.userId]);
+  }, [sessionDetails?.userId, userHasSentFirstMessage]);
   
   // Load chat history from localStorage using doctorId instead of phoneNumber
   useEffect(() => {
@@ -382,6 +390,13 @@ const ChatPage: React.FC = () => {
       setSelectedOptions({}); // Clear selected options when loading a session
       setSelectedTreatments({}); // Clear selected treatments when loading a session
       setDisabledOptions({}); // Clear disabled options when loading a session
+      
+      // Clear progress bar and lead data when loading a different session
+      setUserStatuses([]);
+      setPostApprovalData(null);
+      setStepCompletion(null);
+      setLoanId(null);
+      setUserHasSentFirstMessage(false);
       
       // Update localStorage to reflect the loaded session
       if (doctorId) {
@@ -568,10 +583,12 @@ const ChatPage: React.FC = () => {
             // User has already sent their first message, show chat history
             setShowStructuredForm(false);
             setPatientInfoSubmitted(true);
+            setUserHasSentFirstMessage(true); // Set flag for progress bar APIs
           } else {
             // User hasn't sent their first message yet, show structured form
             setShowStructuredForm(true);
             setPatientInfoSubmitted(false);
+            setUserHasSentFirstMessage(false);
           }
         } else if (messages.length === 1 && messages[0].id.startsWith('loading-session')) {
           // If there's no history but we were showing a loading message, clear messages
@@ -644,6 +661,13 @@ const ChatPage: React.FC = () => {
     setIsLoading(true);
     setLoadingStartTime(Date.now());
     setError(null);
+    
+    // Check if this is the first user message and set the flag
+    const isFirstUserMessage = messages.length === 0 || (messages.length === 1 && messages[0].sender === 'agent');
+    if (isFirstUserMessage) {
+      setUserHasSentFirstMessage(true);
+      console.log('First user message sent - progress bar APIs will be called after response');
+    }
     
     // Save chat session if it's the first message
     const isFirstMessage = messages.length === 0 || (messages.length === 1 && messages[0].sender === 'agent');
@@ -775,8 +799,16 @@ const ChatPage: React.FC = () => {
     setDisabledOptions({}); // Clear disabled options for new session
     setSelectedTreatments({}); // Clear selected treatments for new session
     
+    // Clear progress bar and lead data for new inquiry
+    setUserStatuses([]);
+    setPostApprovalData(null);
+    setStepCompletion(null);
+    setLoanId(null);
+    setUserHasSentFirstMessage(false);
+    
     // Clear all existing session data to ensure fresh start
     localStorage.removeItem('current_session_id');
+    localStorage.removeItem('userId'); // Clear user ID for new inquiry
     
     if (doctorId) {
       localStorage.removeItem(`session_id_doctor_${doctorId}`);
@@ -839,6 +871,7 @@ const ChatPage: React.FC = () => {
   // Function to clear session data (for logout or manual new session)
   const clearSessionData = () => {
     localStorage.removeItem('current_session_id');
+    localStorage.removeItem('userId'); // Clear user ID
     if (doctorId) {
       localStorage.removeItem(`session_id_doctor_${doctorId}`);
       // Clear disabled options, selected options, and selected treatments for the current session
@@ -856,6 +889,13 @@ const ChatPage: React.FC = () => {
     setSelectedOptions({});
     setDisabledOptions({});
     setSelectedTreatments({});
+    
+    // Clear progress bar and lead data
+    setUserStatuses([]);
+    setPostApprovalData(null);
+    setStepCompletion(null);
+    setLoanId(null);
+    setUserHasSentFirstMessage(false);
   };
 
   // Filter chat history based on search query
@@ -1313,9 +1353,29 @@ const ChatPage: React.FC = () => {
 
   // Function to fetch user statuses and post-approval data for progress bar
   const fetchUserStatuses = async () => {
-    if (!sessionDetails?.userId) return;
+    if (!sessionDetails?.userId) {
+      console.log('No userId found, clearing progress bar data');
+      setUserStatuses([]);
+      setPostApprovalData(null);
+      setStepCompletion(null);
+      setLoanId(null);
+      return;
+    }
+    
+    // Only fetch progress data after the first user message has been sent
+    if (!userHasSentFirstMessage) {
+      console.log('Skipping progress bar API calls - first user message not sent yet');
+      // Clear progress data when first message not sent
+      setUserStatuses([]);
+      setPostApprovalData(null);
+      setStepCompletion(null);
+      setLoanId(null);
+      return;
+    }
     
     try {
+      console.log('Fetching progress bar data after first user message...');
+      
       // First, get loan details to get loanId
       const loanDetails = await getLoanDetailsByUserId(sessionDetails.userId);
       if (loanDetails?.loanId) {
@@ -1328,9 +1388,27 @@ const ChatPage: React.FC = () => {
         setUserStatuses(progressData.userStatuses);
         setPostApprovalData(progressData.postApprovalData);
         setStepCompletion(progressData.stepCompletion);
+        
+        console.log('Progress bar data fetched successfully:', {
+          userStatuses: progressData.userStatuses,
+          postApprovalData: progressData.postApprovalData,
+          stepCompletion: progressData.stepCompletion
+        });
+      } else {
+        // No loan details found, clear progress data
+        console.log('No loan details found, clearing progress bar data');
+        setUserStatuses([]);
+        setPostApprovalData(null);
+        setStepCompletion(null);
+        setLoanId(null);
       }
     } catch (error) {
       console.error('Error fetching user statuses and post-approval data:', error);
+      // Clear progress data on error
+      setUserStatuses([]);
+      setPostApprovalData(null);
+      setStepCompletion(null);
+      setLoanId(null);
     }
   };
 

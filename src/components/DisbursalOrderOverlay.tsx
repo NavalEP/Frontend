@@ -1,11 +1,11 @@
 import React, { useRef, useState, useEffect } from 'react';
-import { ArrowLeft, Download } from 'lucide-react';
+import { ArrowLeft, Download, X } from 'lucide-react';
 import Lottie from 'lottie-react';
 import { getDisburseDataByLoanId, DisbursementData } from '../services/loanApi';
 import generateDisbursalOrderReceipt from './generateDisbursalOrderReceipt';
-import writingAnimation from '../../public/animations/writing-on-paper.json';
+import writingAnimation from '../animations/writing-on-paper.json';
 
-// Custom CSS for success animation and fade-in
+// Custom CSS for success animation and slide-up
 const loadingStyles = `
   @keyframes successPulse {
     0% { transform: scale(1); opacity: 1; }
@@ -13,18 +13,11 @@ const loadingStyles = `
     100% { transform: scale(1); opacity: 1; }
   }
   
-  @keyframes fadeIn {
-    0% { opacity: 0; }
-    100% { opacity: 1; }
-  }
-  
-  @keyframes slideUpFadeIn {
+  @keyframes slideUp {
     0% { 
-      opacity: 0; 
-      transform: translateY(30px);
+      transform: translateY(100%);
     }
     100% { 
-      opacity: 1; 
       transform: translateY(0);
     }
   }
@@ -33,8 +26,8 @@ const loadingStyles = `
     animation: successPulse 0.6s ease-in-out;
   }
   
-  .animate-fadeIn {
-    animation: slideUpFadeIn 0.8s ease-out;
+  .animate-slideUp {
+    animation: slideUp 0.95s ease-out;
   }
 `;
 
@@ -69,6 +62,7 @@ const DisbursalOrderOverlay: React.FC<Props> = ({ loanId, onClose }) => {
   const [error, setError] = useState<string | null>(null);
   const [disbursalOrderData, setDisbursalOrderData] = useState<DisbursalOrderData | null>(null);
   const [loadingProgress, setLoadingProgress] = useState(0);
+  const [showSlideUp, setShowSlideUp] = useState(false);
   const contentRef = useRef<HTMLDivElement>(null);
 
   // Inject custom styles
@@ -103,7 +97,7 @@ const DisbursalOrderOverlay: React.FC<Props> = ({ loanId, onClose }) => {
     let financierName = data.nbfcName;
     
     if (data.nbfcName && data.nbfcName.toLowerCase().includes('findoc')) {
-      financierName = 'Findoc: Finvest Private Limited';
+      financierName = 'Findoc Finvest Private Limited';
     } else if (data.nbfcName && data.nbfcName.toLowerCase().includes('fibe')) {
       financierName = 'Fibe: Earlysalary Services Private Limited';
     }
@@ -143,13 +137,13 @@ const DisbursalOrderOverlay: React.FC<Props> = ({ loanId, onClose }) => {
         setError(null);
         setLoadingProgress(0);
         
-        // Simulate progress updates
+        // Simulate progress updates over 2 seconds to reach 100%
         const progressInterval = setInterval(() => {
           setLoadingProgress(prev => {
-            if (prev >= 90) return prev; // Don't go to 100% until API call completes
-            return prev + Math.random() * 12; // Slower increments for better trace visibility
+            if (prev >= 100) return 100;
+            return prev + (100 / 20); // Increment by 5% every 100ms for 2 seconds total
           });
-        }, 250);
+        }, 100);
         
         const result = await getDisburseDataByLoanId(loanId);
         
@@ -157,14 +151,17 @@ const DisbursalOrderOverlay: React.FC<Props> = ({ loanId, onClose }) => {
         setLoadingProgress(100);
         clearInterval(progressInterval);
         
-        // Wait for the loading animation to complete (show 100% for a moment)
-        await new Promise(resolve => setTimeout(resolve, 800));
+        // Wait for 2 seconds total for the loading animation to complete
+        await new Promise(resolve => setTimeout(resolve, 2000));
+        
         
         if (result.success && result.data) {
           const mappedData = mapDisbursementDataToOrderData(result.data);
           // Add a small delay to make the trace opening effect more visible
-          await new Promise(resolve => setTimeout(resolve, 200));
+          await new Promise(resolve => setTimeout(resolve, 500));
           setDisbursalOrderData(mappedData);
+          // Trigger slide-up animation
+          setShowSlideUp(true);
         } else {
           setError(result.message || 'Failed to fetch disbursement data');
         }
@@ -234,14 +231,16 @@ const DisbursalOrderOverlay: React.FC<Props> = ({ loanId, onClose }) => {
         <div className="relative bg-white w-full max-w-[800px] rounded-t-3xl sm:rounded-lg shadow-xl">
           {/* Header */}
           <div className="bg-primary-600 text-white px-4 py-3 rounded-t-3xl sm:rounded-t-lg">
-            <div className="flex items-center space-x-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-3">
+                <h3 className="font-semibold text-base">Disbursal Order</h3>
+              </div>
               <button 
                 onClick={onClose} 
                 className="p-1 hover:bg-primary-700 rounded-full transition-colors"
               >
-                <ArrowLeft className="h-5 w-5" />
+                <X className="h-5 w-5" />
               </button>
-              <h3 className="font-semibold text-base">Disbursal Order</h3>
             </div>
           </div>
           
@@ -316,14 +315,16 @@ const DisbursalOrderOverlay: React.FC<Props> = ({ loanId, onClose }) => {
         <div className="relative bg-white w-full max-w-[800px] rounded-t-3xl sm:rounded-lg shadow-xl">
           {/* Header */}
           <div className="bg-primary-600 text-white px-4 py-3 rounded-t-3xl sm:rounded-t-lg">
-            <div className="flex items-center space-x-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-3">
+                <h3 className="font-semibold text-base">Disbursal Order</h3>
+              </div>
               <button 
                 onClick={onClose} 
                 className="p-1 hover:bg-primary-700 rounded-full transition-colors"
               >
-                <ArrowLeft className="h-5 w-5" />
+                <X className="h-5 w-5" />
               </button>
-              <h3 className="font-semibold text-base">Disbursal Order</h3>
             </div>
           </div>
           
@@ -372,21 +373,21 @@ const DisbursalOrderOverlay: React.FC<Props> = ({ loanId, onClose }) => {
       />
       
       {/* Bottom Sheet / Modal */}
-      <div className="relative bg-white w-full h-full sm:h-auto sm:max-w-[800px] sm:max-h-[95vh] rounded-none sm:rounded-lg shadow-xl flex flex-col animate-fadeIn">
+      <div className={`relative bg-white w-full h-full sm:h-auto sm:max-w-[800px] sm:max-h-[95vh] rounded-none sm:rounded-lg shadow-xl flex flex-col ${showSlideUp ? 'animate-slideUp' : ''}`}>
         {/* Header */}
         <div className="bg-primary-600 text-white px-4 py-3 rounded-none sm:rounded-t-lg flex-shrink-0">
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-3">
-              <button 
-                onClick={onClose} 
-                className="p-1 hover:bg-primary-700 rounded-full transition-colors"
-              >
-                <ArrowLeft className="h-5 w-5" />
-              </button>
               <h3 className="font-semibold text-base">
                 Disbursal Order - {disbursalOrderData.id}
               </h3>
             </div>
+            <button 
+              onClick={onClose} 
+              className="p-1 hover:bg-primary-700 rounded-full transition-colors"
+            >
+              <X className="h-5 w-5" />
+            </button>
           </div>
         </div>
 
@@ -395,7 +396,7 @@ const DisbursalOrderOverlay: React.FC<Props> = ({ loanId, onClose }) => {
           <div className="w-full h-full flex justify-center">
             <div 
               ref={contentRef}
-              className="bg-white w-full max-w-full animate-fadeIn"
+              className="bg-white w-full max-w-full"
               style={{ 
                 width: '100%',
                 minHeight: 'fit-content',

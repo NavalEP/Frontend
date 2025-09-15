@@ -14,6 +14,7 @@ import PatientChatHistory from '../components/PatientChatHistory';
 import PaymentPlanPopup from '../components/PaymentPlanPopup';
 import AddressDetailsPopup from '../components/AddressDetailsPopup';
 import ProgressBar from '../components/ProgressBar';
+import CelebrationEffect from '../components/CelebrationEffect';
 import { useProgressBarState } from '../utils/progressUtils';
 import { PostApprovalStatusData } from '../services/postApprovalApi';
 import { SendHorizonal, Plus, Notebook as Robot, History, ArrowLeft, Search, LogOut, User, MapPin, Briefcase, Calendar, Mail, GraduationCap, Heart, Edit3, Phone, Menu, TrendingUp } from 'lucide-react';
@@ -87,6 +88,8 @@ const ChatPage: React.FC = () => {
   const [showOfferButton, setShowOfferButton] = useState(false);
   const [showLoanTransactionsOverlay, setShowLoanTransactionsOverlay] = useState(false);
   const [showBusinessOverviewOverlay, setShowBusinessOverviewOverlay] = useState(false);
+  const [showCelebration, setShowCelebration] = useState(false);
+  const [hasShownCelebration, setHasShownCelebration] = useState(false);
 
   // Utility function to create image preview
   const createImagePreview = (file: File): Promise<string> => {
@@ -619,6 +622,18 @@ const ChatPage: React.FC = () => {
       setIsLoading(false);
     }
   };
+
+  // Function to refresh session and progress bar data (used by popups)
+  const refreshSessionAndProgress = async () => {
+    console.log('Refreshing session and progress bar data...');
+    await fetchSessionDetails();
+    
+    // Also fetch updated progress bar data to check for EMI plan selection
+    if (userHasSentFirstMessage) {
+      console.log('Refreshing progress bar data after session refresh');
+      fetchUserStatuses();
+    }
+  };
   
   // Check if we should show structured form based on conversation state
   const shouldShowStructuredForm = () => {
@@ -703,6 +718,12 @@ const ChatPage: React.FC = () => {
         
         // Fetch updated session details after message exchange
         fetchSessionDetails();
+        
+        // Fetch updated progress bar data after message exchange to check for EMI plan selection
+        if (userHasSentFirstMessage) {
+          console.log('Message exchange completed - fetching updated progress bar data');
+          fetchUserStatuses();
+        }
       } else if (response.data.message === 'Session not found' || response.data.status === 'error') {
         // Session expired or invalid, start a new one
         setError('Your session has expired. Starting a new session...');
@@ -1388,6 +1409,16 @@ const ChatPage: React.FC = () => {
         setUserStatuses(progressData.userStatuses);
         setPostApprovalData(progressData.postApprovalData);
         setStepCompletion(progressData.stepCompletion);
+        
+        // Check if all post-approval statuses are true and show celebration
+        if (progressData.postApprovalData && !hasShownCelebration) {
+          const { selfie, agreement_setup, auto_pay, aadhaar_verified } = progressData.postApprovalData;
+          if (selfie && agreement_setup && auto_pay && aadhaar_verified) {
+            setShowCelebration(true);
+            setHasShownCelebration(true);
+            console.log('🎉 All post-approval statuses are true! Showing celebration!');
+          }
+        }
         
         console.log('Progress bar data fetched successfully:', {
           userStatuses: progressData.userStatuses,
@@ -2359,7 +2390,7 @@ const ChatPage: React.FC = () => {
           onClose={handleClosePaymentPlanPopup}
           url={paymentPlanUrl}
           sessionId={sessionId || undefined}
-          onSessionRefresh={fetchSessionDetails}
+          onSessionRefresh={refreshSessionAndProgress}
         />
 
       {/* Address Details Popup */}
@@ -2369,7 +2400,13 @@ const ChatPage: React.FC = () => {
         kycUrl={addressDetailsUrl}
         userId={localStorage.getItem('userId') || ''}
         onMessageSend={handleMessageSubmit}
-        onSessionRefresh={fetchSessionDetails}
+        onSessionRefresh={refreshSessionAndProgress}
+      />
+
+      {/* Celebration Effect */}
+      <CelebrationEffect 
+        show={showCelebration} 
+        onComplete={() => setShowCelebration(false)} 
       />
         
     </div>

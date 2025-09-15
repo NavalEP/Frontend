@@ -1027,7 +1027,7 @@ const TransactionDetailsOverlay: React.FC<Props> = ({ transaction, onClose }) =>
               
               {loanStatusData.length > 0 ? (
                 <div className="space-y-4">
-                  {loanStatusData.map((item, index) => (
+                  {loanStatusData.slice().reverse().map((item, index) => (
                     <div key={item.statusCode || index} className="flex items-start space-x-3">
                       {/* Timeline connector */}
                       <div className="flex flex-col items-center">

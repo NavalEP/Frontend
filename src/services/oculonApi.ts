@@ -1,7 +1,6 @@
 import axios from 'axios';
+import { OCULON_API_BASE_URL } from '../utils/constants';
 
-// Base URL for Oculon API - using proxy in development
-const OCULON_API_BASE_URL = '/api/oculon';
 
 // Create axios instance for Oculon API
 const oculonApi = axios.create({
@@ -51,7 +50,7 @@ export const getMerchantScore = async (doctorCode: string): Promise<MerchantScor
   try {
     console.log('🔍 Oculon API: Fetching merchant score for doctor code:', doctorCode);
     
-    const response = await oculonApi.get(`/merchants/score/?doctor_code=${encodeURIComponent(doctorCode)}`);
+    const response = await oculonApi.get(`api/merchants/score/?doctor_code=${encodeURIComponent(doctorCode)}`);
     
     console.log('🔍 Oculon API: Merchant score response:', response.data);
     

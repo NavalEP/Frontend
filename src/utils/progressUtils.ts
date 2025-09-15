@@ -93,11 +93,12 @@ export const getPostApprovalStatusForProgress = async (loanId: string): Promise<
 };
 
 /**
- * Function to determine which steps are completed based on post-approval status
+ * Function to determine which steps are completed based on post-approval status and user statuses
  * @param postApprovalData - Post-approval status data
+ * @param userStatuses - Array of user status strings to check for EMI plan selection
  * @returns Object with completion status for each step
  */
-export const getStepCompletionFromPostApproval = (postApprovalData: PostApprovalStatusData | null) => {
+export const getStepCompletionFromPostApproval = (postApprovalData: PostApprovalStatusData | null, userStatuses: string[] = []) => {
   if (!postApprovalData) {
     return {
       eligibility: true, // Always completed
@@ -108,9 +109,15 @@ export const getStepCompletionFromPostApproval = (postApprovalData: PostApproval
     };
   }
 
+  // Check if EMI plan has been selected by looking at user statuses
+  const hasEmiPlanSelected = userStatuses.some(status => 
+    status.toLowerCase().includes('emi plan selected') || 
+    status.toLowerCase().includes('plan selected')
+  );
+
   return {
     eligibility: true, // Always completed
-    selectPlan: true, // Assume completed if we have post-approval data
+    selectPlan: hasEmiPlanSelected, // Only green when EMI plan is actually selected
     kyc: postApprovalData.selfie, // KYC is green when selfie is true
     autopaySetup: postApprovalData.auto_pay, // Autopay Setup is green when auto_pay is true
     authorize: postApprovalData.agreement_setup // Authorize is green when agreement_setup is true
@@ -163,7 +170,7 @@ export const useProgressBarState = async (loanId: string) => {
     ? getCurrentStepFromPostApproval(postApprovalData)
     : getCurrentStepFromUserStatuses(userStatuses);
   
-  const stepCompletion = getStepCompletionFromPostApproval(postApprovalData);
+  const stepCompletion = getStepCompletionFromPostApproval(postApprovalData, userStatuses);
   
   return {
     userStatuses,

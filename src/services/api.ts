@@ -1,4 +1,5 @@
 import axios, { AxiosResponse } from 'axios';
+import { API_BASE_URL } from '../utils/constants';
 
 // Types
 interface SendOtpResponse {
@@ -208,9 +209,6 @@ interface PatientSessionsResponse {
   total_sessions: number;
   sessions: PatientSession[];
 }
-
-// Base URL for API
-const API_BASE_URL = 'https://uatloanbot.carepay.money/api/v1/agent';
 
 // Create axios instance
 const api = axios.create({

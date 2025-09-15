@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Loader2, CheckCircle, AlertCircle } from 'lucide-react';
-import { getLoanDetailsByUserId, getBureauDecisionData, saveLoanDetails, updateTreatmentAndLoanAmount, updateProductDetail, BureauDecisionData, BureauEmiPlan, LoanDetailsByUserId } from '../services/loanApi';
+import { getLoanDetailsByUserId, getBureauDecisionData, updateTreatmentAndLoanAmount, updateProductDetail, BureauDecisionData, BureauEmiPlan, LoanDetailsByUserId } from '../services/loanApi';
 import { createSession, sendMessage } from '../services/api';
 
 interface PaymentPlanPopupProps {
@@ -186,10 +186,10 @@ const PaymentPlanPopup: React.FC<PaymentPlanPopupProps> = ({
     if (selectedPlan && extractedUserId && loanDetails && extractedLoanId) {
       try {
         // Step 1: Update product detail using the new API
-        console.log('Updating product detail for loanId:', extractedLoanId, 'with productId:', selectedPlan.productDetailsDO.id);
+        console.log('Updating product detail for loanId:', extractedLoanId, 'with productId:', selectedPlan.productDetailsDO.productId);
         const updateProductResult = await updateProductDetail(
           extractedLoanId,
-          selectedPlan.productDetailsDO.id.toString(),
+          selectedPlan.productDetailsDO.productId,
           'user'
         );
 
@@ -198,33 +198,9 @@ const PaymentPlanPopup: React.FC<PaymentPlanPopupProps> = ({
         }
 
         console.log('Product detail updated successfully:', updateProductResult.message);
-
-        // Step 2: Prepare the payload for save loan details API (keeping for compatibility)
-        const savePayload = {
-          userId: extractedUserId,
-          doctorId: loanDetails.doctorId,
-          loanAmount: selectedPlan.netLoanAmount,
-          loanEMI: selectedPlan.productDetailsDO.totalEmi,
-          productId: selectedPlan.productDetailsDO.id,
-          internalProductId: selectedPlan.productDetailsDO.productId || '',
-          treatmentAmount: treatmentAmount,
-          advanceEmiAmount: selectedPlan.productDetailsDO.advanceEmi * selectedPlan.emi
-        };
-
-        console.log('Saving loan details with payload:', savePayload);
-
-        // Step 3: Call the save loan details API (keeping for compatibility)
-        const saveResult = await saveLoanDetails(savePayload);
-
-        if (!saveResult.success) {
-          console.warn('Warning: saveLoanDetails failed but updateProductDetail succeeded:', saveResult.message);
-          // Continue execution as the main update was successful
-        } else {
-          console.log('Loan details saved successfully');
-        }
         
         // Send detailed message to agent about the selected payment plan
-        const agentMessage = `I have selected my preferred EMI plan:
+        const agentMessage = `Preferred EMI plan:
 
 Plan: ${selectedPlan.productDetailsDO.totalEmi}/${selectedPlan.productDetailsDO.advanceEmi}\n\n
 
@@ -303,25 +279,6 @@ Loan Amount: ${selectedPlan.netLoanAmount}\n\n
       }
 
       console.log('Treatment and loan amount updated successfully:', updateResult.message);
-
-      // Step 2: Save the updated loan details (keeping existing saveLoanDetails call for compatibility)
-      const saveResult = await saveLoanDetails({
-        userId: extractedUserId,
-        doctorId: loanDetails.doctorId,
-        treatmentAmount: treatmentAmount,
-        loanAmount: treatmentAmount, // Using treatment amount as loan amount
-        loanEMI: undefined,
-        productId: undefined,
-        internalProductId: undefined,
-        advanceEmiAmount: undefined
-      });
-
-      if (!saveResult.success) {
-        console.warn('Warning: saveLoanDetails failed but updateTreatmentAndLoanAmount succeeded:', saveResult.message);
-        // Continue execution as the main update was successful
-      }
-
-      console.log('Loan details saved successfully with new treatment amount:', treatmentAmount);
 
       // Step 3: Fetch updated bureau decision with new treatment amount
       console.log('Fetching new bureau decision for loanId:', extractedLoanId);
@@ -476,9 +433,9 @@ Loan Amount: ${selectedPlan.netLoanAmount}\n\n
                 {bureauDecision?.emiPlanList && bureauDecision.emiPlanList.length > 0 && (
                   <div className="bg-green-100 rounded-xl p-4">
                     <div className="flex justify-between items-center">
-                      <span className="text-lg font-medium text-gray-900">Credit limit:</span>
+                      <span className="text-lg font-medium text-gray-900">Max Gross Treatment Amount:</span>
                       <span className="text-2xl font-bold text-green-600">
-                        {formatCurrency(bureauDecision.emiPlanList[0].creditLimitCalculated)}
+                        {formatCurrency(Math.max(...bureauDecision.emiPlanList.map(plan => plan.grossTreatmentAmount)))}
                       </span>
                     </div>
                   </div>
@@ -535,7 +492,7 @@ Loan Amount: ${selectedPlan.netLoanAmount}\n\n
                           >
                             <div className="text-center">
                               <div className="text-xl font-bold text-blue-600 mb-2">
-                                {plan.productDetailsDO.totalEmi - plan.productDetailsDO.advanceEmi}/{plan.productDetailsDO.advanceEmi}
+                                {plan.productDetailsDO.totalEmi}/{plan.productDetailsDO.advanceEmi}
                               </div>
                               <div className="text-sm text-gray-600 mb-2">
                                 {plan.productDetailsDO.advanceEmi} Advance EMIs
@@ -677,7 +634,7 @@ Loan Amount: ${selectedPlan.netLoanAmount}\n\n
                       
                       <div className="flex justify-between items-center py-2 border-b border-gray-200">
                         <span className="text-gray-600">You will repay in</span>
-                        <span className="font-medium text-gray-900">{selectedPlan.productDetailsDO.totalEmi} EMIs</span>
+                        <span className="font-medium text-gray-900">{selectedPlan.productDetailsDO.totalEmi - selectedPlan.productDetailsDO.advanceEmi} EMIs</span>
                       </div>
                       
                       <div className="flex justify-between items-center py-2 border-b border-gray-200">
@@ -692,7 +649,7 @@ Loan Amount: ${selectedPlan.netLoanAmount}\n\n
                       
                       <div className="flex justify-between items-center py-2 border-b border-gray-200">
                         <span className="text-gray-600">Processing fees</span>
-                        <span className="font-medium text-gray-900">{formatCurrency(selectedPlan.productDetailsDO.processingFesIncludingGSTINR)} (including GST)</span>
+                        <span className="font-medium text-gray-900">₹ {Math.round(selectedPlan.grossTreatmentAmount * selectedPlan.productDetailsDO.processingFesIncludingGSTRate / 100).toLocaleString()} ({selectedPlan.productDetailsDO.processingFesIncludingGSTRate}%)</span>
                       </div>
                       
                       <div className="text-sm text-gray-500 italic mt-3">

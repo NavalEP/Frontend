@@ -1,7 +1,5 @@
 import axios from 'axios';
-
-// Base URL configuration - Direct API calls to backend
-const API_BASE_URL = 'https://uatloanbot.carepay.money/api/v1/agent';
+import { API_BASE_URL } from '../utils/constants';
 
 // Create axios instance with authentication
 const loanApi = axios.create({
@@ -1212,24 +1210,15 @@ export const getDoctorDashboardData = async (doctorId: string, startDate?: strin
       'Lender flow initiated',
       'KYC required',
       'KYC in progress',
-      'Bank Account KYC required',
-
-  
       'KYC complete',
       'Agreement signing initiated',
       'Agreement generated',
-  
       'Agreement signed',
       'EMI auto pay setup in progress',
-      
-     
-    
-    
       'EMI auto-pay setup complete',
       'Verification initiated for disbursal',
       'Verification completed for disbursal',
       'Disbursal initiated',
-   
       'Loan disbursed',
       'UTR received'
     ];

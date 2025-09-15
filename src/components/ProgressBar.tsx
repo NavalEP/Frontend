@@ -150,10 +150,14 @@ const ProgressBar: React.FC<ProgressBarProps> = ({
               ? isCurrentStep(index)
               : (stepNumber === activeStep);
             
+            // Special logic for last step: if it's completed, show as green even if it's current
+            const isLastStep = index === steps.length - 1; // Last step (Authorize)
+            const shouldShowAsCompleted = isCompleted || (isLastStep && isCurrent && stepCompletion?.authorize);
+            
             // Determine classes based on state - responsive padding and text sizes
             let stepClasses = "relative px-2 sm:px-3 md:px-4 py-1.5 sm:py-2 text-[10px] sm:text-xs font-bold transition-colors flex-shrink-0 text-center";
             
-            if (isCompleted) {
+            if (shouldShowAsCompleted) {
               stepClasses += " bg-green-600 text-white";
             } else if (isCurrent) {
               stepClasses += " text-white";
@@ -179,7 +183,7 @@ const ProgressBar: React.FC<ProgressBarProps> = ({
                   clipPath: clipPathStyle,
                   flex:1,
                   paddingRight : 0,
-                  backgroundColor: isCurrent ? '#514c9f' : undefined
+                  backgroundColor: (isCurrent && !shouldShowAsCompleted) ? '#514c9f' : undefined
                 }}
               >
                 <span className="whitespace-nowrap text-center">{step}</span>

@@ -1,7 +1,5 @@
 import axios from 'axios';
-
-// Base URL configuration for CarePay backend
-const CAREPAY_API_BASE_URL = 'https://backend.carepay.money';
+import { CAREPAY_API_BASE_URL } from '../utils/constants';
 
 // Create axios instance for CarePay API
 const carePayApi = axios.create({
@@ -33,6 +31,41 @@ export interface PostApprovalStatusResponse {
 export interface PostApprovalStatusResult {
   success: boolean;
   data?: PostApprovalStatusData;
+  message: string;
+}
+
+// Interface for zip code details data
+export interface ZipCodeDetailsData {
+  branchName: string | null;
+  branchCode: string | null;
+  destrict: string | null;
+  status: string;
+  bankAddress: string | null;
+  bankCode: string | null;
+  ifsc: string | null;
+  contact: number;
+  city: string | null;
+  state: string | null;
+}
+
+// Interface for the zip code API response
+export interface ZipCodeDetailsResponse {
+  branchName: string | null;
+  branchCode: string | null;
+  destrict: string | null;
+  status: string;
+  bankAddress: string | null;
+  bankCode: string | null;
+  ifsc: string | null;
+  contact: number;
+  city: string | null;
+  state: string | null;
+}
+
+// Interface for the zip code API function return type
+export interface ZipCodeDetailsResult {
+  success: boolean;
+  data?: ZipCodeDetailsData;
   message: string;
 }
 
@@ -93,6 +126,81 @@ export const getPostApprovalStatus = async (loanId: string): Promise<PostApprova
       
       if (error.response.status === 404) {
         throw new Error('Post-approval status not found for this loan ID.');
+      }
+      
+      if (error.response.status === 500) {
+        const errorMessage = error.response.data?.message || 'Internal server error';
+        throw new Error(`Server Error: ${errorMessage}`);
+      }
+      
+      // Handle other status codes
+      const errorMessage = error.response.data?.message || error.message;
+      throw new Error(`API Error (${error.response.status}): ${errorMessage}`);
+    }
+    
+    // Handle non-axios errors
+    throw new Error(`Unexpected error: ${error.message || 'Unknown error occurred'}`);
+  }
+};
+
+/**
+ * Get zip code details for a given code
+ * @param code - The zip code to get details for
+ * @param type - The type of code (default: 'zip')
+ * @returns Promise with the zip code details result
+ */
+export const getZipCodeDetails = async (code: string, type: string = 'zip'): Promise<ZipCodeDetailsResult> => {
+  try {
+    console.log('Fetching zip code details for code:', code, 'type:', type);
+
+    const response = await carePayApi.get<ZipCodeDetailsResponse>('/userDetails/codeDetail', {
+      params: { code, type },
+      headers: {
+        'Accept': 'application/json'
+      }
+    });
+
+    console.log('Zip code details response:', response.data);
+
+    // Check if the response is successful
+    if (response.data.status === 'success') {
+      return {
+        success: true,
+        data: response.data,
+        message: 'Zip code details retrieved successfully'
+      };
+    }
+
+    // Handle non-success status responses
+    return {
+      success: false,
+      message: 'Failed to retrieve zip code details'
+    };
+
+  } catch (error: any) {
+    console.error('Error getting zip code details:', error);
+    
+    if (axios.isAxiosError(error)) {
+      if (error.code === 'ECONNABORTED') {
+        throw new Error('Request timed out. Please try again.');
+      }
+      
+      if (!error.response) {
+        throw new Error('Unable to connect to the CarePay backend server. Please check your internet connection.');
+      }
+      
+      // Handle specific HTTP status codes
+      if (error.response.status === 400) {
+        const errorMessage = error.response.data?.message || 'Invalid zip code provided';
+        throw new Error(`Bad Request: ${errorMessage}`);
+      }
+      
+      if (error.response.status === 401) {
+        throw new Error('Authentication required. Please login again.');
+      }
+      
+      if (error.response.status === 404) {
+        throw new Error('Zip code details not found for this code.');
       }
       
       if (error.response.status === 500) {

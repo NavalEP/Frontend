@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { X, MapPin, Home, Loader2, Search } from 'lucide-react';
 import { getUserAddress, UserAddress, getAllFinDocDistricts, saveAddressDetails, SaveAddressDetailsRequest } from '../services/loanApi';
+import { getZipCodeDetails } from '../services/postApprovalApi';
 
 interface AddressDetailsPopupProps {
   isOpen: boolean;
@@ -50,6 +51,8 @@ const AddressDetailsPopup: React.FC<AddressDetailsPopupProps> = ({
   const [filteredCities, setFilteredCities] = useState<string[]>([]);
   const [showPermanentCitySearch, setShowPermanentCitySearch] = useState(false);
   const [showCurrentCitySearch, setShowCurrentCitySearch] = useState(false);
+  const [isValidatingPermanentPincode, setIsValidatingPermanentPincode] = useState(false);
+  const [isValidatingCurrentPincode, setIsValidatingCurrentPincode] = useState(false);
 
   const states = [
     'Andhra Pradesh',
@@ -193,6 +196,54 @@ const AddressDetailsPopup: React.FC<AddressDetailsPopupProps> = ({
         currentCity: city
       }));
       setShowCurrentCitySearch(false);
+    }
+  };
+
+  const validatePincode = async (pincode: string, type: 'permanent' | 'current') => {
+    // Only validate if pincode is exactly 6 digits
+    if (pincode.length !== 6 || !/^\d{6}$/.test(pincode)) {
+      return;
+    }
+
+    try {
+      if (type === 'permanent') {
+        setIsValidatingPermanentPincode(true);
+      } else {
+        setIsValidatingCurrentPincode(true);
+      }
+
+      console.log(`Validating ${type} pincode:`, pincode);
+      const result = await getZipCodeDetails(pincode, 'zip');
+
+      if (result.success && result.data) {
+        const { city, state } = result.data;
+        
+        if (type === 'permanent') {
+          setAddressForm(prev => ({
+            ...prev,
+            permanentCity: city || '',
+            permanentState: state || ''
+          }));
+        } else {
+          setAddressForm(prev => ({
+            ...prev,
+            currentCity: city || '',
+            currentState: state || ''
+          }));
+        }
+        
+        console.log(`Auto-filled ${type} address:`, { city, state });
+      } else {
+        console.warn(`Failed to validate ${type} pincode:`, result.message);
+      }
+    } catch (error) {
+      console.error(`Error validating ${type} pincode:`, error);
+    } finally {
+      if (type === 'permanent') {
+        setIsValidatingPermanentPincode(false);
+      } else {
+        setIsValidatingCurrentPincode(false);
+      }
     }
   };
 
@@ -396,13 +447,27 @@ const AddressDetailsPopup: React.FC<AddressDetailsPopupProps> = ({
                     
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">Pincode</label>
-                      <input
-                        type="text"
-                        value={addressForm.permanentPincode}
-                        onChange={(e) => handleAddressChange('permanentPincode', e.target.value)}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-offset-2 address-input"
-                        placeholder="Enter pincode"
-                      />
+                      <div className="relative">
+                        <input
+                          type="text"
+                          value={addressForm.permanentPincode}
+                          onChange={(e) => {
+                            handleAddressChange('permanentPincode', e.target.value);
+                            // Validate pincode when user completes 6 digits
+                            if (e.target.value.length === 6) {
+                              validatePincode(e.target.value, 'permanent');
+                            }
+                          }}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-offset-2 address-input"
+                          placeholder="Enter pincode"
+                          maxLength={6}
+                        />
+                        {isValidatingPermanentPincode && (
+                          <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
+                            <Loader2 className="h-4 w-4 animate-spin text-gray-400" />
+                          </div>
+                        )}
+                      </div>
                     </div>
                     
                     <div className="relative">
@@ -493,13 +558,27 @@ const AddressDetailsPopup: React.FC<AddressDetailsPopupProps> = ({
                     
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">Pincode</label>
-                      <input
-                        type="text"
-                        value={addressForm.currentPincode}
-                        onChange={(e) => handleAddressChange('currentPincode', e.target.value)}
-                        placeholder="Enter pincode"
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-offset-2 address-input"
-                      />
+                      <div className="relative">
+                        <input
+                          type="text"
+                          value={addressForm.currentPincode}
+                          onChange={(e) => {
+                            handleAddressChange('currentPincode', e.target.value);
+                            // Validate pincode when user completes 6 digits
+                            if (e.target.value.length === 6) {
+                              validatePincode(e.target.value, 'current');
+                            }
+                          }}
+                          placeholder="Enter pincode"
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-offset-2 address-input"
+                          maxLength={6}
+                        />
+                        {isValidatingCurrentPincode && (
+                          <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
+                            <Loader2 className="h-4 w-4 animate-spin text-gray-400" />
+                          </div>
+                        )}
+                      </div>
                     </div>
                     
                     <div className="relative city-search-container">

@@ -498,7 +498,7 @@ Loan Amount: ${selectedPlan.netLoanAmount}\n\n
                                 {plan.productDetailsDO.advanceEmi} Advance EMIs
                               </div>
                               <div className="text-sm text-gray-500">
-                                Pay over {plan.productDetailsDO.totalEmi} months
+                                Pay over {plan.productDetailsDO.totalEmi-plan.productDetailsDO.advanceEmi} months
                               </div>
                             </div>
                             

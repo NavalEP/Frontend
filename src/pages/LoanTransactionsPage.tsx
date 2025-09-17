@@ -7,9 +7,10 @@ import { getLoanTransactions, formatLoanTransaction, getAllChildClinics, ChildCl
 
 interface LoanTransactionsPageProps {
   onClose?: () => void;
+  onBackToMenu?: () => void;
 }
 
-const LoanTransactionsPage: React.FC<LoanTransactionsPageProps> = ({ onClose }) => {
+const LoanTransactionsPage: React.FC<LoanTransactionsPageProps> = ({ onClose, onBackToMenu }) => {
   const navigate = useNavigate();
   const [query, setQuery] = useState('');
   const [selectedTransaction, setSelectedTransaction] = useState<Transaction | null>(null);
@@ -187,7 +188,7 @@ const LoanTransactionsPage: React.FC<LoanTransactionsPageProps> = ({ onClose }) 
     <div className="flex flex-col h-full">
       {/* Header */}
       <div className="bg-primary-600 text-white px-4 py-3 flex items-center space-x-3">
-        <button onClick={() => onClose ? onClose() : navigate(-1)} className="p-1 hover:bg-primary-700 rounded-full transition-colors">
+        <button onClick={() => onBackToMenu ? onBackToMenu() : (onClose ? onClose() : navigate(-1))} className="p-1 hover:bg-primary-700 rounded-full transition-colors">
           <ArrowLeft className="h-5 w-5" />
         </button>
         <h3 className="ml-3 font-semibold text-lg">All Applications</h3>
@@ -411,6 +412,10 @@ const LoanTransactionsPage: React.FC<LoanTransactionsPageProps> = ({ onClose }) 
         <TransactionDetailsOverlay
           transaction={selectedTransaction}
           onClose={() => setSelectedTransaction(null)}
+          onBackToMenu={onBackToMenu ? () => {
+            setSelectedTransaction(null);
+            onBackToMenu();
+          } : undefined}
         />
       )}
 

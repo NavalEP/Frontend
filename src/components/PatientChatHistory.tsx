@@ -41,12 +41,14 @@ interface PatientChatHistoryProps {
   phoneNumber: string;
   onClose: () => void;
   onSessionSelect?: (sessionId: string) => void;
+  onBackToMenu?: () => void;
 }
 
 const PatientChatHistory: React.FC<PatientChatHistoryProps> = ({
   phoneNumber,
   onClose,
-  onSessionSelect
+  onSessionSelect,
+  onBackToMenu
 }) => {
   const [sessions, setSessions] = useState<PatientSession[]>([]);
   const [loading, setLoading] = useState(true);
@@ -211,7 +213,7 @@ const PatientChatHistory: React.FC<PatientChatHistoryProps> = ({
         <div className="bg-primary-600 text-white px-4 py-3 flex items-center justify-between">
           <div className="flex items-center space-x-3">
             <button
-              onClick={onClose}
+              onClick={onBackToMenu || onClose}
               className="p-1 hover:bg-primary-700 rounded-full transition-colors"
             >
               <ArrowLeft className="h-5 w-5" />

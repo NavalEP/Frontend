@@ -45,9 +45,10 @@ export interface Transaction {
 interface Props {
   transaction: Transaction;
   onClose: () => void;
+  onBackToMenu?: () => void;
 }
 
-const TransactionDetailsOverlay: React.FC<Props> = ({ transaction, onClose }) => {
+const TransactionDetailsOverlay: React.FC<Props> = ({ transaction, onClose, onBackToMenu }) => {
   const { doctorId, doctorCode } = useAuth();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isUploading, setIsUploading] = useState(false);
@@ -663,7 +664,7 @@ const TransactionDetailsOverlay: React.FC<Props> = ({ transaction, onClose }) =>
       <div className="flex flex-col h-full">
         {/* Header */}
         <div className="bg-primary-600 text-white px-4 py-3 flex items-center space-x-3">
-          <button onClick={onClose} className="p-1 hover:bg-primary-700 rounded-full transition-colors">
+          <button onClick={onBackToMenu || onClose} className="p-1 hover:bg-primary-700 rounded-full transition-colors">
             <ArrowLeft className="h-5 w-5" />
           </button>
           <h3 className="font-semibold text-base">Application Details</h3>

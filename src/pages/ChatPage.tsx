@@ -1714,7 +1714,10 @@ const ChatPage: React.FC = () => {
               {/* Sessions Header */}
               <div className="bg-primary-600 text-white px-4 py-3 flex items-center space-x-3">
                 <button
-                  onClick={() => setShowDoctorSessions(false)}
+                  onClick={() => {
+                    setShowDoctorSessions(false);
+                    setShowHamburgerMenu(true);
+                  }}
                   className="p-1 hover:bg-primary-700 rounded-full transition-colors"
                 >
                   <ArrowLeft className="h-5 w-5" />
@@ -1739,6 +1742,10 @@ const ChatPage: React.FC = () => {
           <PatientChatHistory
             phoneNumber={phoneNumber || ''}
             onClose={() => setShowPatientChatHistory(false)}
+            onBackToMenu={() => {
+              setShowPatientChatHistory(false);
+              setShowHamburgerMenu(true);
+            }}
             onSessionSelect={(sessionId) => {
               setShowPatientChatHistory(false);
               loadChatSession(sessionId);
@@ -2471,14 +2478,26 @@ const ChatPage: React.FC = () => {
       {/* Loan Transactions Overlay */}
       {showLoanTransactionsOverlay && (
         <div className="absolute inset-0 z-20 bg-white overflow-auto">
-          <LoanTransactionsPage onClose={() => setShowLoanTransactionsOverlay(false)} />
+          <LoanTransactionsPage 
+            onClose={() => setShowLoanTransactionsOverlay(false)} 
+            onBackToMenu={() => {
+              setShowLoanTransactionsOverlay(false);
+              setShowHamburgerMenu(true);
+            }}
+          />
         </div>
       )}
 
       {/* Business Overview Overlay */}
       {showBusinessOverviewOverlay && (
         <div className="absolute inset-0 z-20 bg-white overflow-auto">
-          <BusinessOverviewPage onClose={() => setShowBusinessOverviewOverlay(false)} />
+          <BusinessOverviewPage 
+            onClose={() => setShowBusinessOverviewOverlay(false)} 
+            onBackToMenu={() => {
+              setShowBusinessOverviewOverlay(false);
+              setShowHamburgerMenu(true);
+            }}
+          />
         </div>
       )}
 

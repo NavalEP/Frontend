@@ -545,7 +545,7 @@ const TransactionDetailsOverlay: React.FC<Props> = ({ transaction, onClose }) =>
 
     // List of allowed statuses
     const allowedStatuses = [
-      'EMI auto-pay setup complete',
+      'EMI auto pay setup complete',
       'Disbursal initiated', 
       'Loan disbursed',
       'UTR received'
@@ -567,23 +567,8 @@ const TransactionDetailsOverlay: React.FC<Props> = ({ transaction, onClose }) =>
       transaction.status.toLowerCase().includes(status.toLowerCase())
     );
 
-    // Also check for disbursed status (original logic)
-    const isDisbursedStatus = transaction.disbursedAt || transaction.status.toLowerCase().includes('disbursed');
-
-    // Check if treatment invoice has been uploaded (for other clinics)
-    const hasUploadedTreatmentInvoice = uploadedPrescriptions.length > 0;
-
-    // For allowed doctors: enable if they have allowed status, disbursed status, or allowed status in API response
-    if (isAllowedDoctor) {
-      return isAllowedStatus || isDisbursedStatus || hasAllowedStatusInAPI || hasAllowedStatusInTimeline;
-    }
-
-    if ( isDisbursedStatus || hasAllowedStatusInTimeline || hasAllowedStatusInAPI) {
-      return true;
-    }
-
-    // For other clinics: enable if they have uploaded treatment invoice
-    if (hasUploadedTreatmentInvoice) {
+    // Show DO if any of the allowed statuses are present
+    if (isAllowedStatus || hasAllowedStatusInTimeline || hasAllowedStatusInAPI) {
       return true;
     }
 

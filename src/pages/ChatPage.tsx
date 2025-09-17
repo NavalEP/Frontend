@@ -14,9 +14,11 @@ import PatientChatHistory from '../components/PatientChatHistory';
 import PaymentPlanPopup from '../components/PaymentPlanPopup';
 import AddressDetailsPopup from '../components/AddressDetailsPopup';
 import ProgressBar from '../components/ProgressBar';
-import CelebrationEffect from '../components/CelebrationEffect';
+import DisbursalOrderOverlay from '../components/DisbursalOrderOverlay';
+
+
 import { useProgressBarState } from '../utils/progressUtils';
-import { PostApprovalStatusData } from '../services/postApprovalApi';
+import { PostApprovalStatusData, callFinDocApis, getDoctorCategory } from '../services/postApprovalApi';
 import { SendHorizonal, Plus, Notebook as Robot, History, ArrowLeft, Search, LogOut, User, MapPin, Briefcase, Calendar, Mail, GraduationCap, Heart, Edit3, Phone, Menu, TrendingUp } from 'lucide-react';
 import LoanTransactionsPage from './LoanTransactionsPage';
 import BusinessOverviewPage from './BusinessOverviewPage';
@@ -28,6 +30,7 @@ interface Message {
   timestamp: Date;
   imagePreview?: string; // Base64 image preview for uploaded files
   fileName?: string; // Original file name for uploaded files
+  type?: 'disbursal_order'; // Special message type for disbursal order
 }
 
 interface SessionDetails {
@@ -73,7 +76,7 @@ const ChatPage: React.FC = () => {
   } | null>(null);
   const [userHasSentFirstMessage, setUserHasSentFirstMessage] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const { incrementSessionCount, doctorId, doctorName, clinicName, logout, sessionCount, loginRoute, phoneNumber } = useAuth();
+  const { incrementSessionCount, doctorId, doctorName, doctorCode, clinicName, logout, sessionCount, loginRoute, phoneNumber } = useAuth();
   
   // Debug logging for authentication state
   useEffect(() => {
@@ -141,6 +144,62 @@ const ChatPage: React.FC = () => {
   // Patient Chat History State
   const [showPatientChatHistory, setShowPatientChatHistory] = useState(false);
   
+  // Disbursal Order State
+  const [showDisbursalOrder, setShowDisbursalOrder] = useState(false);
+  const [hasProcessedFinDoc, setHasProcessedFinDoc] = useState(false);
+  const [showRefreshButton, setShowRefreshButton] = useState(false);
+  
+
+  // Function to process FinDoc APIs and check doctor category
+  const processFinDocAndGetCategory = async (loanId: string) => {
+    if (hasProcessedFinDoc) return; // Prevent multiple calls
+    
+    setHasProcessedFinDoc(true);
+
+    try {
+      // Step 1: Call FinDoc APIs
+      console.log('Calling FinDoc APIs for loan ID:', loanId);
+      const finDocResult = await callFinDocApis(loanId);
+      
+      if (!finDocResult.success) {
+        throw new Error(finDocResult.message || 'Failed to execute FinDoc APIs');
+      }
+      
+      console.log('FinDoc APIs executed successfully:', finDocResult.data);
+    } catch (error: any) {
+      console.error('Error in FinDoc processing:', error);
+      // Continue to check doctor category even if FinDoc fails
+    }
+
+    // Step 2: Get doctor category regardless of FinDoc API result
+    if (doctorCode) {
+      try {
+        console.log('Getting doctor category for doctor code:', doctorCode);
+        const categoryResult = await getDoctorCategory(doctorCode);
+        
+        if (categoryResult.success && categoryResult.data) {
+          const category = categoryResult.data.category;
+          console.log('Doctor category retrieved:', category);
+          
+          // Step 3: If category is A, automatically show disbursal order
+          if (category === 'A') {
+            console.log('Doctor category is A, automatically showing disbursal order');
+            setShowDisbursalOrder(true);
+            setShowRefreshButton(true); // Show refresh button when disbursal order is shown
+          } else {
+            console.log('Doctor category is not A, not showing disbursal order automatically');
+          }
+        } else {
+          console.warn('Failed to retrieve doctor category:', categoryResult.message);
+        }
+      } catch (categoryError: any) {
+        console.error('Error getting doctor category:', categoryError);
+      }
+    } else {
+      console.warn('Doctor code not available for category check');
+    }
+  };
+
   // Helper function to format welcome message from API response
   const formatWelcomeMessage = (content: string): string => {
     // If content already has formatting, return it as is
@@ -651,6 +710,23 @@ const ChatPage: React.FC = () => {
     
     // If user hasn't sent first message, show structured form
     return !hasUserSentFirstMessage(messages);
+  };
+
+  // Check if there's a PaymentStepsMessage in the chat
+  const hasPaymentStepsMessage = () => {
+    return messages.some(message => 
+      message.sender === 'agent' && (
+        message.text.toLowerCase().includes('payment is now just 3 steps away') ||
+        message.text.toLowerCase().includes('payment is now just 4 steps away') ||
+        (message.text.toLowerCase().includes('face verification') && 
+         message.text.toLowerCase().includes('emi auto payment approval') && 
+         message.text.toLowerCase().includes('agreement e-signing')) ||
+        (message.text.toLowerCase().includes('adhaar verification') && 
+         message.text.toLowerCase().includes('face verification') && 
+         message.text.toLowerCase().includes('emi auto payment approval') && 
+         message.text.toLowerCase().includes('agreement e-signing'))
+      )
+    );
   };
 
   const handleStructuredFormSubmit = (formattedMessage: string) => {
@@ -1416,7 +1492,14 @@ const ChatPage: React.FC = () => {
           if (selfie && agreement_setup && auto_pay && aadhaar_verified) {
             setShowCelebration(true);
             setHasShownCelebration(true);
+            setShowRefreshButton(true); // Show refresh button when all statuses are true
             console.log('🎉 All post-approval statuses are true! Showing celebration!');
+            
+            // Trigger FinDoc processing and doctor category check
+            if (loanDetails.loanId && !hasProcessedFinDoc) {
+              console.log('🚀 All post-approval statuses are true, triggering FinDoc processing...');
+              processFinDocAndGetCategory(loanDetails.loanId);
+            }
           }
         }
         
@@ -1879,6 +1962,7 @@ const ChatPage: React.FC = () => {
               />
             </div>
           )}
+
           
           {/* Offer button - Fixed */}
           {showOfferButton && (
@@ -1943,7 +2027,23 @@ const ChatPage: React.FC = () => {
           
           {/* Message input area - Fixed */}
           <div className="whatsapp-input-area p-3 bg-white border-t border-gray-200 chat-input-container">
-            {shouldShowStructuredForm() ? (
+            { hasPaymentStepsMessage() ? (
+              // Show refresh button when all post-approval statuses are true, disbursal order is shown, or PaymentStepsMessage is present
+              <div className="flex items-center justify-center">
+                <button
+                  onClick={() => {
+                    // Refresh the entire page
+                    window.location.reload();
+                  }}
+                  className="bg-green-600 hover:bg-green-700 text-white px-6 py-3 rounded-full transition-colors duration-200 flex items-center space-x-2"
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                  </svg>
+                  <span className="font-medium">Refresh Status</span>
+                </button>
+              </div>
+            ) : shouldShowStructuredForm() ? (
               <StructuredInputForm 
                 onSubmit={handleStructuredFormSubmit}
                 isLoading={isLoading}
@@ -2403,12 +2503,13 @@ const ChatPage: React.FC = () => {
         onSessionRefresh={refreshSessionAndProgress}
       />
 
-      {/* Celebration Effect */}
-      <CelebrationEffect 
-        show={showCelebration} 
-        onComplete={() => setShowCelebration(false)} 
-      />
-        
+      {/* Disbursal Order Overlay */}
+      {showDisbursalOrder && loanId && (
+        <DisbursalOrderOverlay
+          loanId={loanId}
+          onClose={() => setShowDisbursalOrder(false)}
+        />
+      )}   
     </div>
   );
 };

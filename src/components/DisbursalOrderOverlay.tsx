@@ -34,7 +34,7 @@ const loadingStyles = `
 interface DisbursalOrderData {
   id: string;
   patientName: string;
-  disbursedOn: string;
+  disbursedOn: string | null;
   treatmentName: string;
   customerName: string;
   customerNumber: string;
@@ -77,7 +77,8 @@ const DisbursalOrderOverlay: React.FC<Props> = ({ loanId, onClose }) => {
   }, []);
 
   // Helper function to format date
-  const formatDate = (timestamp: number): string => {
+  const formatDate = (timestamp: number | null): string | null => {
+    if (!timestamp) return null;
     const date = new Date(timestamp);
     return date.toLocaleDateString('en-GB', {
       day: '2-digit',

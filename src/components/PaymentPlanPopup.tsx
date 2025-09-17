@@ -556,7 +556,7 @@ Loan Amount: ${selectedPlan.netLoanAmount}\n\n
                             >
                               <div className="text-center">
                                 <div className="text-xl font-bold text-blue-600 mb-2">
-                                  {plan.productDetailsDO.totalEmi - plan.productDetailsDO.advanceEmi}/{plan.productDetailsDO.advanceEmi}
+                                  {plan.productDetailsDO.totalEmi}/{plan.productDetailsDO.advanceEmi}
                                 </div>
                                 <div className="text-sm text-gray-600 mb-2">
                                   {plan.productDetailsDO.advanceEmi} Advance EMIs

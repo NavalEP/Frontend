@@ -45,8 +45,6 @@ const AddressDetailsPopup: React.FC<AddressDetailsPopupProps> = ({
   });
 
   const [isLoading, setIsLoading] = useState(false);
-  const [permanentAddress, setPermanentAddress] = useState<UserAddress | null>(null);
-  const [currentAddress, setCurrentAddress] = useState<UserAddress | null>(null);
   const [cities, setCities] = useState<string[]>([]);
   const [filteredCities, setFilteredCities] = useState<string[]>([]);
   const [showPermanentCitySearch, setShowPermanentCitySearch] = useState(false);
@@ -118,8 +116,6 @@ const AddressDetailsPopup: React.FC<AddressDetailsPopupProps> = ({
         getUserAddress(userId, 'current')
       ]);
 
-      setPermanentAddress(permanent);
-      setCurrentAddress(current);
 
       // Populate form with fetched data
       if (permanent) {

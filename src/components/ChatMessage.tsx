@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Copy, ExternalLink, Share2, Search, ArrowDown, Upload } from 'lucide-react';
+import { Copy, ExternalLink, Share2, Search, ArrowDown, Upload, CheckCircle } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import { getShortlink, searchTreatments } from '../services/api';
 import { smartShare, isNativeSharingSupported } from '../utils/shareUtils';
@@ -27,6 +27,7 @@ interface ChatMessageProps {
   onPaymentPlanPopupOpen?: (url?: string) => void;
   onAddressDetailsPopupOpen?: (url: string) => void;
   loanId?: string;
+  isPaymentPlanCompleted?: boolean;
 }
 
 // Component for styled treatment amount display
@@ -94,7 +95,7 @@ const TreatmentAmountDisplay: React.FC<{ text: string }> = ({ text }) => {
   return <span>{parts}</span>;
 };
 
-const ChatMessage: React.FC<ChatMessageProps> = ({ message, onButtonClick, selectedOption, disabledOptions, onLinkClick, onTreatmentSelect, selectedTreatment, onUploadClick, onPaymentPlanPopupOpen, onAddressDetailsPopupOpen, loanId }) => {
+const ChatMessage: React.FC<ChatMessageProps> = ({ message, onButtonClick, selectedOption, disabledOptions, onLinkClick, onTreatmentSelect, selectedTreatment, onUploadClick, onPaymentPlanPopupOpen, onAddressDetailsPopupOpen, loanId, isPaymentPlanCompleted }) => {
   const isUser = message.sender === 'user';
   const [resolvedUrls, setResolvedUrls] = useState<Record<string, string>>({});
   const [loadingUrls, setLoadingUrls] = useState<Set<string>>(new Set());
@@ -157,6 +158,25 @@ const ChatMessage: React.FC<ChatMessageProps> = ({ message, onButtonClick, selec
      message.text.toLowerCase().includes('clicking the file upload') ||
      message.text.toLowerCase().includes('enter patient pan') ||
      message.text.toLowerCase().includes('pan card details'))
+  );
+  
+  // Check if this is a bank statement upload request
+  const isBankStatementUploadRequest = !isUser && (
+    message.text.toLowerCase().includes('bank statement') &&
+    (message.text.toLowerCase().includes('upload') || 
+     message.text.toLowerCase().includes('last 3 months') ||
+     message.text.toLowerCase().includes('assess their application') ||
+     message.text.toLowerCase().includes('fair chance of approval'))
+  );
+  
+  // Check if this is a post-approval link (Fibe portal or similar)
+  const isPostApprovalLink = !isUser && (
+    
+    (message.text.includes('https://') && 
+     (message.text.toLowerCase().includes('continue your remaining journey') || 
+      message.text.toLowerCase().includes('continue') || 
+      message.text.toLowerCase().includes('proceed') ||
+      message.text.toLowerCase().includes('complete')))
   );
   
   // Check if this is the No-cost Credit & Debit Card EMI message
@@ -570,6 +590,24 @@ const ChatMessage: React.FC<ChatMessageProps> = ({ message, onButtonClick, selec
 
 
   const renderPaymentPlanButton = () => {
+    if (isPaymentPlanCompleted) {
+      return (
+        <div className="mt-3">
+          <button
+            disabled
+            className="w-full px-4 py-3 text-white font-bold rounded-lg flex items-center justify-center space-x-2"
+            style={{
+              background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+              boxShadow: '0 4px 6px rgba(16, 185, 129, 0.3)'
+            }}
+          >
+            <CheckCircle className="h-5 w-5" />
+            <span>Completed the payment plan selection</span>
+          </button>
+        </div>
+      );
+    }
+
     return (
       <div className="mt-3">
         <button
@@ -603,6 +641,13 @@ const ChatMessage: React.FC<ChatMessageProps> = ({ message, onButtonClick, selec
     
     // Replace SELF_EMPLOYED with Self Employed
     formattedText = formattedText.replace(/\bSELF_EMPLOYED\b/g, 'Self Employed');
+    
+    // If this is a bank statement message or post-approval link, remove the URL from display
+    if (isBankStatementUploadRequest || isPostApprovalLink) {
+      formattedText = formattedText.replace(/https:\/\/[^\s]+/g, '');
+      // Clean up any extra whitespace or line breaks left behind
+      formattedText = formattedText.replace(/\n\s*\n/g, '\n').trim();
+    }
     
     // If this message has question options, format it to show only the question part
     if (questionData) {
@@ -778,6 +823,11 @@ const ChatMessage: React.FC<ChatMessageProps> = ({ message, onButtonClick, selec
                     strong: ({node, ...props}) => <strong className="font-semibold" {...props} />,
                     a: ({node, href, ...props}) => {
                       if (href && /^https?:\/\//.test(href)) {
+                        // Don't render URLs as clickable links for bank statement messages or post-approval links
+                        if (isBankStatementUploadRequest || isPostApprovalLink) {
+                          return null;
+                        }
+                        
                         const isShort = isShortUrl(href);
                         const resolvedUrl = resolvedUrls[href];
                         const isLoading = loadingUrls.has(href);
@@ -1032,6 +1082,132 @@ const ChatMessage: React.FC<ChatMessageProps> = ({ message, onButtonClick, selec
                 <span className="text-sm md:text-base">Upload PAN Card</span>
               </button>
               <p className="text-xs text-gray-500 text-center mt-1">Click here to upload your PAN card</p>
+            </div>
+          )}
+          
+          {/* Bank Statement Upload Button */}
+          {isBankStatementUploadRequest && (
+            <div className="mt-3">
+              {(() => {
+                // Extract URL from message text
+                const urlRegex = /(https:\/\/[^\s]+)/g;
+                const urls = message.text.match(urlRegex);
+                const bankStatementUrl = urls && urls.length > 0 ? urls[0] : '';
+                
+                return (
+                  <div className="space-y-3">
+                    {/* Main Bank Statement Upload Button */}
+                    <button
+                      onClick={() => {
+                        if (bankStatementUrl) {
+                          window.open(bankStatementUrl, '_blank');
+                        }
+                      }}
+                      className="w-full px-4 py-3 text-white font-bold rounded-lg transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-offset-1 shadow-lg transform hover:scale-105"
+                      style={{
+                        background: 'linear-gradient(135deg, #514c9f 0%, #3d3a7a 100%)',
+                        boxShadow: '0 4px 6px rgba(81, 76, 159, 0.3)'
+                      }}
+                    >
+                      <div className="flex items-center justify-center space-x-2">
+                        <span>Share Bank Statement</span>
+                      </div>
+                    </button>
+                    
+                    {/* Share and Copy Buttons */}
+                    {bankStatementUrl && (
+                      <div className="flex space-x-2">
+                        <button
+                          onClick={() => handleNativeShare(bankStatementUrl)}
+                          className="flex-1 px-3 py-2 font-medium rounded-lg transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-offset-1 flex items-center justify-center space-x-2 text-xs"
+                          style={{
+                            backgroundColor: '#f3f2ff',
+                            color: '#514c9f'
+                          }}
+                          onMouseEnter={(e) => {
+                            e.currentTarget.style.backgroundColor = '#e8e5ff';
+                          }}
+                          onMouseLeave={(e) => {
+                            e.currentTarget.style.backgroundColor = '#f3f2ff';
+                          }}
+                        >
+                          <Share2 className="h-3 w-3" />
+                          <span>Share Bank Statement link</span>
+                        </button>
+                        <button
+                          onClick={() => copyToClipboard(bankStatementUrl)}
+                          className="px-3 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium rounded-lg transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-1 flex items-center justify-center text-xs"
+                        >
+                          <Copy className="h-3 w-3" />
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
+            </div>
+          )}
+          
+          {/* Post-Approval Link Button */}
+          {isPostApprovalLink && (
+            <div className="mt-3">
+              {(() => {
+                // Extract URL from message text
+                const urlRegex = /(https:\/\/[^\s]+)/g;
+                const urls = message.text.match(urlRegex);
+                const postApprovalUrl = urls && urls.length > 0 ? urls[0] : '';
+                
+                return (
+                  <div className="space-y-3">
+                    {/* Main Post-Approval Button */}
+                    <button
+                      onClick={() => {
+                        if (postApprovalUrl) {
+                          window.open(postApprovalUrl, '_blank');
+                        }
+                      }}
+                      className="w-full px-4 py-3 text-white font-bold rounded-lg transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-offset-1 shadow-lg transform hover:scale-105"
+                      style={{
+                        background: 'linear-gradient(135deg, #514c9f 0%, #3d3a7a 100%)',
+                        boxShadow: '0 4px 6px rgba(81, 76, 159, 0.3)'
+                      }}
+                    >
+                      <div className="flex items-center justify-center space-x-2">
+                        <span>Continue Post-Approval</span>
+                      </div>
+                    </button>
+                    
+                    {/* Share and Copy Buttons */}
+                    {postApprovalUrl && (
+                      <div className="flex space-x-2">
+                        <button
+                          onClick={() => handleNativeShare(postApprovalUrl)}
+                          className="flex-1 px-3 py-2 font-medium rounded-lg transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-offset-1 flex items-center justify-center space-x-2 text-xs"
+                          style={{
+                            backgroundColor: '#f3f2ff',
+                            color: '#514c9f'
+                          }}
+                          onMouseEnter={(e) => {
+                            e.currentTarget.style.backgroundColor = '#e8e5ff';
+                          }}
+                          onMouseLeave={(e) => {
+                            e.currentTarget.style.backgroundColor = '#f3f2ff';
+                          }}
+                        >
+                          <Share2 className="h-3 w-3" />
+                          <span>Share Post-Approval link</span>
+                        </button>
+                        <button
+                          onClick={() => copyToClipboard(postApprovalUrl)}
+                          className="px-3 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium rounded-lg transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-1 flex items-center justify-center text-xs"
+                        >
+                          <Copy className="h-3 w-3" />
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
             </div>
           )}
           

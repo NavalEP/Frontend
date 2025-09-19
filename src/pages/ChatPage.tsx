@@ -107,6 +107,7 @@ const ChatPage: React.FC = () => {
 
   const [showPaymentPlanPopup, setShowPaymentPlanPopup] = useState(false);
   const [paymentPlanUrl, setPaymentPlanUrl] = useState<string | undefined>(undefined);
+  const [isPaymentPlanCompleted, setIsPaymentPlanCompleted] = useState(false);
   const [showAddressDetailsPopup, setShowAddressDetailsPopup] = useState(false);
   const [addressDetailsUrl, setAddressDetailsUrl] = useState<string>('');
   const [patientInfoSubmitted, setPatientInfoSubmitted] = useState(false);
@@ -1011,6 +1012,10 @@ const ChatPage: React.FC = () => {
 
   // Function to handle opening the payment plan popup
   const handleOpenPaymentPlanPopup = (url?: string) => {
+    // Don't open popup if payment plan is already completed
+    if (isPaymentPlanCompleted) {
+      return;
+    }
     setPaymentPlanUrl(url);
     setShowPaymentPlanPopup(true);
   };
@@ -1020,6 +1025,22 @@ const ChatPage: React.FC = () => {
     setShowPaymentPlanPopup(false);
     setPaymentPlanUrl(undefined);
   };
+
+  // Function to handle payment plan completion
+  const handlePaymentPlanCompleted = () => {
+    setIsPaymentPlanCompleted(true);
+  };
+
+  // Monitor messages for "Preferred EMI plan" to auto-complete payment plan
+  useEffect(() => {
+    const hasPreferredEmiPlanMessage = messages.some(message => 
+      message.sender === 'agent' && message.text.includes('Preferred EMI plan:')
+    );
+    
+    if (hasPreferredEmiPlanMessage && !isPaymentPlanCompleted) {
+      setIsPaymentPlanCompleted(true);
+    }
+  }, [messages, isPaymentPlanCompleted]);
 
   // Function to handle opening the address details popup
   const handleOpenAddressDetailsPopup = (url: string) => {
@@ -2020,6 +2041,7 @@ const ChatPage: React.FC = () => {
                   onPaymentPlanPopupOpen={handleOpenPaymentPlanPopup}
                   loanId={loanId || undefined}
                   onAddressDetailsPopupOpen={handleOpenAddressDetailsPopup}
+                  isPaymentPlanCompleted={isPaymentPlanCompleted}
                 />
               ))}
               {isLoading && messages.some(m => m.sender === 'user') && (
@@ -2510,6 +2532,7 @@ const ChatPage: React.FC = () => {
           url={paymentPlanUrl}
           sessionId={sessionId || undefined}
           onSessionRefresh={refreshSessionAndProgress}
+          onPaymentPlanCompleted={handlePaymentPlanCompleted}
         />
 
       {/* Address Details Popup */}

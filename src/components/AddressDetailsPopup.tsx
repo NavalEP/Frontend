@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { X, MapPin, Home, Loader2, Search } from 'lucide-react';
-import { getUserAddress, UserAddress, getAllFinDocDistricts, saveAddressDetails, SaveAddressDetailsRequest } from '../services/loanApi';
+import { getUserAddress, getAllFinDocDistricts, saveAddressDetails, SaveAddressDetailsRequest } from '../services/loanApi';
 import { getZipCodeDetails } from '../services/postApprovalApi';
 
 interface AddressDetailsPopupProps {
@@ -27,7 +27,6 @@ interface AddressForm {
 const AddressDetailsPopup: React.FC<AddressDetailsPopupProps> = ({ 
   isOpen, 
   onClose, 
-  kycUrl,
   userId,
   onMessageSend,
   onSessionRefresh

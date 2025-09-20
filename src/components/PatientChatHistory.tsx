@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { getPatientSessions, getSessionDetailsWithHistory, formatIndianTime } from '../services/api';
-import { ArrowLeft, Search, MessageCircle, Calendar, Clock, User, Phone } from 'lucide-react';
+import { ArrowLeft, Search, MessageCircle, Calendar, Clock, User } from 'lucide-react';
 
 interface PatientSession {
   session_id: string;
@@ -13,12 +13,12 @@ interface PatientSession {
   doctorName?: string;
 }
 
-interface PatientSessionsResponse {
-  status: string;
-  phone_number: string;
-  total_sessions: number;
-  sessions: PatientSession[];
-}
+// interface PatientSessionsResponse {
+//   status: string;
+//   phone_number: string;
+//   total_sessions: number;
+//   sessions: PatientSession[];
+// }
 
 interface ChatHistoryItem {
   type: string;

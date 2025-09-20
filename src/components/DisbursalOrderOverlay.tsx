@@ -1,5 +1,5 @@
 import React, { useRef, useState, useEffect } from 'react';
-import { ArrowLeft, Download, X } from 'lucide-react';
+import { Download, X } from 'lucide-react';
 import Lottie from 'lottie-react';
 import { getDisburseDataByLoanId, DisbursementData } from '../services/loanApi';
 import generateDisbursalOrderReceipt from './generateDisbursalOrderReceipt';

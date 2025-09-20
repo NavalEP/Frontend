@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Search, SlidersHorizontal, User, Briefcase, ArrowLeft, Check, Copy } from 'lucide-react';
+import { Search, SlidersHorizontal, User, Briefcase, ArrowLeft, Check, Copy, AlertTriangle } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import TransactionDetailsOverlay, { Transaction } from '../components/TransactionDetailsOverlay';
 import FilterModal, { FilterOptions } from '../components/FilterModal';
@@ -392,10 +392,22 @@ const LoanTransactionsPage: React.FC<LoanTransactionsPageProps> = ({ onClose, on
                       <div className="bg-[#EFF6FF] text-[#2563EB] py-2 px-3 rounded-md inline-block text-sm">
                         {t.status}
                       </div>
-                      {t.approved && (
+                      {(t.status === 'Loan disbursed' || t.status === 'UTR received' || t.disbursedAt) && (
+                        <div className="w-full bg-indigo-600 text-white py-2 px-3 rounded-md flex items-center justify-center space-x-2">
+                          <Check className="h-4 w-4" />
+                          <span>Disbursed at {t.disbursedAt}</span>
+                        </div>
+                      )}
+                      {t.approved && t.status !== 'Loan disbursed' && t.status !== 'UTR received' && (
                         <div className="w-full bg-[#16A34A] text-white py-2 px-3 rounded-md flex items-center justify-center space-x-2">
                           <Check className="h-4 w-4" />
                           <span>Approved</span>
+                        </div>
+                      )}
+                      {t.status === 'Loan Rejected' && (
+                        <div className="w-full bg-gray-600 text-white font-medium px-4 py-2 rounded-lg flex items-center space-x-2 border border-gray-200 shadow-sm">
+                          <AlertTriangle className="h-4 w-4" />
+                          <span>Rejected</span>
                         </div>
                       )}
                     </div>

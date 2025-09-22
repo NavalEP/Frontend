@@ -10,6 +10,7 @@ interface AddressDetailsPopupProps {
   userId: string; // Add userId prop
   onMessageSend?: (message: string) => void; // Add callback for sending messages
   onSessionRefresh?: () => void; // Add callback for session refresh
+  onAddressDetailsCompleted?: () => void; // Add callback for address completion
 }
 
 interface AddressForm {
@@ -29,7 +30,8 @@ const AddressDetailsPopup: React.FC<AddressDetailsPopupProps> = ({
   onClose, 
   userId,
   onMessageSend,
-  onSessionRefresh
+  onSessionRefresh,
+  onAddressDetailsCompleted
 }) => {
   const [addressForm, setAddressForm] = useState<AddressForm>({
     permanentAddress: '',
@@ -350,6 +352,11 @@ const AddressDetailsPopup: React.FC<AddressDetailsPopupProps> = ({
         // Refresh session details
         if (onSessionRefresh) {
           onSessionRefresh();
+        }
+        
+        // Call address completion callback
+        if (onAddressDetailsCompleted) {
+          onAddressDetailsCompleted();
         }
         
         // Close the popup

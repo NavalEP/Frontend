@@ -110,6 +110,7 @@ const ChatPage: React.FC = () => {
   const [isPaymentPlanCompleted, setIsPaymentPlanCompleted] = useState(false);
   const [showAddressDetailsPopup, setShowAddressDetailsPopup] = useState(false);
   const [addressDetailsUrl, setAddressDetailsUrl] = useState<string>('');
+  const [isAddressDetailsCompleted, setIsAddressDetailsCompleted] = useState(false);
   const [patientInfoSubmitted, setPatientInfoSubmitted] = useState(false);
   const [isLogoutModalOpen, setIsLogoutModalOpen] = useState(false);
   const [isNewSessionModalOpen, setIsNewSessionModalOpen] = useState(false);
@@ -1052,6 +1053,11 @@ const ChatPage: React.FC = () => {
   const handleCloseAddressDetailsPopup = () => {
     setShowAddressDetailsPopup(false);
     setAddressDetailsUrl('');
+  };
+
+  // Function to handle address details completion
+  const handleAddressDetailsCompleted = () => {
+    setIsAddressDetailsCompleted(true);
   };
 
 
@@ -2042,6 +2048,7 @@ const ChatPage: React.FC = () => {
                   loanId={loanId || undefined}
                   onAddressDetailsPopupOpen={handleOpenAddressDetailsPopup}
                   isPaymentPlanCompleted={isPaymentPlanCompleted}
+                  isAddressDetailsCompleted={isAddressDetailsCompleted}
                 />
               ))}
               {isLoading && messages.some(m => m.sender === 'user') && (
@@ -2543,6 +2550,7 @@ const ChatPage: React.FC = () => {
         userId={localStorage.getItem('userId') || ''}
         onMessageSend={handleMessageSubmit}
         onSessionRefresh={refreshSessionAndProgress}
+        onAddressDetailsCompleted={handleAddressDetailsCompleted}
       />
 
       {/* Disbursal Order Overlay */}

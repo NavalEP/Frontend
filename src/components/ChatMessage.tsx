@@ -28,6 +28,7 @@ interface ChatMessageProps {
   onAddressDetailsPopupOpen?: (url: string) => void;
   loanId?: string;
   isPaymentPlanCompleted?: boolean;
+  isAddressDetailsCompleted?: boolean;
 }
 
 // Component for styled treatment amount display
@@ -95,7 +96,7 @@ const TreatmentAmountDisplay: React.FC<{ text: string }> = ({ text }) => {
   return <span>{parts}</span>;
 };
 
-const ChatMessage: React.FC<ChatMessageProps> = ({ message, onButtonClick, selectedOption, disabledOptions, onLinkClick, onTreatmentSelect, selectedTreatment, onUploadClick, onPaymentPlanPopupOpen, onAddressDetailsPopupOpen, loanId, isPaymentPlanCompleted }) => {
+const ChatMessage: React.FC<ChatMessageProps> = ({ message, onButtonClick, selectedOption, disabledOptions, onLinkClick, onTreatmentSelect, selectedTreatment, onUploadClick, onPaymentPlanPopupOpen, onAddressDetailsPopupOpen, loanId, isPaymentPlanCompleted, isAddressDetailsCompleted }) => {
   const isUser = message.sender === 'user';
   const [resolvedUrls, setResolvedUrls] = useState<Record<string, string>>({});
   const [loadingUrls, setLoadingUrls] = useState<Set<string>>(new Set());
@@ -171,14 +172,11 @@ const ChatMessage: React.FC<ChatMessageProps> = ({ message, onButtonClick, selec
   
   // Check if this is a post-approval link (Fibe portal or similar)
   const isPostApprovalLink = !isUser && (
-    
-    (message.text.includes('https://') && 
-     (message.text.toLowerCase().includes('continue your remaining journey') || 
-      message.text.toLowerCase().includes('continue') || 
-      message.text.toLowerCase().includes('proceed') ||
-      message.text.toLowerCase().includes('complete')))
+    message.text.toLowerCase().includes('treatment is now just 3 steps away') ||
+    (message.text.toLowerCase().includes('complete kyc') && 
+     message.text.toLowerCase().includes('set up auto-debit') && 
+     message.text.toLowerCase().includes('give consent to disburse'))
   );
-  
   // Check if this is the No-cost Credit & Debit Card EMI message
   const isNoCostEmiMessage = !isUser && (
     message.text.toLowerCase().includes('no-cost credit & debit card emi') ||
@@ -649,6 +647,16 @@ const ChatMessage: React.FC<ChatMessageProps> = ({ message, onButtonClick, selec
       formattedText = formattedText.replace(/\n\s*\n/g, '\n').trim();
     }
     
+    // Special formatting for post-approval link messages with bullet points
+    if (isPostApprovalLink) {
+      // Ensure bullet points are on separate lines with proper line breaks
+      formattedText = formattedText.replace(/•\s*/g, '\n\n• ');
+      // Ensure proper spacing after the main text and before bullet points
+      formattedText = formattedText.replace(/(\w)\n\n•/g, '$1\n\n•');
+      // Clean up any triple line breaks
+      formattedText = formattedText.replace(/\n\n\n+/g, '\n\n');
+    }
+    
     // If this message has question options, format it to show only the question part
     if (questionData) {
       // Remove the options part and "Please Enter input" instructions
@@ -881,11 +889,43 @@ const ChatMessage: React.FC<ChatMessageProps> = ({ message, onButtonClick, selec
                         );
                       }
                       
+                      // Special handling for post-approval link messages
+                      if (isPostApprovalLink && content.includes('•')) {
+                        // Split content by bullet points and render each as separate elements
+                        const parts = content.split(/(•\s*[^\n]*)/g).filter(part => part.trim());
+                        return (
+                          <div className="my-0 leading-tight" style={{ marginBottom: isUser ? '0.0625rem' : '0.125rem' }}>
+                            {parts.map((part, index) => {
+                              if (part.startsWith('•')) {
+                                return (
+                                  <div key={index} className="my-1">
+                                    {part}
+                                  </div>
+                                );
+                              }
+                              return <span key={index}>{part}</span>;
+                            })}
+                          </div>
+                        );
+                      }
+                      
                       return <p className="my-0 leading-tight" style={{ marginBottom: isUser ? '0.0625rem' : '0.125rem' }} {...props} />;
                     },
-                                     li: ({node, ...props}) => <li className={`leading-tight pl-0 ${isUser ? 'my-0' : 'my-0.5'}`} {...props} />,
-                     ol: ({node, ...props}) => <ol className={`${isUser ? 'pl-2 my-0.5 space-y-0' : 'pl-3 my-1 space-y-0.5'} list-decimal`} {...props} />,
-                     ul: ({node, ...props}) => <ul className={`${isUser ? 'pl-2 my-0.5 space-y-0' : 'pl-3 my-1 space-y-0.5'} list-disc`} {...props} />,
+                                      li: ({node, ...props}) => {
+                                        // Special styling for post-approval link messages
+                                        if (isPostApprovalLink) {
+                                          return <li className="leading-tight pl-0 my-1" {...props} />;
+                                        }
+                                        return <li className={`leading-tight pl-0 ${isUser ? 'my-0' : 'my-0.5'}`} {...props} />;
+                                      },
+                      ol: ({node, ...props}) => <ol className={`${isUser ? 'pl-2 my-0.5 space-y-0' : 'pl-3 my-1 space-y-0.5'} list-decimal`} {...props} />,
+                      ul: ({node, ...props}) => {
+                        // Special styling for post-approval link messages
+                        if (isPostApprovalLink) {
+                          return <ul className="pl-0 my-1 space-y-1 list-none" {...props} />;
+                        }
+                        return <ul className={`${isUser ? 'pl-2 my-0.5 space-y-0' : 'pl-3 my-1 space-y-0.5'} list-disc`} {...props} />;
+                      },
                     em: ({node, ...props}) => <em className="italic" {...props} />,
                                      blockquote: ({node, ...props}) => (
                        <blockquote className={`border-l-2 border-gray-300 italic text-gray-700 ${isUser ? 'pl-1 my-0.5' : 'pl-2 my-1'}`} {...props} />
@@ -1263,23 +1303,37 @@ const ChatMessage: React.FC<ChatMessageProps> = ({ message, onButtonClick, selec
                 return (
                   <div className="space-y-3">
                     {/* Main Address Details Button */}
-                    <button
-                      onClick={() => {
-                        if (onAddressDetailsPopupOpen) {
-                          onAddressDetailsPopupOpen(finalUrl);
-                        }
-                      }}
-                      className="w-full px-4 py-3 text-white font-bold rounded-lg transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-offset-1 disabled:opacity-50 disabled:cursor-not-allowed shadow-lg transform hover:scale-105"
-                      style={{
-                        background: 'linear-gradient(135deg, #514c9f 0%, #3d3a7a 100%)',
-                        boxShadow: '0 4px 6px rgba(81, 76, 159, 0.3)'
-                      }}
-                    >
-                      Fill the Address Details
-                    </button>
+                    {isAddressDetailsCompleted ? (
+                      <button
+                        disabled
+                        className="w-full px-4 py-3 text-white font-bold rounded-lg transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-offset-1 disabled:opacity-50 disabled:cursor-not-allowed shadow-lg flex items-center justify-center space-x-2"
+                        style={{
+                          background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                          boxShadow: '0 4px 6px rgba(16, 185, 129, 0.3)'
+                        }}
+                      >
+                        <CheckCircle className="h-5 w-5" />
+                        <span>Complete address details</span>
+                      </button>
+                    ) : (
+                      <button
+                        onClick={() => {
+                          if (onAddressDetailsPopupOpen) {
+                            onAddressDetailsPopupOpen(finalUrl);
+                          }
+                        }}
+                        className="w-full px-4 py-3 text-white font-bold rounded-lg transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-offset-1 disabled:opacity-50 disabled:cursor-not-allowed shadow-lg transform hover:scale-105"
+                        style={{
+                          background: 'linear-gradient(135deg, #514c9f 0%, #3d3a7a 100%)',
+                          boxShadow: '0 4px 6px rgba(81, 76, 159, 0.3)'
+                        }}
+                      >
+                        Fill the Address Details
+                      </button>
+                    )}
                     
-                    {/* Share and Copy Buttons - Only show if we have a real URL */}
-                    {addressDetailsUrl && (
+                    {/* Share and Copy Buttons - Only show if we have a real URL and address is not completed */}
+                    {addressDetailsUrl && !isAddressDetailsCompleted && (
                       <div className="flex space-x-2">
                         <button
                           onClick={() => {

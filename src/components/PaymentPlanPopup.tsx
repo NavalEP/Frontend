@@ -105,7 +105,7 @@ const PaymentPlanPopup: React.FC<PaymentPlanPopupProps> = ({
   // Initialize treatment amount when loan details are loaded
   useEffect(() => {
     if (loanDetails) {
-      setTreatmentAmount(loanDetails.loanAmount);
+      setTreatmentAmount(loanDetails.treatmentAmount);
       setHasAmountChanged(false); // Reset amount changed flag when loan details are loaded
     }
   }, [loanDetails]);
@@ -221,12 +221,13 @@ const PaymentPlanPopup: React.FC<PaymentPlanPopupProps> = ({
     
     setBureauDecision(bureauDecisionResult);
 
-    // Auto-select the first plan if available
-    if (bureauDecisionResult?.emiPlanList && bureauDecisionResult.emiPlanList.length > 0) {
-      setSelectedPlan(bureauDecisionResult.emiPlanList[0]);
-      console.log('Auto-selected first EMI plan:', bureauDecisionResult.emiPlanList[0].productDetailsDO);
+    // Auto-select the first eligible plan if available
+    const eligiblePlans = bureauDecisionResult?.emiPlanList?.filter(plan => plan.eligible) || [];
+    if (eligiblePlans.length > 0) {
+      setSelectedPlan(eligiblePlans[0]);
+      console.log('Auto-selected first eligible EMI plan:', eligiblePlans[0].productDetailsDO);
     } else {
-      console.warn('No EMI plans available in bureau decision');
+      console.warn('No eligible EMI plans available in bureau decision');
     }
   };
 
@@ -251,7 +252,15 @@ const PaymentPlanPopup: React.FC<PaymentPlanPopupProps> = ({
     
     console.log('Fibe EMI calculation received successfully:', emiCalculationResult.data);
     setFibeEmiCalculations(emiCalculationResult.data); // Store all calculations
-    setSelectedFibePlan(emiCalculationResult.data[0]); // Auto-select first plan
+    
+    // Auto-select the first eligible plan
+    const eligibleFibePlans = emiCalculationResult.data.filter(plan => plan.eligible);
+    if (eligibleFibePlans.length > 0) {
+      setSelectedFibePlan(eligibleFibePlans[0]);
+      console.log('Auto-selected first eligible Fibe plan:', eligibleFibePlans[0].product);
+    } else {
+      console.warn('No eligible Fibe plans available');
+    }
   };
 
   const handlePlanSelect = (plan: BureauEmiPlan) => {
@@ -275,7 +284,22 @@ const PaymentPlanPopup: React.FC<PaymentPlanPopupProps> = ({
         // Handle Fibe case
         console.log('Processing Fibe payment plan for loanId:', extractedLoanId);
         
-        // Step 1: Lock tenure for Fibe
+        // Step 1: Update treatment and loan amount using netLoanAmount from selected plan
+        console.log('Updating treatment and loan amount for Fibe loanId:', extractedLoanId, 'with treatmentAmount:', treatmentAmount, 'and netLoanAmount:', selectedFibePlan.product.loan_amount);
+        const updateTreatmentResult = await updateTreatmentAndLoanAmount(
+          extractedLoanId,
+          treatmentAmount,
+          selectedFibePlan.product.loan_amount, // Using netLoanAmount from selected plan
+          'user'
+        );
+
+        if (!updateTreatmentResult.success) {
+          throw new Error(updateTreatmentResult.message || 'Failed to update treatment and loan amount');
+        }
+
+        console.log('Fibe treatment and loan amount updated successfully:', updateTreatmentResult.message);
+        
+        // Step 2: Lock tenure for Fibe
         const lockTenureResult = await lockTenure(extractedLoanId, selectedFibePlan.product.merchant_package_id);
         
         // Check if tenure is already updated (user already selected a plan)
@@ -289,7 +313,7 @@ const PaymentPlanPopup: React.FC<PaymentPlanPopupProps> = ({
           console.log('Fibe tenure locked successfully:', lockTenureResult.message);
         }
         
-        // Step 2: Update product detail for Fibe
+        // Step 3: Update product detail for Fibe
         console.log('Updating product detail for Fibe loanId:', extractedLoanId, 'with carePayProductId:', selectedFibePlan.carePayProductId);
         const updateProductResult = await updateProductDetail(
           extractedLoanId,
@@ -318,10 +342,25 @@ Loan Amount: ${selectedFibePlan.product.loan_amount}\n\n
 `;
         
       } else if (lenderType === 'findoc' && selectedPlan) {
-        // Handle Findoc case (existing logic)
+        // Handle Findoc case
         console.log('Processing Findoc payment plan for loanId:', extractedLoanId);
         
-        // Step 1: Update product detail using the new API
+        // Step 1: Update treatment and loan amount using netLoanAmount from selected plan
+        console.log('Updating treatment and loan amount for Findoc loanId:', extractedLoanId, 'with treatmentAmount:', treatmentAmount, 'and netLoanAmount:', selectedPlan.netLoanAmount);
+        const updateTreatmentResult = await updateTreatmentAndLoanAmount(
+          extractedLoanId,
+          treatmentAmount,
+          selectedPlan.netLoanAmount, // Using netLoanAmount from selected plan
+          'user'
+        );
+
+        if (!updateTreatmentResult.success) {
+          throw new Error(updateTreatmentResult.message || 'Failed to update treatment and loan amount');
+        }
+
+        console.log('Findoc treatment and loan amount updated successfully:', updateTreatmentResult.message);
+        
+        // Step 2: Update product detail using the new API
         console.log('Updating product detail for loanId:', extractedLoanId, 'with productId:', selectedPlan.productDetailsDO.productId);
         const updateProductResult = await updateProductDetail(
           extractedLoanId,
@@ -431,11 +470,17 @@ Loan Amount: ${selectedPlan.netLoanAmount}\n\n
       const bureauDecisionResult = await getBureauDecisionData(extractedLoanId);
       
       if (bureauDecisionResult && bureauDecisionResult.emiPlanList && bureauDecisionResult.emiPlanList.length > 0) {
-        console.log('New EMI plans received:', bureauDecisionResult.emiPlanList.length, 'plans available');
+        const eligiblePlans = bureauDecisionResult.emiPlanList.filter(plan => plan.eligible);
+        console.log('New EMI plans received:', bureauDecisionResult.emiPlanList.length, 'total plans,', eligiblePlans.length, 'eligible plans available');
         setBureauDecision(bureauDecisionResult);
         
-        // Reset selected plan when new plans are loaded
-        setSelectedPlan(bureauDecisionResult.emiPlanList[0]);
+        // Reset selected plan when new plans are loaded - select first eligible plan
+        if (eligiblePlans.length > 0) {
+          setSelectedPlan(eligiblePlans[0]);
+          console.log('Auto-selected first eligible plan from new results');
+        } else {
+          console.warn('No eligible plans in new results');
+        }
         
         // Keep hasAmountChanged as true to show the new results section
         // This will display the "New EMI Plan Results Section" instead of the legacy section
@@ -455,8 +500,9 @@ Loan Amount: ${selectedPlan.netLoanAmount}\n\n
           const previousBureauDecision = await getBureauDecisionData(extractedLoanId);
           if (previousBureauDecision) {
             setBureauDecision(previousBureauDecision);
-            if (previousBureauDecision.emiPlanList && previousBureauDecision.emiPlanList.length > 0) {
-              setSelectedPlan(previousBureauDecision.emiPlanList[0]);
+            const eligiblePlans = previousBureauDecision.emiPlanList?.filter(plan => plan.eligible) || [];
+            if (eligiblePlans.length > 0) {
+              setSelectedPlan(eligiblePlans[0]);
             }
             console.log('Previous state restored successfully');
           }
@@ -639,7 +685,7 @@ Loan Amount: ${selectedPlan.netLoanAmount}\n\n
                 )}
 
                                 {/* Select Preferred Payment Plan - Only show when amount hasn't changed */}
-                {lenderType === 'findoc' && bureauDecision?.emiPlanList && bureauDecision.emiPlanList.length > 0 && !hasAmountChanged && !isCheckingEmiPlans && (
+                {lenderType === 'findoc' && bureauDecision?.emiPlanList && bureauDecision.emiPlanList.filter(plan => plan.eligible).length > 0 && !hasAmountChanged && !isCheckingEmiPlans && (
                   <div className="space-y-4">
                     <h3 className="text-lg font-semibold text-gray-800">Select preferred payment plan:</h3>
                     
@@ -652,7 +698,7 @@ Loan Amount: ${selectedPlan.netLoanAmount}\n\n
                           WebkitOverflowScrolling: 'touch'
                         }}
                       >
-                        {bureauDecision.emiPlanList.map((plan, index) => (
+                        {bureauDecision.emiPlanList.filter(plan => plan.eligible).map((plan, index) => (
                           <div
                             key={`original-${index}`}
                             onClick={() => handlePlanSelect(plan)}
@@ -684,9 +730,9 @@ Loan Amount: ${selectedPlan.netLoanAmount}\n\n
                       </div>
                       
                       {/* Scroll indicator dots */}
-                      {bureauDecision.emiPlanList.length > 3 && (
+                      {bureauDecision.emiPlanList.filter(plan => plan.eligible).length > 3 && (
                         <div className="flex justify-center mt-4 space-x-2">
-                          {Array.from({ length: Math.ceil(bureauDecision.emiPlanList.length / 3) }).map((_, index) => (
+                          {Array.from({ length: Math.ceil(bureauDecision.emiPlanList.filter(plan => plan.eligible).length / 3) }).map((_, index) => (
                             <div
                               key={index}
                               className="w-2 h-2 bg-gray-300 rounded-full"
@@ -699,7 +745,7 @@ Loan Amount: ${selectedPlan.netLoanAmount}\n\n
                 )}
 
                 {/* Fibe Payment Plan Selection */}
-                {lenderType === 'fibe' && fibeEmiCalculations.length > 0 && (
+                {lenderType === 'fibe' && fibeEmiCalculations.filter(plan => plan.eligible).length > 0 && (
                   <div className="space-y-4">
                     <h3 className="text-lg font-semibold text-gray-800">Select preferred payment plan:</h3>
                     
@@ -712,7 +758,7 @@ Loan Amount: ${selectedPlan.netLoanAmount}\n\n
                           WebkitOverflowScrolling: 'touch'
                         }}
                       >
-                        {fibeEmiCalculations.map((plan, index) => (
+                        {fibeEmiCalculations.filter(plan => plan.eligible).map((plan, index) => (
                           <div
                             key={`fibe-${index}`}
                             onClick={() => handleFibePlanSelect(plan)}
@@ -744,9 +790,9 @@ Loan Amount: ${selectedPlan.netLoanAmount}\n\n
                       </div>
                       
                       {/* Scroll indicator dots */}
-                      {fibeEmiCalculations.length > 3 && (
+                      {fibeEmiCalculations.filter(plan => plan.eligible).length > 3 && (
                         <div className="flex justify-center mt-4 space-x-2">
-                          {Array.from({ length: Math.ceil(fibeEmiCalculations.length / 3) }).map((_, index) => (
+                          {Array.from({ length: Math.ceil(fibeEmiCalculations.filter(plan => plan.eligible).length / 3) }).map((_, index) => (
                             <div
                               key={`fibe-dots-${index}`}
                               className="w-2 h-2 bg-gray-300 rounded-full"
@@ -761,7 +807,7 @@ Loan Amount: ${selectedPlan.netLoanAmount}\n\n
 
 
                 {/* New EMI Plan Results Section - Shows after checking EMI plans with new amount */}
-                {bureauDecision?.emiPlanList && bureauDecision.emiPlanList.length > 0 && hasAmountChanged && !isCheckingEmiPlans && (
+                {bureauDecision?.emiPlanList && bureauDecision.emiPlanList.filter(plan => plan.eligible).length > 0 && hasAmountChanged && !isCheckingEmiPlans && (
                   <div className="space-y-4">
                     {/* New EMI Plans Selection */}
                     <div className="space-y-4">
@@ -776,7 +822,7 @@ Loan Amount: ${selectedPlan.netLoanAmount}\n\n
                             WebkitOverflowScrolling: 'touch'
                           }}
                         >
-                          {bureauDecision.emiPlanList.map((plan, index) => (
+                          {bureauDecision.emiPlanList.filter(plan => plan.eligible).map((plan, index) => (
                             <div
                               key={`new-${index}`}
                               onClick={() => handlePlanSelect(plan)}
@@ -808,9 +854,9 @@ Loan Amount: ${selectedPlan.netLoanAmount}\n\n
                         </div>
                         
                         {/* Scroll indicator dots */}
-                        {bureauDecision.emiPlanList.length > 3 && (
+                        {bureauDecision.emiPlanList.filter(plan => plan.eligible).length > 3 && (
                           <div className="flex justify-center mt-4 space-x-2">
-                            {Array.from({ length: Math.ceil(bureauDecision.emiPlanList.length / 3) }).map((_, index) => (
+                            {Array.from({ length: Math.ceil(bureauDecision.emiPlanList.filter(plan => plan.eligible).length / 3) }).map((_, index) => (
                               <div
                                 key={`new-dots-${index}`}
                                 className="w-2 h-2 bg-gray-300 rounded-full"

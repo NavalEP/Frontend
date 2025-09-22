@@ -91,8 +91,7 @@ const ChatPage: React.FC = () => {
   const [showOfferButton, setShowOfferButton] = useState(false);
   const [showLoanTransactionsOverlay, setShowLoanTransactionsOverlay] = useState(false);
   const [showBusinessOverviewOverlay, setShowBusinessOverviewOverlay] = useState(false);
-  const [showCelebration, setShowCelebration] = useState(false);
-  const [hasShownCelebration, setHasShownCelebration] = useState(false);
+
 
   // Utility function to create image preview
   const createImagePreview = (file: File): Promise<string> => {
@@ -1514,11 +1513,10 @@ const ChatPage: React.FC = () => {
         setStepCompletion(progressData.stepCompletion);
         
         // Check if all post-approval statuses are true and show celebration
-        if (progressData.postApprovalData && !hasShownCelebration) {
+        if (progressData.postApprovalData) {
           const { selfie, agreement_setup, auto_pay, aadhaar_verified } = progressData.postApprovalData;
           if (selfie && agreement_setup && auto_pay && aadhaar_verified) {
-            setShowCelebration(true);
-            setHasShownCelebration(true);
+           
             setShowRefreshButton(true); // Show refresh button when all statuses are true
             console.log('🎉 All post-approval statuses are true! Showing celebration!');
             

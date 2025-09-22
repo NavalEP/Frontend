@@ -25,12 +25,14 @@ const StructuredInputForm: React.FC<StructuredInputFormProps> = ({ onSubmit, isL
   const fields = [
     {
       key: 'patientName' as keyof FormData,
-      label: "Patient's Full Name",
-      placeholder: "Enter patient's full name",
+      label: "Patient's Full Name (As on Aadhaar Card)",
+      placeholder: "Enter first name and last name",
       icon: User,
       type: 'text',
       validation: (value: string) => {
         if (!value.trim()) return "Patient's name is required";
+        const nameParts = value.trim().split(/\s+/);
+        if (nameParts.length < 2) return "Please enter both first name and last name";
         if (value.trim().length < 2) return "Name must be at least 2 characters";
         if (!/^[a-zA-Z\s]+$/.test(value.trim())) return "Name should only contain letters and spaces";
         return null;

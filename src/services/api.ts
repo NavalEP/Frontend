@@ -1,4 +1,5 @@
 import axios, { AxiosResponse } from 'axios';
+import { API_BASE_URL } from '../utils/constants';
 
 // Types
 interface SendOtpResponse {
@@ -85,7 +86,7 @@ interface PanCardUploadResponse {
       pan_card_number: string;
       person_name: string;
       date_of_birth: string;
-      gender: string;
+    
       father_name: string;
     };
     pan_details_saved: boolean;
@@ -139,8 +140,75 @@ interface UserDetailsResponse {
   };
 }
 
-// Base URL for API
-const API_BASE_URL = 'https://loanbot.carepay.money/api/v1/agent';
+// New interfaces for doctor sessions
+interface PatientInfo {
+  name: string;
+  phone_number: string;
+  treatment_cost: number;
+  monthly_income: number;
+}
+
+interface DoctorSession {
+  session_id: string;
+  application_id: string;
+  phone_number: string;
+  status: string;
+  created_at: string;
+  updated_at: string;
+  patient_info: PatientInfo;
+}
+
+interface DoctorSessionsResponse {
+  status: string;
+  doctor_id: string;
+  total_sessions: number;
+  sessions_returned: number;
+  pagination: {
+    limit: number;
+    offset: number;
+    has_more: boolean;
+  };
+  filters: {
+    status: string | null;
+  };
+  sessions: DoctorSession[];
+}
+
+interface ChatHistoryItem {
+  type: string;
+  content: string;
+  timestamp?: string;
+}
+
+interface SessionDetailsWithHistoryResponse {
+  status: string;
+  session_id: string;
+  phoneNumber: string;
+  bureau_decision_details: string | null;
+  created_at: string;
+  updated_at: string;
+  history: ChatHistoryItem[];
+  userId: string;
+}
+
+// Interface for patient sessions response
+interface PatientSession {
+  session_id: string;
+  application_id: string;
+  status: string;
+  created_at: string | null;
+  updated_at: string | null;
+  phone_number: string;
+  doctorId?: string;
+  doctorName?: string;
+}
+
+interface PatientSessionsResponse {
+  status: string;
+  phone_number: string;
+  total_sessions: number;
+  sessions: PatientSession[];
+}
 
 // Create axios instance
 const api = axios.create({
@@ -236,16 +304,16 @@ api.interceptors.response.use(
         case 500:
           throw new Error(error.response.data?.message || 'Internal server error');
         default:
-          throw new Error(error.response.data?.message || 'An error occurred');
+          throw new Error(error.response.data?.message || 'Please refresh the page');
       }
     } else if (error.request) {
       // Network error
       if (!navigator.onLine) {
         throw new Error('You are offline. Please check your internet connection.');
       }
-      throw new Error('No response from server. Please try again later.');
+      throw new Error('Please wait for a while and Refresh the page. If after refresh you face same problem, then try New Inquiry.');
     } else {
-      throw new Error('Error setting up request. Please try again.');
+      throw new Error('Please try New Inquiry.');
     }
   }
 );
@@ -301,6 +369,8 @@ export const doctorStaffLogin = async (
     
     if (response.data.token) {
       localStorage.setItem('token', response.data.token);
+      // Store doctor code in localStorage for future use
+      localStorage.setItem('doctorCode', doctorCode.trim());
       // Store doctor info if provided
       if (response.data.doctor_id) {
         localStorage.setItem('doctorId', response.data.doctor_id);
@@ -318,9 +388,12 @@ export const doctorStaffLogin = async (
 
 export const createSession = async (): Promise<AxiosResponse<SessionResponse>> => {
   try {
+    console.log('🔍 API: Creating new session...');
     const response = await api.post('/session/');
+    console.log('🔍 API: Session created:', response.data);
     return response;
   } catch (error) {
+    console.error('🔍 API: Error creating session:', error);
     throw error;
   }
 };
@@ -343,8 +416,12 @@ export const getSessionDetails = async (
   sessionId: string
 ): Promise<AxiosResponse<SessionDetailsResponse>> => {
   try {
-    return await api.get(`/session-details/${sessionId}/`);
+    console.log('🔍 API: Getting session details for:', sessionId);
+    const response = await api.get(`/session-details/${sessionId}/`);
+    console.log('🔍 API: Session details response:', response.data);
+    return response;
   } catch (error) {
+    console.error('🔍 API: Error getting session details:', error);
     throw error;
   }
 };
@@ -487,6 +564,104 @@ export const saveUserEmploymentDetails = async (
   } catch (error) {
     throw error;
   }
+};
+
+// API functions for doctor sessions
+export const getDoctorSessions = async (
+  doctorId: string,
+  limit: number = 50,
+  offset: number = 0,
+  status?: string
+): Promise<DoctorSessionsResponse> => {
+  try {
+    const params: Record<string, string | number> = {
+      doctorId,
+      limit,
+      offset
+    };
+    
+    if (status && status.trim()) {
+      params.status = status.trim();
+    }
+    
+    const response = await api.get('/doctor-sessions/', { params });
+    return response.data;
+  } catch (error) {
+    throw error;
+  }
+};
+
+// Get doctor profile details (clinic name)
+export const getDoctorProfileDetails = async (
+  doctorId: string
+): Promise<{ status: number; data?: { clinicName: string; doctorId: string }; message: string }> => {
+  try {
+    const response = await api.get('/getDoctorProfDetailsByDoctorId/', {
+      params: { doctorId }
+    });
+    return response.data;
+  } catch (error) {
+    throw error;
+  }
+};
+
+export const getSessionDetailsWithHistory = async (
+  sessionId: string
+): Promise<SessionDetailsWithHistoryResponse> => {
+  try {
+    console.log('🔍 API: Getting session details with history for:', sessionId);
+    const response = await api.get(`/session-details/${sessionId}/`);
+    console.log('🔍 API: Response received:', response.data);
+    return response.data;
+  } catch (error) {
+    console.error('🔍 API: Error getting session details:', error);
+    throw error;
+  }
+};
+
+export const getPatientSessions = async (
+  phoneNumber: string
+): Promise<PatientSessionsResponse> => {
+  try {
+    console.log('🔍 API: Getting patient sessions for phone number:', phoneNumber);
+    const response = await api.get('/patient-sessions/', {
+      params: {
+        phone_number: phoneNumber.replace(/\D/g, '') // Remove non-digits
+      }
+    });
+    console.log('🔍 API: Patient sessions response:', response.data);
+    return response.data;
+  } catch (error) {
+    console.error('🔍 API: Error getting patient sessions:', error);
+    throw error;
+  }
+};
+
+// Helper function to format Indian time
+export const formatIndianTime = (dateString: string): string => {
+  try {
+    const date = new Date(dateString);
+    return date.toLocaleString('en-IN', {
+      timeZone: 'Asia/Kolkata',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      hour12: true
+    });
+  } catch (error) {
+    return dateString;
+  }
+};
+
+// Helper function to format chat history with Indian time
+export const formatChatHistory = (history: ChatHistoryItem[]): ChatHistoryItem[] => {
+  return history.map(item => ({
+    ...item,
+    timestamp: item.timestamp ? formatIndianTime(item.timestamp) : undefined
+  }));
 };
 
 export default api;

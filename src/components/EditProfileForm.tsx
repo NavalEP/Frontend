@@ -289,7 +289,8 @@ const EditProfileForm: React.FC<EditProfileFormProps> = ({
         <button
           onClick={handleSaveBasicDetails}
           disabled={isLoading}
-          className="bg-blue-600 hover:bg-blue-700 text-white px-8 py-3 rounded-md flex items-center space-x-2 disabled:opacity-50 disabled:cursor-not-allowed transition-colors duration-200 shadow-sm"
+          className="hover:opacity-90 text-white px-8 py-3 rounded-md flex items-center space-x-2 disabled:opacity-50 disabled:cursor-not-allowed transition-colors duration-200 shadow-sm"
+          style={{ backgroundColor: '#514c9f' }}
         >
           {isLoading ? (
             <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
@@ -398,7 +399,7 @@ const EditProfileForm: React.FC<EditProfileFormProps> = ({
                 handleEmploymentDetailsChange('currentCompanyName', '');
               }
             }}
-            className="w-full px-3 py-2.5 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent bg-white"
+            className="w-full px-3 py-2.5 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-offset-2 focus:border-transparent bg-white profile-input"
           >
             <option value="">Select employment type</option>
             <option value="SALARIED">SALARIED</option>
@@ -416,7 +417,7 @@ const EditProfileForm: React.FC<EditProfileFormProps> = ({
               type="number"
               value={employmentDetails.netTakeHomeSalary}
               onChange={(e) => handleEmploymentDetailsChange('netTakeHomeSalary', parseInt(e.target.value) || 0)}
-              className="w-full pl-8 pr-3 py-2.5 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+              className="w-full pl-8 pr-3 py-2.5 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-offset-2 focus:border-transparent profile-input"
               placeholder="Enter monthly salary"
               min="0"
             />
@@ -434,7 +435,7 @@ const EditProfileForm: React.FC<EditProfileFormProps> = ({
             type="text"
             value={employmentDetails.currentCompanyName}
             onChange={(e) => handleEmploymentDetailsChange('currentCompanyName', e.target.value)}
-            className="w-full px-3 py-2.5 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+            className="w-full px-3 py-2.5 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-offset-2 focus:border-transparent"
             placeholder="Enter organization name"
           />
         </div>
@@ -448,7 +449,7 @@ const EditProfileForm: React.FC<EditProfileFormProps> = ({
             type="text"
             value={employmentDetails.nameOfBusiness || ''}
             onChange={(e) => handleEmploymentDetailsChange('nameOfBusiness', e.target.value)}
-            className="w-full px-3 py-2.5 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+            className="w-full px-3 py-2.5 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-offset-2 focus:border-transparent"
             placeholder="Enter business name"
           />
         </div>
@@ -463,7 +464,7 @@ const EditProfileForm: React.FC<EditProfileFormProps> = ({
           type="text"
           value={employmentDetails.workplacePincode}
           onChange={(e) => handleEmploymentDetailsChange('workplacePincode', e.target.value)}
-          className="w-full px-3 py-2.5 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+          className="w-full px-3 py-2.5 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-offset-2 focus:border-transparent"
           placeholder="Enter workplace pincode"
           maxLength={6}
         />
@@ -474,7 +475,8 @@ const EditProfileForm: React.FC<EditProfileFormProps> = ({
         <button
           onClick={handleSaveEmploymentDetails}
           disabled={isLoading}
-          className="bg-purple-600 hover:bg-purple-700 text-white px-8 py-3 rounded-md flex items-center space-x-2 disabled:opacity-50 disabled:cursor-not-allowed transition-colors duration-200 shadow-sm"
+          className="hover:opacity-90 text-white px-8 py-3 rounded-md flex items-center space-x-2 disabled:opacity-50 disabled:cursor-not-allowed transition-colors duration-200 shadow-sm"
+          style={{ backgroundColor: '#514c9f' }}
         >
           {isLoading ? (
             <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
@@ -488,7 +490,16 @@ const EditProfileForm: React.FC<EditProfileFormProps> = ({
   );
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+    <>
+      <style>
+        {`
+          .profile-input:focus {
+            --tw-ring-color: #514c9f;
+            border-color: #514c9f;
+          }
+        `}
+      </style>
+      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-lg shadow-xl w-full max-w-4xl max-h-[90vh] overflow-hidden">
         {/* Header */}
         <div className="flex items-center justify-between p-6 border-b border-gray-200">
@@ -569,6 +580,7 @@ const EditProfileForm: React.FC<EditProfileFormProps> = ({
         </div>
       </div>
     </div>
+    </>
   );
 };
 

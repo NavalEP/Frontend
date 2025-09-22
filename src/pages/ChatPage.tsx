@@ -1,15 +1,27 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { createSession, sendMessage, getSessionDetails, uploadDocument, uploadPanCard, getUserDetailsBySessionId } from '../services/api';
+import { createSession, sendMessage, getSessionDetails, uploadDocument, uploadPanCard, getUserDetailsBySessionId, getSessionDetailsWithHistory } from '../services/api';
+import { getLoanDetailsByUserId } from '../services/loanApi';
 import { useAuth } from '../context/AuthContext';
 import ChatMessage from '../components/ChatMessage';
 import StructuredInputForm from '../components/StructuredInputForm';
 import TypingAnimation from '../components/TypingAnimation';
-
 import PanCardUpload from '../components/PanCardUpload';
 import AadhaarUpload from '../components/AadhaarUpload';
 import Modal from '../components/Modal';
 import EditProfileForm from '../components/EditProfileForm';
-import { SendHorizonal, Plus, Notebook as Robot, History, ArrowLeft, Search, LogOut, Upload, User, MapPin, Briefcase, Calendar, Mail, GraduationCap, Heart, Edit3, Phone, Menu } from 'lucide-react';
+import DoctorSessionsList from '../components/DoctorSessionsList';
+import PatientChatHistory from '../components/PatientChatHistory';
+import PaymentPlanPopup from '../components/PaymentPlanPopup';
+import AddressDetailsPopup from '../components/AddressDetailsPopup';
+import ProgressBar from '../components/ProgressBar';
+import DisbursalOrderOverlay from '../components/DisbursalOrderOverlay';
+
+
+import { useProgressBarState } from '../utils/progressUtils';
+import { PostApprovalStatusData, callFinDocApis, getDoctorCategory } from '../services/postApprovalApi';
+import { SendHorizonal, Plus, Notebook as Robot, History, ArrowLeft, Search, LogOut, User, MapPin, Briefcase, Calendar, Mail, GraduationCap, Heart, Edit3, Phone, Menu, TrendingUp } from 'lucide-react';
+import LoanTransactionsPage from './LoanTransactionsPage';
+import BusinessOverviewPage from './BusinessOverviewPage';
 
 interface Message {
   id: string;
@@ -18,6 +30,7 @@ interface Message {
   timestamp: Date;
   imagePreview?: string; // Base64 image preview for uploaded files
   fileName?: string; // Original file name for uploaded files
+  type?: 'disbursal_order'; // Special message type for disbursal order
 }
 
 interface SessionDetails {
@@ -51,9 +64,34 @@ const ChatPage: React.FC = () => {
   const [showHistory, setShowHistory] = useState(false);
   const [chatHistory, setChatHistory] = useState<ChatSession[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
+  const [userStatuses, setUserStatuses] = useState<string[]>([]);
+  const [loanId, setLoanId] = useState<string | null>(null);
+  const [postApprovalData, setPostApprovalData] = useState<PostApprovalStatusData | null>(null);
+  const [stepCompletion, setStepCompletion] = useState<{
+    eligibility: boolean;
+    selectPlan: boolean;
+    kyc: boolean;
+    autopaySetup: boolean;
+    authorize: boolean;
+  } | null>(null);
+  const [userHasSentFirstMessage, setUserHasSentFirstMessage] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const { incrementSessionCount, doctorId, doctorName, logout, sessionCount } = useAuth();
+  const { incrementSessionCount, doctorId, doctorName, doctorCode, clinicName, logout, sessionCount, loginRoute, phoneNumber } = useAuth();
+  
+  // Debug logging for authentication state
+  useEffect(() => {
+    console.log('ChatPage - Authentication State:', {
+      doctorId,
+      doctorName,
+      loginRoute,
+      isDoctor: loginRoute === '/doctor-login',
+      userType: loginRoute === '/doctor-login' ? 'Doctor' : 'Patient'
+    });
+  }, [doctorId, doctorName, loginRoute]);
   const [showOfferButton, setShowOfferButton] = useState(false);
+  const [showLoanTransactionsOverlay, setShowLoanTransactionsOverlay] = useState(false);
+  const [showBusinessOverviewOverlay, setShowBusinessOverviewOverlay] = useState(false);
+
 
   // Utility function to create image preview
   const createImagePreview = (file: File): Promise<string> => {
@@ -65,11 +103,17 @@ const ChatPage: React.FC = () => {
       reader.readAsDataURL(file);
     });
   };
-  const [showIframePopup, setShowIframePopup] = useState(false);
+
+  const [showPaymentPlanPopup, setShowPaymentPlanPopup] = useState(false);
+  const [paymentPlanUrl, setPaymentPlanUrl] = useState<string | undefined>(undefined);
+  const [isPaymentPlanCompleted, setIsPaymentPlanCompleted] = useState(false);
+  const [showAddressDetailsPopup, setShowAddressDetailsPopup] = useState(false);
+  const [addressDetailsUrl, setAddressDetailsUrl] = useState<string>('');
+  const [isAddressDetailsCompleted, setIsAddressDetailsCompleted] = useState(false);
   const [patientInfoSubmitted, setPatientInfoSubmitted] = useState(false);
   const [isLogoutModalOpen, setIsLogoutModalOpen] = useState(false);
   const [isNewSessionModalOpen, setIsNewSessionModalOpen] = useState(false);
-  const [selectedOption, setSelectedOption] = useState<string | undefined>(undefined);
+  const [selectedOptions, setSelectedOptions] = useState<Record<string, string>>({});
   const [disabledOptions, setDisabledOptions] = useState<Record<string, boolean>>({});
   const [selectedTreatments, setSelectedTreatments] = useState<Record<string, string>>({});
 
@@ -79,9 +123,7 @@ const ChatPage: React.FC = () => {
   const [showUploadModal, setShowUploadModal] = useState(false);
   const [selectedDocumentType, setSelectedDocumentType] = useState<'aadhaar' | 'pan' | null>(null);
 
-  const [showLinkIframe, setShowLinkIframe] = useState(false);
-  const [linkIframeUrl, setLinkIframeUrl] = useState<string>('');
-  const fileInputRef = useRef<HTMLInputElement>(null);
+
   
   // Profile Summary State
   const [showProfileSummary, setShowProfileSummary] = useState(false);
@@ -96,6 +138,69 @@ const ChatPage: React.FC = () => {
   // Hamburger Menu State
   const [showHamburgerMenu, setShowHamburgerMenu] = useState(false);
   
+  // Doctor Sessions State
+  const [showDoctorSessions, setShowDoctorSessions] = useState(false);
+  const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
+  
+  // Patient Chat History State
+  const [showPatientChatHistory, setShowPatientChatHistory] = useState(false);
+  
+  // Disbursal Order State
+  const [showDisbursalOrder, setShowDisbursalOrder] = useState(false);
+  const [hasProcessedFinDoc, setHasProcessedFinDoc] = useState(false);
+  const [showRefreshButton, setShowRefreshButton] = useState(false);
+  
+
+  // Function to process FinDoc APIs and check doctor category
+  const processFinDocAndGetCategory = async (loanId: string) => {
+    if (hasProcessedFinDoc) return; // Prevent multiple calls
+    
+    setHasProcessedFinDoc(true);
+
+    try {
+      // Step 1: Call FinDoc APIs
+      console.log('Calling FinDoc APIs for loan ID:', loanId);
+      const finDocResult = await callFinDocApis(loanId);
+      
+      if (!finDocResult.success) {
+        throw new Error(finDocResult.message || 'Failed to execute FinDoc APIs');
+      }
+      
+      console.log('FinDoc APIs executed successfully:', finDocResult.data);
+    } catch (error: any) {
+      console.error('Error in FinDoc processing:', error);
+      // Continue to check doctor category even if FinDoc fails
+    }
+
+    // Step 2: Get doctor category regardless of FinDoc API result
+    if (doctorCode) {
+      try {
+        console.log('Getting doctor category for doctor code:', doctorCode);
+        const categoryResult = await getDoctorCategory(doctorCode);
+        
+        if (categoryResult.success && categoryResult.data) {
+          const category = categoryResult.data.category;
+          console.log('Doctor category retrieved:', category);
+          
+          // Step 3: If category is A, automatically show disbursal order
+          if (category === 'A') {
+            console.log('Doctor category is A, automatically showing disbursal order');
+            setShowDisbursalOrder(true);
+            setShowRefreshButton(true); // Show refresh button when disbursal order is shown
+          } else {
+            console.log('Doctor category is not A, not showing disbursal order automatically');
+          }
+        } else {
+          console.warn('Failed to retrieve doctor category:', categoryResult.message);
+        }
+      } catch (categoryError: any) {
+        console.error('Error getting doctor category:', categoryError);
+      }
+    } else {
+      console.warn('Doctor code not available for category check');
+    }
+  };
+
   // Helper function to format welcome message from API response
   const formatWelcomeMessage = (content: string): string => {
     // If content already has formatting, return it as is
@@ -125,6 +230,13 @@ const ChatPage: React.FC = () => {
   
   // Function to restore existing session
   const restoreExistingSession = async () => {
+    // Clear progress bar and lead data when restoring session
+    setUserStatuses([]);
+    setPostApprovalData(null);
+    setStepCompletion(null);
+    setLoanId(null);
+    setUserHasSentFirstMessage(false);
+    
     // Check if there's an existing session for this doctor
     const existingSessionData = localStorage.getItem(`session_id_doctor_${doctorId}`);
     const currentSessionId = localStorage.getItem('current_session_id');
@@ -298,6 +410,13 @@ const ChatPage: React.FC = () => {
       fetchSessionDetails();
     }
   }, [sessionId]);
+
+  // Fetch user statuses when sessionDetails change and first message is sent
+  useEffect(() => {
+    if (sessionDetails?.userId && userHasSentFirstMessage) {
+      fetchUserStatuses();
+    }
+  }, [sessionDetails?.userId, userHasSentFirstMessage]);
   
   // Load chat history from localStorage using doctorId instead of phoneNumber
   useEffect(() => {
@@ -330,8 +449,17 @@ const ChatPage: React.FC = () => {
       
       setSessionId(sessionId);
       setShowHistory(false);
+      setShowDoctorSessions(false);
+      setSelectedOptions({}); // Clear selected options when loading a session
       setSelectedTreatments({}); // Clear selected treatments when loading a session
       setDisabledOptions({}); // Clear disabled options when loading a session
+      
+      // Clear progress bar and lead data when loading a different session
+      setUserStatuses([]);
+      setPostApprovalData(null);
+      setStepCompletion(null);
+      setLoanId(null);
+      setUserHasSentFirstMessage(false);
       
       // Update localStorage to reflect the loaded session
       if (doctorId) {
@@ -351,28 +479,28 @@ const ChatPage: React.FC = () => {
         timestamp: new Date(),
       }]);
 
-      const response = await getSessionDetails(sessionId);
+      const response = await getSessionDetailsWithHistory(sessionId);
       
-      if (response.data) {
+      if (response) {
         setSessionDetails({
-          phoneNumber: response.data.phoneNumber,
-          status: response.data.status,
-          history: response.data.history,
-          created_at: response.data.created_at,
-          updated_at: response.data.updated_at,
-          userId: response.data.userId
+          phoneNumber: response.phoneNumber,
+          status: response.status,
+          history: response.history,
+          created_at: response.created_at,
+          updated_at: response.updated_at,
+          userId: response.userId
         });
         
-        // Convert history to messages
-        if (response.data.history && response.data.history.length > 0) {
-          const historyMessages: Message[] = response.data.history.map((item, index) => {
+        // Convert history to messages with Indian time formatting
+        if (response.history && response.history.length > 0) {
+          const historyMessages: Message[] = response.history.map((item, index) => {
             // Format the first agent message to match welcome message format
             if (index === 0 && item.type === 'AIMessage') {
               return {
                 id: `history-${index}`,
                 text: formatWelcomeMessage(item.content),
                 sender: 'agent',
-                timestamp: new Date(response.data.created_at),
+                timestamp: new Date(response.created_at),
               };
             }
             
@@ -380,7 +508,7 @@ const ChatPage: React.FC = () => {
               id: `history-${index}`,
               text: item.content,
               sender: item.type === 'HumanMessage' ? 'user' : 'agent',
-              timestamp: new Date(response.data.created_at),
+              timestamp: new Date(response.created_at),
             };
           });
           
@@ -394,7 +522,7 @@ const ChatPage: React.FC = () => {
               const newSession: ChatSession = {
                 id: sessionId,
                 title: generateChatTitle(firstUserMessage.text),
-                timestamp: new Date(response.data.created_at),
+                timestamp: new Date(response.created_at),
                 lastMessage: firstUserMessage.text
               };
               saveChatHistory(newSession);
@@ -518,10 +646,12 @@ const ChatPage: React.FC = () => {
             // User has already sent their first message, show chat history
             setShowStructuredForm(false);
             setPatientInfoSubmitted(true);
+            setUserHasSentFirstMessage(true); // Set flag for progress bar APIs
           } else {
             // User hasn't sent their first message yet, show structured form
             setShowStructuredForm(true);
             setPatientInfoSubmitted(false);
+            setUserHasSentFirstMessage(false);
           }
         } else if (messages.length === 1 && messages[0].id.startsWith('loading-session')) {
           // If there's no history but we were showing a loading message, clear messages
@@ -552,6 +682,18 @@ const ChatPage: React.FC = () => {
       setIsLoading(false);
     }
   };
+
+  // Function to refresh session and progress bar data (used by popups)
+  const refreshSessionAndProgress = async () => {
+    console.log('Refreshing session and progress bar data...');
+    await fetchSessionDetails();
+    
+    // Also fetch updated progress bar data to check for EMI plan selection
+    if (userHasSentFirstMessage) {
+      console.log('Refreshing progress bar data after session refresh');
+      fetchUserStatuses();
+    }
+  };
   
   // Check if we should show structured form based on conversation state
   const shouldShowStructuredForm = () => {
@@ -569,6 +711,23 @@ const ChatPage: React.FC = () => {
     
     // If user hasn't sent first message, show structured form
     return !hasUserSentFirstMessage(messages);
+  };
+
+  // Check if there's a PaymentStepsMessage in the chat
+  const hasPaymentStepsMessage = () => {
+    return messages.some(message => 
+      message.sender === 'agent' && (
+        message.text.toLowerCase().includes('payment is now just 3 steps away') ||
+        message.text.toLowerCase().includes('payment is now just 4 steps away') ||
+        (message.text.toLowerCase().includes('face verification') && 
+         message.text.toLowerCase().includes('emi auto payment approval') && 
+         message.text.toLowerCase().includes('agreement e-signing')) ||
+        (message.text.toLowerCase().includes('adhaar verification') && 
+         message.text.toLowerCase().includes('face verification') && 
+         message.text.toLowerCase().includes('emi auto payment approval') && 
+         message.text.toLowerCase().includes('agreement e-signing'))
+      )
+    );
   };
 
   const handleStructuredFormSubmit = (formattedMessage: string) => {
@@ -594,7 +753,13 @@ const ChatPage: React.FC = () => {
     setIsLoading(true);
     setLoadingStartTime(Date.now());
     setError(null);
-    setSelectedOption(undefined); // Clear selected option when sending a new message
+    
+    // Check if this is the first user message and set the flag
+    const isFirstUserMessage = messages.length === 0 || (messages.length === 1 && messages[0].sender === 'agent');
+    if (isFirstUserMessage) {
+      setUserHasSentFirstMessage(true);
+      console.log('First user message sent - progress bar APIs will be called after response');
+    }
     
     // Save chat session if it's the first message
     const isFirstMessage = messages.length === 0 || (messages.length === 1 && messages[0].sender === 'agent');
@@ -630,6 +795,12 @@ const ChatPage: React.FC = () => {
         
         // Fetch updated session details after message exchange
         fetchSessionDetails();
+        
+        // Fetch updated progress bar data after message exchange to check for EMI plan selection
+        if (userHasSentFirstMessage) {
+          console.log('Message exchange completed - fetching updated progress bar data');
+          fetchUserStatuses();
+        }
       } else if (response.data.message === 'Session not found' || response.data.status === 'error') {
         // Session expired or invalid, start a new one
         setError('Your session has expired. Starting a new session...');
@@ -666,7 +837,12 @@ const ChatPage: React.FC = () => {
   // Handle button option clicks
   const handleButtonClick = async (optionText: string, optionValue: string, messageId: string) => {
     console.log('Button clicked, option text:', optionText, 'option value:', optionValue, 'for message:', messageId);
-    setSelectedOption(optionValue);
+    
+    // Store the selected option for this specific message
+    setSelectedOptions(prev => ({
+      ...prev,
+      [messageId]: optionValue
+    }));
     
     // Set the input message to the selected option text (not the number)
     setInputMessage(optionText);
@@ -717,18 +893,27 @@ const ChatPage: React.FC = () => {
     setSessionDetails(null);
     setShowStructuredForm(true); // Reset to show structured form for new session
     setPatientInfoSubmitted(false);
-    setSelectedOption(undefined); // Clear selected option for new session
+    setSelectedOptions({}); // Clear selected options for new session
     setDisabledOptions({}); // Clear disabled options for new session
     setSelectedTreatments({}); // Clear selected treatments for new session
     
+    // Clear progress bar and lead data for new inquiry
+    setUserStatuses([]);
+    setPostApprovalData(null);
+    setStepCompletion(null);
+    setLoanId(null);
+    setUserHasSentFirstMessage(false);
+    
     // Clear all existing session data to ensure fresh start
     localStorage.removeItem('current_session_id');
+    localStorage.removeItem('userId'); // Clear user ID for new inquiry
     
     if (doctorId) {
       localStorage.removeItem(`session_id_doctor_${doctorId}`);
-      // Clear all disabled options and selected treatments for this doctor
+      // Clear all disabled options, selected options, and selected treatments for this doctor
       Object.keys(localStorage).forEach(key => {
         if (key.startsWith(`disabled_options_doctor_${doctorId}_`) || 
+            key.startsWith(`selected_options_doctor_${doctorId}_`) ||
             key.startsWith(`selected_treatments_doctor_${doctorId}_`)) {
           localStorage.removeItem(key);
         }
@@ -784,11 +969,13 @@ const ChatPage: React.FC = () => {
   // Function to clear session data (for logout or manual new session)
   const clearSessionData = () => {
     localStorage.removeItem('current_session_id');
+    localStorage.removeItem('userId'); // Clear user ID
     if (doctorId) {
       localStorage.removeItem(`session_id_doctor_${doctorId}`);
-      // Clear disabled options and selected treatments for the current session
+      // Clear disabled options, selected options, and selected treatments for the current session
       if (sessionId) {
         localStorage.removeItem(`disabled_options_doctor_${doctorId}_session_${sessionId}`);
+        localStorage.removeItem(`selected_options_doctor_${doctorId}_session_${sessionId}`);
         localStorage.removeItem(`selected_treatments_doctor_${doctorId}_session_${sessionId}`);
       }
     }
@@ -797,9 +984,16 @@ const ChatPage: React.FC = () => {
     setMessages([]);
     setShowStructuredForm(true);
     setPatientInfoSubmitted(false);
-    setSelectedOption(undefined);
+    setSelectedOptions({});
     setDisabledOptions({});
     setSelectedTreatments({});
+    
+    // Clear progress bar and lead data
+    setUserStatuses([]);
+    setPostApprovalData(null);
+    setStepCompletion(null);
+    setLoanId(null);
+    setUserHasSentFirstMessage(false);
   };
 
   // Filter chat history based on search query
@@ -810,38 +1004,62 @@ const ChatPage: React.FC = () => {
 
 
 
-  // Function to handle opening the iframe popup
-  const handleOpenIframe = () => {
-    const userId = localStorage.getItem('userId');
-    if (!userId) {
-      setError('User ID not found. Please try again.');
+
+
+
+
+
+
+  // Function to handle opening the payment plan popup
+  const handleOpenPaymentPlanPopup = (url?: string) => {
+    // Don't open popup if payment plan is already completed
+    if (isPaymentPlanCompleted) {
       return;
     }
-    setShowIframePopup(true);
+    setPaymentPlanUrl(url);
+    setShowPaymentPlanPopup(true);
   };
 
-  // Function to handle closing the iframe popup
-  const handleCloseIframe = () => {
-    console.log('handleCloseIframe triggered');
-    setShowIframePopup(false);
+  // Function to handle closing the payment plan popup
+  const handleClosePaymentPlanPopup = () => {
+    setShowPaymentPlanPopup(false);
+    setPaymentPlanUrl(undefined);
   };
 
-  // Handle escape key to close iframe
+  // Function to handle payment plan completion
+  const handlePaymentPlanCompleted = () => {
+    setIsPaymentPlanCompleted(true);
+  };
+
+  // Monitor messages for "Preferred EMI plan" to auto-complete payment plan
   useEffect(() => {
-    const handleEscapeKey = (event: KeyboardEvent) => {
-      if (event.key === 'Escape' && showIframePopup) {
-        handleCloseIframe();
-      }
-    };
-
-    if (showIframePopup) {
-      document.addEventListener('keydown', handleEscapeKey);
+    const hasPreferredEmiPlanMessage = messages.some(message => 
+      message.sender === 'agent' && message.text.includes('Preferred EMI plan:')
+    );
+    
+    if (hasPreferredEmiPlanMessage && !isPaymentPlanCompleted) {
+      setIsPaymentPlanCompleted(true);
     }
+  }, [messages, isPaymentPlanCompleted]);
 
-    return () => {
-      document.removeEventListener('keydown', handleEscapeKey);
-    };
-  }, [showIframePopup]);
+  // Function to handle opening the address details popup
+  const handleOpenAddressDetailsPopup = (url: string) => {
+    setAddressDetailsUrl(url);
+    setShowAddressDetailsPopup(true);
+  };
+
+  // Function to handle closing the address details popup
+  const handleCloseAddressDetailsPopup = () => {
+    setShowAddressDetailsPopup(false);
+    setAddressDetailsUrl('');
+  };
+
+  // Function to handle address details completion
+  const handleAddressDetailsCompleted = () => {
+    setIsAddressDetailsCompleted(true);
+  };
+
+
 
   // Handle click outside to close avatar menu
   useEffect(() => {
@@ -894,12 +1112,7 @@ const ChatPage: React.FC = () => {
     }
   }, [messages, patientInfoSubmitted]);
 
-  // // Check if agent is asking for Aadhaar upload
-  // const shouldShowFileUpload = () => {
-  //   // Always return false to keep text input bar visible
-  //   // Users will use the upload button instead of switching to file upload interface
-  //   return false;
-  // };
+  
 
   // Handle file upload
   const handleFileUpload = async (file: File) => {
@@ -966,7 +1179,7 @@ const ChatPage: React.FC = () => {
           const ocrData = response.data.data.ocr_result;
           const ocrMessage: Message = {
             id: `ocr-${Date.now()}`,
-            text: `📋 **Aadhaar Card Details Extracted Successfully!**\n\n**👤 Name:** ${ocrData.name}\n**🆔 Aadhaar Number:** ${ocrData.aadhaar_number}\n**📅 Date of Birth:** ${ocrData.dob}\n**👥 Gender:** ${ocrData.gender}\n**🏠 Address:** ${ocrData.address}\n**📍 Pincode:** ${ocrData.pincode}\n**👨‍👦 Father's Name:** ${ocrData.father_name}${ocrData.husband_name ? `\n**👨‍👩‍👦 Husband's Name:** ${ocrData.husband_name}` : ''}\n\n✅ All details have been automatically extracted and saved from both sides of the Aadhaar card.`,
+            text: `📋 **Aadhaar Card Details Extracted Successfully!**\n\n**👤 Name:** ${ocrData.name}\n\n**🆔 Aadhaar Number:** ${ocrData.aadhaar_number}\n\n**📅 Date of Birth:** ${ocrData.dob}\n\n**👥 Gender:** ${ocrData.gender}\n\n**🏠 Address:** ${ocrData.address}\n\n**📍 Pincode:** ${ocrData.pincode}\n\n**👨‍👦 Father's Name:** ${ocrData.father_name}${ocrData.husband_name ? `\n**👨‍👩‍👦 Husband's Name:** ${ocrData.husband_name}` : ''}\n\n✅ All details have been automatically extracted and saved from both sides of the Aadhaar card.`,
             sender: 'agent',
             timestamp: new Date(),
           };
@@ -1070,14 +1283,12 @@ const ChatPage: React.FC = () => {
           setUploadSuccess(null);
         }, 3000);
 
-        // Hide upload interface
-
         // Show OCR results in chat if available
         if (response.data.data?.ocr_result) {
           const ocrData = response.data.data.ocr_result;
           const ocrMessage: Message = {
             id: `ocr-${Date.now()}`,
-            text: `📋 **PAN Card Details Extracted Successfully!**\n\n**🆔 PAN Number:** ${ocrData.pan_card_number}\n**👤 Name:** ${ocrData.person_name}\n**📅 Date of Birth:** ${ocrData.date_of_birth}\n**👥 Gender:** ${ocrData.gender}\n**👨‍👦 Father's Name:** ${ocrData.father_name}\n\n✅ All details have been automatically extracted and saved.`,
+            text: `📋 **PAN Card Details Extracted Successfully!**\n\n**🆔 PAN Number:** ${ocrData.pan_card_number}\n\n**👤 Name:** ${ocrData.person_name}\n\n**📅 Date of Birth:** ${ocrData.date_of_birth}\n\n**👨‍👦 Father's Name:** ${ocrData.father_name}\n\n✅ All details have been automatically extracted and saved.`,
             sender: 'agent',
             timestamp: new Date(),
           };
@@ -1092,7 +1303,7 @@ const ChatPage: React.FC = () => {
         let messageToAgent = successMessage;
         if (response.data.data?.ocr_result) {
           const ocrData = response.data.data.ocr_result;
-          messageToAgent = `${successMessage}\n\nExtracted PAN Card Details:\n\n\n\nPAN Number: ${ocrData.pan_card_number}\n\nName: ${ocrData.person_name}\n\nDate of Birth: ${ocrData.date_of_birth}\n\nGender: ${ocrData.gender}\n\nFather's Name: ${ocrData.father_name}`.split('\n').join('\n');
+          messageToAgent = `${successMessage}\n\nExtracted PAN Card Details:\n\n\n\nPAN Number: ${ocrData.pan_card_number}\n\nName: ${ocrData.person_name}\n\nDate of Birth: ${ocrData.date_of_birth}\n\nFather's Name: ${ocrData.father_name}`.split('\n').join('\n');
         }
         
         // Send the success message to the agent
@@ -1126,29 +1337,16 @@ const ChatPage: React.FC = () => {
 
 
 
-  const handleFileInputChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (file) {
-      if (selectedDocumentType === 'aadhaar') {
-        handleFileUpload(file);
-      } else if (selectedDocumentType === 'pan') {
-        handlePanCardUpload(file);
-      }
-    }
-    event.target.value = ''; // Clear the input value after selection
-    setSelectedDocumentType(null); // Reset document type selection
-  };
 
-  // Handle link clicks to open in iframe modal
+  // Handle link clicks: open in a new tab (no iframe)
   const handleLinkClick = (url: string) => {
-    setLinkIframeUrl(url);
-    setShowLinkIframe(true);
+    window.open(url, '_blank', 'noopener,noreferrer');
   };
-
-  // Handle closing the link iframe modal
-  const handleCloseLinkIframe = () => {
-    setShowLinkIframe(false);
-    setLinkIframeUrl('');
+  
+  // Handle upload button click from chat message
+  const handleUploadButtonClick = (documentType: 'aadhaar' | 'pan') => {
+    setSelectedDocumentType(documentType);
+    setShowUploadModal(true);
   };
 
   // Handle profile summary button click
@@ -1209,10 +1407,11 @@ const ChatPage: React.FC = () => {
     return sessionDetails?.status === 'additional_details_completed';
   };
 
-  // Load disabled options and selected treatments from localStorage on component mount
+  // Load disabled options, selected options, and selected treatments from localStorage on component mount
   useEffect(() => {
     if (doctorId && sessionId) {
       const savedDisabledOptions = localStorage.getItem(`disabled_options_doctor_${doctorId}_session_${sessionId}`);
+      const savedSelectedOptions = localStorage.getItem(`selected_options_doctor_${doctorId}_session_${sessionId}`);
       const savedSelectedTreatments = localStorage.getItem(`selected_treatments_doctor_${doctorId}_session_${sessionId}`);
       
       if (savedDisabledOptions) {
@@ -1220,6 +1419,14 @@ const ChatPage: React.FC = () => {
           setDisabledOptions(JSON.parse(savedDisabledOptions));
         } catch (error) {
           console.error('Error parsing saved disabled options:', error);
+        }
+      }
+      
+      if (savedSelectedOptions) {
+        try {
+          setSelectedOptions(JSON.parse(savedSelectedOptions));
+        } catch (error) {
+          console.error('Error parsing saved selected options:', error);
         }
       }
       
@@ -1233,7 +1440,7 @@ const ChatPage: React.FC = () => {
     }
   }, [doctorId, sessionId]);
 
-  // Save disabled options and selected treatments to localStorage whenever they change
+  // Save disabled options, selected options, and selected treatments to localStorage whenever they change
   useEffect(() => {
     if (doctorId && sessionId) {
       localStorage.setItem(`disabled_options_doctor_${doctorId}_session_${sessionId}`, JSON.stringify(disabledOptions));
@@ -1242,9 +1449,107 @@ const ChatPage: React.FC = () => {
 
   useEffect(() => {
     if (doctorId && sessionId) {
+      localStorage.setItem(`selected_options_doctor_${doctorId}_session_${sessionId}`, JSON.stringify(selectedOptions));
+    }
+  }, [selectedOptions, doctorId, sessionId]);
+
+  useEffect(() => {
+    if (doctorId && sessionId) {
       localStorage.setItem(`selected_treatments_doctor_${doctorId}_session_${sessionId}`, JSON.stringify(selectedTreatments));
     }
   }, [selectedTreatments, doctorId, sessionId]);
+
+  // Handle session selection from doctor sessions list
+  const handleSessionSelect = async (sessionId: string) => {
+    try {
+      setSelectedSessionId(sessionId);
+      setShowDoctorSessions(false);
+      await loadChatSession(sessionId);
+    } catch (error) {
+      console.error('Error loading selected session:', error);
+      setError('Failed to load the selected session. Please try again.');
+    }
+  };
+
+  // Function to determine current step based on session status
+  
+
+  // Function to fetch user statuses and post-approval data for progress bar
+  const fetchUserStatuses = async () => {
+    if (!sessionDetails?.userId) {
+      console.log('No userId found, clearing progress bar data');
+      setUserStatuses([]);
+      setPostApprovalData(null);
+      setStepCompletion(null);
+      setLoanId(null);
+      return;
+    }
+    
+    // Only fetch progress data after the first user message has been sent
+    if (!userHasSentFirstMessage) {
+      console.log('Skipping progress bar API calls - first user message not sent yet');
+      // Clear progress data when first message not sent
+      setUserStatuses([]);
+      setPostApprovalData(null);
+      setStepCompletion(null);
+      setLoanId(null);
+      return;
+    }
+    
+    try {
+      console.log('Fetching progress bar data after first user message...');
+      
+      // First, get loan details to get loanId
+      const loanDetails = await getLoanDetailsByUserId(sessionDetails.userId);
+      if (loanDetails?.loanId) {
+        // Store the loanId for use in other components
+        setLoanId(loanDetails.loanId);
+        
+        // Fetch both user statuses and post-approval data
+        const progressData = await useProgressBarState(loanDetails.loanId);
+        
+        setUserStatuses(progressData.userStatuses);
+        setPostApprovalData(progressData.postApprovalData);
+        setStepCompletion(progressData.stepCompletion);
+        
+        // Check if all post-approval statuses are true and show celebration
+        if (progressData.postApprovalData) {
+          const { selfie, agreement_setup, auto_pay, aadhaar_verified } = progressData.postApprovalData;
+          if (selfie && agreement_setup && auto_pay && aadhaar_verified) {
+           
+            setShowRefreshButton(true); // Show refresh button when all statuses are true
+            console.log('🎉 All post-approval statuses are true! Showing celebration!');
+            
+            // Trigger FinDoc processing and doctor category check
+            if (loanDetails.loanId && !hasProcessedFinDoc) {
+              console.log('🚀 All post-approval statuses are true, triggering FinDoc processing...');
+              processFinDocAndGetCategory(loanDetails.loanId);
+            }
+          }
+        }
+        
+        console.log('Progress bar data fetched successfully:', {
+          userStatuses: progressData.userStatuses,
+          postApprovalData: progressData.postApprovalData,
+          stepCompletion: progressData.stepCompletion
+        });
+      } else {
+        // No loan details found, clear progress data
+        console.log('No loan details found, clearing progress bar data');
+        setUserStatuses([]);
+        setPostApprovalData(null);
+        setStepCompletion(null);
+        setLoanId(null);
+      }
+    } catch (error) {
+      console.error('Error fetching user statuses and post-approval data:', error);
+      // Clear progress data on error
+      setUserStatuses([]);
+      setPostApprovalData(null);
+      setStepCompletion(null);
+      setLoanId(null);
+    }
+  };
 
     return (
     <div className="whatsapp-chat-container bg-[#E5DDD5]">
@@ -1274,15 +1579,21 @@ const ChatPage: React.FC = () => {
               {showAvatarMenu && (
                 <div className="absolute top-full left-0 mt-2 w-64 bg-white rounded-lg shadow-lg border border-gray-200 z-50">
                   <div className="p-4">
-                    {/* Your Doctor */}
-                    {doctorName && (
-                      <div className="flex items-center space-x-2 mb-3 pb-3 border-b border-gray-100">
-                        <User className="h-4 w-4 text-gray-500" />
-                        <span className="text-sm font-medium text-gray-700">
-                          Your doctor: {doctorName.replace('_', ' ')}
-                        </span>
-                      </div>
-                    )}
+                    {/* User Type Indicator */}
+                    <div className="flex items-center space-x-2 mb-3 pb-3 border-b border-gray-100">
+                      <User className="h-4 w-4 text-gray-500" />
+                      <span className="text-sm font-medium text-gray-700">
+                        {loginRoute === '/doctor-login' ? (
+                          <>
+                            Doctor: {doctorName?.replace('_', ' ') || 'Unknown'}
+                          </>
+                        ) : (
+                          <>
+                            Your Doctor: {doctorName?.replace('_', ' ') || 'Unknown'}
+                          </>
+                        )}
+                      </span>
+                    </div>
                     
                     {/* Session Count */}
                     <div className="flex items-center justify-between mb-3 pb-3 border-b border-gray-100">
@@ -1294,16 +1605,19 @@ const ChatPage: React.FC = () => {
                     
                     {/* Menu Items */}
                     <div className="space-y-2">
-                      <button
-                        onClick={() => {
-                          setShowHistory(true);
-                          setShowAvatarMenu(false);
-                        }}
-                        className="w-full flex items-center space-x-2 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 rounded-md transition-colors"
-                      >
-                        <History className="h-4 w-4" />
-                        <span>Chat History</span>
-                      </button>
+                      {/* Chat History - Only for patients */}
+                      {loginRoute !== '/doctor-login' && (
+                        <button
+                          onClick={() => {
+                            setShowHamburgerMenu(false);
+                            setShowPatientChatHistory(true);
+                          }}
+                          className="w-full flex items-center space-x-2 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 rounded-md transition-colors"
+                        >
+                          <History className="h-4 w-4" />
+                          <span>Chat History</span>
+                        </button>
+                      )}
                       
 
                       
@@ -1337,11 +1651,11 @@ const ChatPage: React.FC = () => {
         <div className="flex items-center space-x-1 sm:space-x-2 flex-shrink-0">
           <button
             onClick={handleNewSessionClick}
-            className="flex items-center space-x-1 p-1.5 sm:p-2 hover:bg-gray-100 rounded-full transition-colors chat-button"
+            className="flex items-center space-x-2 p-2 sm:p-3 hover:bg-gray-100 rounded-full transition-colors chat-button"
             title="New Inquiry"
           >
-            <Plus className="h-4 w-4 sm:h-5 sm:w-5" />
-            <span className="text-xs">New Inquiry</span>
+            <Plus className="h-5 w-5 sm:h-6 sm:w-6" />
+            <span className="text-sm">New Inquiry</span>
           </button>
         </div>
       </div>
@@ -1418,6 +1732,52 @@ const ChatPage: React.FC = () => {
           </div>
         )}
 
+        {/* Doctor Sessions Sidebar */}
+        {showDoctorSessions && (
+          <div className="absolute inset-0 z-20 bg-white">
+            <div className="flex flex-col h-full">
+              {/* Sessions Header */}
+              <div className="bg-primary-600 text-white px-4 py-3 flex items-center space-x-3">
+                <button
+                  onClick={() => {
+                    setShowDoctorSessions(false);
+                    setShowHamburgerMenu(true);
+                  }}
+                  className="p-1 hover:bg-primary-700 rounded-full transition-colors"
+                >
+                  <ArrowLeft className="h-5 w-5" />
+                </button>
+                <h3 className="font-semibold">Patient Sessions</h3>
+              </div>
+              
+              {/* Sessions List */}
+              <div className="flex-1 overflow-hidden">
+                <DoctorSessionsList
+                  doctorId={doctorId || ''}
+                  onSessionSelect={handleSessionSelect}
+                  selectedSessionId={selectedSessionId || undefined}
+                />
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Patient Chat History Sidebar */}
+        {showPatientChatHistory && (
+          <PatientChatHistory
+            phoneNumber={phoneNumber || ''}
+            onClose={() => setShowPatientChatHistory(false)}
+            onBackToMenu={() => {
+              setShowPatientChatHistory(false);
+              setShowHamburgerMenu(true);
+            }}
+            onSessionSelect={(sessionId) => {
+              setShowPatientChatHistory(false);
+              loadChatSession(sessionId);
+            }}
+          />
+        )}
+
         {/* Hamburger Menu Overlay */}
         {showHamburgerMenu && (
           <div className="absolute inset-0 z-20 bg-white">
@@ -1436,20 +1796,88 @@ const ChatPage: React.FC = () => {
               {/* Menu Items */}
               <div className="flex-1 overflow-y-auto p-4">
                 <div className="space-y-2">
-                  {/* Chat History */}
-                  <button
-                    onClick={() => {
-                      setShowHamburgerMenu(false);
-                      setShowHistory(true);
-                    }}
-                    className="w-full flex items-center space-x-3 px-4 py-3 text-left hover:bg-gray-50 rounded-lg transition-colors"
-                  >
-                    <History className="h-5 w-5 text-gray-600" />
-                    <div>
-                      <div className="font-medium text-gray-900">Chat History</div>
-                      <div className="text-sm text-gray-500">View previous conversations</div>
-                    </div>
-                  </button>
+                  {/* DOCTOR-ONLY FEATURES - Only visible when user came from doctor login route */}
+                  {/* All Applications - Only for doctors */}
+                  {loginRoute === '/doctor-login' && (
+                    <button
+                      onClick={() => {
+                        setShowHamburgerMenu(false);
+                        setShowHistory(false);
+                        setShowLoanTransactionsOverlay(true);
+                      }}
+                      className="w-full flex items-center space-x-3 px-4 py-3 text-left hover:bg-gray-50 rounded-lg transition-colors"
+                    >
+                      <div className="flex items-center justify-center w-8 h-8 bg-gray-700 rounded-lg">
+                        <span className="text-white font-bold text-base">₹</span>
+                      </div>
+                      <div>
+                        <div className="font-medium text-gray-900">All Applications</div>
+                        <div className="text-sm text-gray-500">Track latest application statuses here.</div>
+                      </div>
+                    </button>
+                  )}
+                  
+                  {/* All Inquiries - Only for doctors */}
+                  {loginRoute === '/doctor-login' && (
+                    <button
+                      onClick={() => {
+                        setShowHamburgerMenu(false);
+                        setShowHistory(false);
+                        setShowLoanTransactionsOverlay(false);
+                        setShowDoctorSessions(true);
+                      }}
+                      className="w-full flex items-center space-x-3 px-4 py-3 text-left hover:bg-gray-50 rounded-lg transition-colors"
+                    >
+                      <div className="flex items-center justify-center w-8 h-8 bg-blue-600 rounded-lg">
+                        <User className="h-4 w-4 text-white" />
+                      </div>
+                      <div>
+                        <div className="font-medium text-gray-900">All Inquiries chat History</div>
+                        <div className="text-sm text-gray-500">View all inquiries chat history</div>
+                      </div>
+                    </button>
+                  )}
+                  
+                  {/* Business Overview - Only for doctors */}
+                  {loginRoute === '/doctor-login' && (
+                    <button
+                      onClick={() => {
+                        setShowHamburgerMenu(false);
+                        setShowBusinessOverviewOverlay(true);
+                      }}
+                      className="w-full flex items-center space-x-3 px-4 py-3 text-left hover:bg-gray-50 rounded-lg transition-colors"
+                    >
+                      <div className="flex items-center justify-center w-8 h-8 bg-green-600 rounded-lg">
+                        <TrendingUp className="h-4 w-4 text-white" />
+                      </div>
+                      <div>
+                        <div className="font-medium text-gray-900">Business Overview</div>
+                        <div className="text-sm text-gray-500">View loan statistics and earnings</div>
+                      </div>
+                    </button>
+                  )}
+                  
+
+                  
+                  {/* PATIENT-ONLY FEATURES - Only visible when user came from patient login route */}
+                  {/* Chat History - Only for patients */}
+                  {loginRoute !== '/doctor-login' && (
+                    <button
+                      onClick={() => {
+                        setShowHamburgerMenu(false);
+                        setShowLoanTransactionsOverlay(false);
+                        setShowPatientChatHistory(true);
+                      }}
+                      className="w-full flex items-center space-x-3 px-4 py-3 text-left hover:bg-gray-50 rounded-lg transition-colors"
+                    >
+                      
+                      <History className="h-5 w-5 text-gray-600" />
+                      <div>
+                        <div className="font-medium text-gray-900">Recent chat history</div>
+                        <div className="text-sm text-gray-500">View previous conversations</div>
+                      </div>
+                    </button>
+                  )}
                   
                   {/* New Chat */}
                   <button
@@ -1474,9 +1902,17 @@ const ChatPage: React.FC = () => {
                         <span className="text-sm font-medium text-gray-900">{sessionCount}/10</span>
                       </div>
                       {doctorName && (
-                        <div className="flex items-center justify-between">
-                          <span className="text-sm text-gray-600">Doctor</span>
-                          <span className="text-sm font-medium text-gray-900">{doctorName.replace('_', ' ')}</span>
+                        <div className="flex flex-col space-y-1">
+                          <div className="flex items-center justify-between">
+                            <span className="text-sm text-gray-600">{loginRoute === '/doctor-login' ? 'Doctor' : 'Your Doctor'}</span>
+                            <span className="text-sm font-medium text-gray-900">{doctorName.replace('_', ' ')}</span>
+                          </div>
+                          {clinicName && (
+                            <div className="flex items-start justify-between">
+                              <span className="text-sm text-gray-600 flex-shrink-0 mr-2">Clinic</span>
+                              <span className="text-sm font-medium text-gray-900 break-words leading-relaxed text-right flex-1">{clinicName}</span>
+                            </div>
+                          )}
                         </div>
                       )}
                     </div>
@@ -1532,16 +1968,46 @@ const ChatPage: React.FC = () => {
                 title="Profile Summary"
               >
                 <User className="h-4 w-4" />
-                <span className="ml-1"> Your Profile Summary</span>
+                <span className="ml-1"> Patient Profile Summary</span>
               </button>
             </div>
           )}
+          
+          {/* Clinic name section bar - Fixed */}
+          {clinicName && (
+            <div className="px-4 py-2 bg-blue-50 border-b border-blue-200 text-sm text-blue-800 flex-shrink-0 flex items-center justify-center">
+              <div className="flex items-center space-x-2">
+                <svg className="h-4 w-4" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M4 4a2 2 0 012-2h8a2 2 0 012 2v12a2 2 0 01-2 2H6a2 2 0 01-2-2V4zm3 1h2v2H7V5zm2 4H7v2h2V9zm2-4h2v2h-2V5zm2 4h-2v2h2V9z" clipRule="evenodd" />
+                </svg>
+                <span className="font-medium">Clinic: {clinicName}</span>
+              </div>
+            </div>
+          )}
+          
+          {/* Progress Bar - Fixed */}
+          {sessionDetails && (
+            <div className="flex-shrink-0">
+              <ProgressBar 
+                userStatuses={userStatuses}
+                stepCompletion={stepCompletion || undefined}
+              />
+            </div>
+          )}
+
           
           {/* Offer button - Fixed */}
           {showOfferButton && (
             <div className="px-4 py-3 flex justify-center flex-shrink-0 bg-gray-50">
               <button
-                onClick={handleOpenIframe}
+                onClick={() => {
+                  const userId = localStorage.getItem('userId');
+                  if (userId) {
+                    window.open(`https://carepay.money/patient/razorpayoffer/${userId}`, '_blank');
+                  } else {
+                    setError('User ID not found. Please try again.');
+                  }
+                }}
                 className="bg-green-500 hover:bg-green-600 text-white font-medium py-3 px-6 rounded-full flex items-center shadow-lg transition-all duration-300 transform hover:scale-105"
               >
                 <img 
@@ -1570,11 +2036,17 @@ const ChatPage: React.FC = () => {
                   key={message.id} 
                   message={message} 
                   onButtonClick={handleButtonClick}
-                  selectedOption={selectedOption}
+                  selectedOption={selectedOptions[message.id]}
                   disabledOptions={disabledOptions[message.id] || false}
                   onLinkClick={handleLinkClick}
                   onTreatmentSelect={handleTreatmentSelect}
                   selectedTreatment={selectedTreatments[message.id]}
+                  onUploadClick={handleUploadButtonClick}
+                  onPaymentPlanPopupOpen={handleOpenPaymentPlanPopup}
+                  loanId={loanId || undefined}
+                  onAddressDetailsPopupOpen={handleOpenAddressDetailsPopup}
+                  isPaymentPlanCompleted={isPaymentPlanCompleted}
+                  isAddressDetailsCompleted={isAddressDetailsCompleted}
                 />
               ))}
               {isLoading && messages.some(m => m.sender === 'user') && (
@@ -1589,7 +2061,23 @@ const ChatPage: React.FC = () => {
           
           {/* Message input area - Fixed */}
           <div className="whatsapp-input-area p-3 bg-white border-t border-gray-200 chat-input-container">
-            {shouldShowStructuredForm() ? (
+            { hasPaymentStepsMessage() ? (
+              // Show refresh button when all post-approval statuses are true, disbursal order is shown, or PaymentStepsMessage is present
+              <div className="flex items-center justify-center">
+                <button
+                  onClick={() => {
+                    // Refresh the entire page
+                    window.location.reload();
+                  }}
+                  className="bg-green-600 hover:bg-green-700 text-white px-6 py-3 rounded-full transition-colors duration-200 flex items-center space-x-2"
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                  </svg>
+                  <span className="font-medium">Refresh Status</span>
+                </button>
+              </div>
+            ) : shouldShowStructuredForm() ? (
               <StructuredInputForm 
                 onSubmit={handleStructuredFormSubmit}
                 isLoading={isLoading}
@@ -1598,27 +2086,6 @@ const ChatPage: React.FC = () => {
               /* Regular Message Input */
               <>
                 <form onSubmit={handleSendMessage} className="flex items-end space-x-2">
-                  {/* File Upload Button */}
-                  <button
-                    type="button"
-                    onClick={() => setShowUploadModal(true)}
-                    className="bg-gray-100 hover:bg-gray-200 text-gray-600 p-2.5 rounded-full transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
-                    disabled={isLoading || !sessionId}
-                    title="Upload file"
-                  >
-                    <Upload className="h-4 w-4" />
-                  </button>
-                  
-                  {/* Hidden file input */}
-                  <input
-                    ref={fileInputRef}
-                    type="file"
-                    accept="image/jpeg,image/png,image/jpg,application/pdf"
-                    onChange={handleFileInputChange}
-                    className="hidden"
-                    disabled={isLoading || !sessionId}
-                  />
-                  
                   <div className="flex-1 bg-gray-100 rounded-full px-3 py-1.5">
                     <input
                       type="text"
@@ -1637,26 +2104,6 @@ const ChatPage: React.FC = () => {
                     <SendHorizonal className="h-4 w-4" />
                   </button>
                 </form>
-                
-                {/* File upload status */}
-                {isUploading && (
-                  <div className="mt-2 flex items-center space-x-2 text-sm text-gray-600">
-                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-primary-600"></div>
-                    <span>Uploading file...</span>
-                  </div>
-                )}
-                
-                {uploadError && (
-                  <div className="mt-2 text-sm text-red-600 bg-red-50 p-2 rounded">
-                    {uploadError}
-                  </div>
-                )}
-                
-                {uploadSuccess && (
-                  <div className="mt-2 text-sm text-green-600 bg-green-50 p-2 rounded">
-                    {uploadSuccess}
-                  </div>
-                )}
               </>
             )}
           </div>
@@ -1676,203 +2123,108 @@ const ChatPage: React.FC = () => {
             className="bg-white rounded-lg p-6 w-96 max-w-[90vw] mx-4"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-semibold text-gray-900">Upload Document</h3>
-              <button
-                onClick={() => {
-                  setShowUploadModal(false);
-                  setSelectedDocumentType(null);
-                }}
-                className="text-gray-400 hover:text-gray-600"
-              >
-                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
+            <div className="mb-4">
+              <h3 className="text-lg font-semibold text-gray-900 text-center">
+                {selectedDocumentType === 'aadhaar' ? 'Upload Aadhaar Card' : 
+                 selectedDocumentType === 'pan' ? 'Upload PAN Card' : 
+                 'Upload Document'}
+              </h3>
             </div>
-            
+            {uploadError && <div className="text-sm text-red-600 mb-2">{uploadError}</div>}
+            {uploadSuccess && <div className="text-sm text-green-600 mb-2">{uploadSuccess}</div>}
             <div className="space-y-4">
-              <div className="text-sm text-gray-600 mb-4">
-                Select the type of document you want to upload:
-              </div>
-              
-              {/* Aadhaar Card Option */}
-              <button
-                onClick={() => setSelectedDocumentType('aadhaar')}
-                className={`w-full p-4 border-2 rounded-lg text-left transition-colors ${
-                  selectedDocumentType === 'aadhaar'
-                    ? 'border-blue-500 bg-blue-50'
-                    : 'border-gray-200 hover:border-gray-300'
-                }`}
-              >
-                <div className="flex items-center space-x-3">
-                  <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
-                    <svg className="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V8a2 2 0 00-2-2h-5m-4 0V4a2 2 0 114 0v2m-4 0a2 2 0 104 0m-5 8a2 2 0 100-4 2 2 0 000 4zm0 0c1.306 0 2.417.835 2.83 2M9 14a3.001 3.001 0 00-2.83 2M15 11h3m-3 4h2" />
-                    </svg>
+              {/* Show appropriate content based on pre-selected document type */}
+              {selectedDocumentType === 'aadhaar' ? (
+                <>
+                  {/* Direct Aadhaar Upload - No selection needed */}
+                  <div className="text-sm text-gray-600 mb-4">
+                    Please upload both front and back sides of your Aadhaar card:
                   </div>
-                  <div>
-                    <div className="font-medium text-gray-900">Aadhaar Card</div>
-                    <div className="text-sm text-gray-500">Both front and back sides</div>
+                  <AadhaarUpload
+                    onUpload={async (combinedFile) => {
+                      // Handle combined Aadhaar upload
+                      setShowUploadModal(false);
+                      // Call the Aadhaar upload function with combined file
+                      await handleFileUpload(combinedFile);
+                    }}
+                    isUploading={isUploading}
+                    acceptedTypes={['image/jpeg', 'image/png', 'image/jpg']}
+                    maxSize={10}
+                  />
+                </>
+              ) : selectedDocumentType === 'pan' ? (
+                <>
+                  {/* Direct PAN Upload - No selection needed */}
+                  <div className="text-sm text-gray-600 mb-4">
+                    Please upload the front side of your PAN card:
                   </div>
-                </div>
-              </button>
-              
-              {/* PAN Card Option */}
-              <button
-                onClick={() => setSelectedDocumentType('pan')}
-                className={`w-full p-4 border-2 rounded-lg text-left transition-colors ${
-                  selectedDocumentType === 'pan'
-                    ? 'border-blue-500 bg-blue-50'
-                    : 'border-gray-200 hover:border-gray-300'
-                }`}
-              >
-                <div className="flex items-center space-x-3">
-                  <div className="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center">
-                    <svg className="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                    </svg>
+                                     <PanCardUpload
+                     onFileSelect={() => {
+                       // Handle file selection for PAN card
+                       // Don't close modal or upload immediately - let user see preview and click upload button
+                     }}
+                     onUpload={async (file) => {
+                       // Close modal and upload PAN card
+                       setShowUploadModal(false);
+                       await handlePanCardUpload(file);
+                     }}
+                     isUploading={isUploading}
+                     acceptedTypes={['image/jpeg', 'image/png', 'image/jpg', 'application/pdf']}
+                     maxSize={10}
+                   />
+                </>
+              ) : (
+                <>
+                  {/* Show selection options only when no document type is pre-selected */}
+                  <div className="text-sm text-gray-600 mb-4">
+                    Select the type of document you want to upload:
                   </div>
-                  <div>
-                    <div className="font-medium text-gray-900">PAN Card</div>
-                    <div className="text-sm text-gray-500">Front side only</div>
-                  </div>
-                </div>
-              </button>
-              
-              {/* Upload Component */}
-              {selectedDocumentType && (
-                <div className="pt-4">
-                  {selectedDocumentType === 'aadhaar' ? (
-                    <AadhaarUpload
-                      onUpload={async (combinedFile) => {
-                        // Handle combined Aadhaar upload
-                        setShowUploadModal(false);
-                        // Call the Aadhaar upload function with combined file
-                        await handleFileUpload(combinedFile);
-                      }}
-                      isUploading={isUploading}
-                      acceptedTypes={['image/jpeg', 'image/png', 'image/jpg']}
-                      maxSize={10}
-                    />
-                  ) : (
-                    <PanCardUpload
-                      onFileSelect={() => {
-                        // Handle file selection for PAN card
-                        // Don't close modal or upload immediately - let user see preview and click upload button
-                      }}
-                      onUpload={handlePanCardUpload}
-                      isUploading={isUploading}
-                      acceptedTypes={['image/jpeg', 'image/png', 'image/jpg', 'application/pdf']}
-                      maxSize={10}
-                    />
-                  )}
-                </div>
+                  
+                  {/* Aadhaar Card Option */}
+                  <button
+                    onClick={() => setSelectedDocumentType('aadhaar')}
+                    className="w-full p-4 border-2 rounded-lg text-left transition-colors border-gray-200 hover:border-gray-300"
+                  >
+                    <div className="flex items-center space-x-3">
+                      <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
+                        <svg className="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V8a2 2 0 00-2-2h-5m-4 0V4a2 2 0 114 0v2m-4 0a2 2 0 104 0m-5 8a2 2 0 100-4 2 2 0 000 4zm0 0c1.306 0 2.417.835 2.83 2M9 14a3.001 3.001 0 00-2.83 2M15 11h3m-3 4h2" />
+                        </svg>
+                      </div>
+                      <div>
+                        <div className="font-medium text-gray-900">Aadhaar Card</div>
+                        <div className="text-sm text-gray-500">Both front and back sides</div>
+                      </div>
+                    </div>
+                  </button>
+                  
+                  {/* PAN Card Option */}
+                  <button
+                    onClick={() => setSelectedDocumentType('pan')}
+                    className="w-full p-4 border-2 rounded-lg text-left transition-colors border-gray-200 hover:border-gray-300"
+                  >
+                    <div className="flex items-center space-x-3">
+                      <div className="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center">
+                        <svg className="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                        </svg>
+                      </div>
+                      <div>
+                        <div className="font-medium text-gray-900">PAN Card</div>
+                        <div className="text-sm text-gray-500">Front side only</div>
+                      </div>
+                    </div>
+                  </button>
+                </>
               )}
             </div>
           </div>
         </div>
       )}
 
-      {/* Link Iframe Modal */}
-      {showLinkIframe && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg shadow-xl w-11/12 max-w-7xl h-[95vh] max-h-[95vh] flex flex-col">
-            {/* Header */}
-            <div className="flex items-center justify-between p-4 border-b border-gray-200">
-              <h3 className="text-lg font-semibold text-gray-900">Application Status</h3>
-              <button
-                onClick={handleCloseLinkIframe}
-                className="text-gray-400 hover:text-gray-600 p-2 rounded-full hover:bg-gray-100 transition-colors"
-              >
-                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
-            </div>
-            
-            {/* Iframe Content */}
-            <div className="flex-1 p-4 iframe-container">
-              <iframe
-                src={linkIframeUrl}
-                title="Application Status"
-                className="w-full h-full border-0 rounded-lg iframe-scrollbar"
-                style={{ 
-                  minHeight: '400px',
-                  overflow: 'auto',
-                  WebkitOverflowScrolling: 'touch'
-                }}
-                scrolling="auto"
-              />
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Link Iframe Modal removed: links open in a new tab now */}
 
-      {/* Iframe Popup Modal */}
-      {showIframePopup && (
-        <div className="fixed inset-0 bg-white z-50">
-          <div className="absolute top-4 right-4 z-50">
-            <button
-              onClick={handleCloseIframe}
-              className="bg-white rounded-full p-2 shadow-lg"
-              style={{
-                width: '40px',
-                height: '40px',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center'
-              }}
-            >
-              <svg 
-                className="w-6 h-6 text-gray-600" 
-                fill="none" 
-                stroke="currentColor" 
-                viewBox="0 0 24 24"
-              >
-                <path 
-                  strokeLinecap="round" 
-                  strokeLinejoin="round" 
-                  strokeWidth={2} 
-                  d="M6 18L18 6M6 6l12 12" 
-                />
-              </svg>
-            </button>
-          </div>
-          <iframe
-            src={`https://carepay.money/patient/razorpayoffer/${localStorage.getItem('userId')}`}
-            title="Razorpay Offer"
-            className="w-full h-full iframe-scrollbar"
-            allow="camera; microphone; geolocation; payment; clipboard-write; web-share; fullscreen"
-            allowFullScreen
-            sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-modals allow-top-navigation allow-top-navigation-by-user-activation allow-downloads allow-storage-access-by-user-activation"
-            style={{ 
-              overflow: 'auto',
-              border: 'none',
-              WebkitOverflowScrolling: 'touch',
-              width: '100vw',
-              height: '100vh',
-              position: 'fixed',
-              top: 0,
-              left: 0,
-              right: 0,
-              bottom: 0,
-              transform: 'scale(1)',
-              transformOrigin: '0 0',
-              WebkitTransform: 'scale(1)',
-              WebkitTransformOrigin: '0 0',
-              touchAction: 'manipulation',
-              WebkitTouchCallout: 'none',
-              WebkitUserSelect: 'none',
-              userSelect: 'none',
-              scrollbarWidth: 'thin',
-              scrollbarColor: 'rgba(0, 0, 0, 0.2) rgba(0, 0, 0, 0.05)'
-            }}
-            scrolling="auto"
-            onClick={(e) => e.stopPropagation()}
-          ></iframe>
-        </div>
-      )}
+
 
       {/* Logout Confirmation Modal */}
       <Modal
@@ -2149,6 +2501,63 @@ const ChatPage: React.FC = () => {
           onSaveSuccess={handleEditProfileSaveSuccess}
         />
       )}
+
+      {/* Loan Transactions Overlay */}
+      {showLoanTransactionsOverlay && (
+        <div className="absolute inset-0 z-20 bg-white overflow-auto">
+          <LoanTransactionsPage 
+            onClose={() => setShowLoanTransactionsOverlay(false)} 
+            onBackToMenu={() => {
+              setShowLoanTransactionsOverlay(false);
+              setShowHamburgerMenu(true);
+            }}
+          />
+        </div>
+      )}
+
+      {/* Business Overview Overlay */}
+      {showBusinessOverviewOverlay && (
+        <div className="absolute inset-0 z-20 bg-white overflow-auto">
+          <BusinessOverviewPage 
+            onClose={() => setShowBusinessOverviewOverlay(false)} 
+            onBackToMenu={() => {
+              setShowBusinessOverviewOverlay(false);
+              setShowHamburgerMenu(true);
+            }}
+          />
+        </div>
+      )}
+
+
+
+      {/* Payment Plan Popup */}
+              <PaymentPlanPopup
+          isOpen={showPaymentPlanPopup}
+          onClose={handleClosePaymentPlanPopup}
+          url={paymentPlanUrl}
+          sessionId={sessionId || undefined}
+          onSessionRefresh={refreshSessionAndProgress}
+          onPaymentPlanCompleted={handlePaymentPlanCompleted}
+        />
+
+      {/* Address Details Popup */}
+      <AddressDetailsPopup
+        isOpen={showAddressDetailsPopup}
+        onClose={handleCloseAddressDetailsPopup}
+        kycUrl={addressDetailsUrl}
+        userId={localStorage.getItem('userId') || ''}
+        onMessageSend={handleMessageSubmit}
+        onSessionRefresh={refreshSessionAndProgress}
+        onAddressDetailsCompleted={handleAddressDetailsCompleted}
+      />
+
+      {/* Disbursal Order Overlay */}
+      {showDisbursalOrder && loanId && (
+        <DisbursalOrderOverlay
+          loanId={loanId}
+          onClose={() => setShowDisbursalOrder(false)}
+        />
+      )}   
     </div>
   );
 };

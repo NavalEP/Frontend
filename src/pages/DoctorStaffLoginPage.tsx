@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { doctorStaffLogin } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import { User, Lock, MessageSquare } from 'lucide-react';
@@ -10,7 +10,49 @@ const DoctorStaffLoginPage: React.FC = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [consentAccepted, setConsentAccepted] = useState(true);
-  const { login } = useAuth();
+  const { login, performAutoLogin, doctorCode: storedDoctorCode } = useAuth();
+
+  // Auto-login effect when URL parameters are present
+  useEffect(() => {
+    const autoLoginMerchantCode = localStorage.getItem('autoLogin_merchantCode');
+    const autoLoginPassword = localStorage.getItem('autoLogin_password');
+    
+    if (autoLoginMerchantCode && autoLoginPassword && !isLoading) {
+      // Clear the stored credentials
+      localStorage.removeItem('autoLogin_merchantCode');
+      localStorage.removeItem('autoLogin_password');
+      
+      // Set the form values
+      setDoctorCode(autoLoginMerchantCode);
+      setPassword(autoLoginPassword);
+      
+      // Use the AuthContext performAutoLogin function
+      handleAutoLogin();
+    }
+  }, [isLoading]);
+
+  // Populate doctorCode field with stored value if available
+  useEffect(() => {
+    if (storedDoctorCode && !doctorCode) {
+      setDoctorCode(storedDoctorCode);
+    }
+  }, [storedDoctorCode, doctorCode]);
+
+  const handleAutoLogin = async () => {
+    setError(null);
+    setIsLoading(true);
+    
+    try {
+      // Use the AuthContext performAutoLogin which always calls the doctor staff API
+      await performAutoLogin();
+      setError(null);
+    } catch (err) {
+      console.error('Error during auto-login:', err);
+      setError(err instanceof Error ? err.message : 'Auto-login failed. Please try again.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -35,6 +77,7 @@ const DoctorStaffLoginPage: React.FC = () => {
     setIsLoading(true);
     
     try {
+      // Always call the doctor staff API to get fresh token and doctor info
       const response = await doctorStaffLogin(doctorCode.trim(), password);
       
       if (response.data.token) {
@@ -42,7 +85,7 @@ const DoctorStaffLoginPage: React.FC = () => {
           token: response.data.token,
           doctor_id: response.data.doctor_id,
           doctor_name: response.data.doctor_name
-        });
+        }, '/doctor-login');
         setError(null);
       } else {
         setError('Login failed. Please check your credentials.');
@@ -136,8 +179,8 @@ const DoctorStaffLoginPage: React.FC = () => {
                 <label htmlFor="consent" className="text-sm text-gray-700">
                   <p className="mb-2">I consent to the following:</p>
                   <div className="space-y-2 text-xs text-gray-600">
-                    <p>1. I confirm that I am authorized medical staff and have permission to access patient loan enquiry data through this platform.</p>
-                    <p>2. I consent to the collection, storage, and use of patient information for loan processing purposes, as per applicable laws and medical ethics.</p>
+                    <p>1. I confirm this number is linked to my Aadhaar, PAN, and income account. I authorize CareCoin Technologies Pvt Ltd and its partners to fetch my credit information from CIBIL, Experian, Equifax, etc.</p>
+                    <p>2. I also consent to the collection, storage, and use of my Aadhaar, employment, and other details needed to process my application, as per applicable laws.</p>
                     <p>3. I accept the{' '}
                       <a 
                         href="https://carepay.money/patient/termspatient" 

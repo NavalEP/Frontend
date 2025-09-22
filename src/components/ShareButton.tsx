@@ -63,11 +63,12 @@ const ShareButton: React.FC<ShareButtonProps> = ({
   return (
     <button
       onClick={handleShare}
-      className={`inline-flex items-center space-x-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1 ${className}`}
+      className={`inline-flex items-center space-x-2 px-4 py-2 hover:opacity-90 text-white font-medium rounded-lg transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-offset-1 ${className}`}
+      style={{ backgroundColor: '#514c9f' }}
       title={isNativeSharingSupported() ? "Share" : "Copy to clipboard"}
     >
       <Share2 className="h-4 w-4" />
-      {children || <span>Share</span>}
+      {children}
     </button>
   );
 };

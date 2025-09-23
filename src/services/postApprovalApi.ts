@@ -34,6 +34,26 @@ export interface PostApprovalStatusResult {
   message: string;
 }
 
+// Interface for Aadhaar verification data
+export interface AadhaarVerificationData {
+  verified: boolean;
+}
+
+// Interface for Aadhaar verification API response
+export interface AadhaarVerificationResponse {
+  status: number;
+  data: boolean;
+  attachment: null;
+  message: string;
+}
+
+// Interface for Aadhaar verification API function return type
+export interface AadhaarVerificationResult {
+  success: boolean;
+  data?: boolean;
+  message: string;
+}
+
 // Interface for zip code details data
 export interface ZipCodeDetailsData {
   branchName: string | null;
@@ -289,6 +309,80 @@ export const getPostApprovalStatus = async (loanId: string): Promise<PostApprova
       
       if (error.response.status === 404) {
         throw new Error('Post-approval status not found for this loan ID.');
+      }
+      
+      if (error.response.status === 500) {
+        const errorMessage = error.response.data?.message || 'Internal server error';
+        throw new Error(`Server Error: ${errorMessage}`);
+      }
+      
+      // Handle other status codes
+      const errorMessage = error.response.data?.message || error.message;
+      throw new Error(`API Error (${error.response.status}): ${errorMessage}`);
+    }
+    
+    // Handle non-axios errors
+    throw new Error(`Unexpected error: ${error.message || 'Unknown error occurred'}`);
+  }
+};
+
+/**
+ * Check Aadhaar verification status for a user
+ * @param userId - The user ID to check Aadhaar verification for
+ * @returns Promise with the Aadhaar verification result
+ */
+export const checkAadhaarVerification = async (userId: string): Promise<AadhaarVerificationResult> => {
+  try {
+    console.log('Checking Aadhaar verification for user ID:', userId);
+
+    const response = await carePayApi.get<AadhaarVerificationResponse>('/checkAadhaarVerification', {
+      params: { userId },
+      headers: {
+        'Accept': 'application/json'
+      }
+    });
+
+    console.log('Aadhaar verification response:', response.data);
+
+    // Check if the response is successful
+    if (response.data.status === 200) {
+      return {
+        success: true,
+        data: response.data.data,
+        message: response.data.message || 'Aadhaar verification status retrieved successfully'
+      };
+    }
+
+    // Handle non-200 status responses
+    return {
+      success: false,
+      message: response.data.message || 'Failed to retrieve Aadhaar verification status'
+    };
+
+  } catch (error: any) {
+    console.error('Error checking Aadhaar verification:', error);
+    
+    if (axios.isAxiosError(error)) {
+      if (error.code === 'ECONNABORTED') {
+        throw new Error('Request timed out. Please try again.');
+      }
+      
+      if (!error.response) {
+        throw new Error('Unable to connect to the CarePay backend server. Please check your internet connection.');
+      }
+      
+      // Handle specific HTTP status codes
+      if (error.response.status === 400) {
+        const errorMessage = error.response.data?.message || 'Invalid user ID provided';
+        throw new Error(`Bad Request: ${errorMessage}`);
+      }
+      
+      if (error.response.status === 401) {
+        throw new Error('Authentication required. Please login again.');
+      }
+      
+      if (error.response.status === 404) {
+        throw new Error('Aadhaar verification status not found for this user ID.');
       }
       
       if (error.response.status === 500) {

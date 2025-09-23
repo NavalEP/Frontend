@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Share2, Copy, CheckCircle } from 'lucide-react';
 import { smartShare } from '../utils/shareUtils';
-import { getPostApprovalStatus, PostApprovalStatusData } from '../services/postApprovalApi';
+import { getPostApprovalStatus, PostApprovalStatusData, checkAadhaarVerification } from '../services/postApprovalApi';
 
 interface PaymentStep {
   title: string;
@@ -19,6 +19,7 @@ interface PaymentStepsMessageProps {
 
 const PaymentStepsMessage: React.FC<PaymentStepsMessageProps> = ({ steps, onLinkClick, loanId }) => {
   const [postApprovalStatus, setPostApprovalStatus] = useState<PostApprovalStatusData | null>(null);
+  const [showAadhaarMessage, setShowAadhaarMessage] = useState<number | null>(null);
 
   // Fetch post-approval status when component mounts or loanId changes
   useEffect(() => {
@@ -90,6 +91,84 @@ const PaymentStepsMessage: React.FC<PaymentStepsMessageProps> = ({ steps, onLink
     setTimeout(() => {
       toast.remove();
     }, 2000);
+  };
+
+  // Function to check Aadhaar verification before sharing
+  const checkAadhaarBeforeShare = async (url: string, stepIndex: number) => {
+    const userId = localStorage.getItem('userId');
+    if (!userId) {
+      alert('User ID not found. Please login again.');
+      return;
+    }
+
+    try {
+      const result = await checkAadhaarVerification(userId);
+      if (result.success && result.data === false) {
+        setShowAadhaarMessage(stepIndex);
+        // Hide message after 5 seconds
+        setTimeout(() => setShowAadhaarMessage(null), 5000);
+        return;
+      }
+      
+      // If Aadhaar is verified or check fails, proceed with sharing
+      await handleNativeShare(url);
+    } catch (error) {
+      console.error('Error checking Aadhaar verification:', error);
+      // If there's an error checking Aadhaar, still allow sharing
+      await handleNativeShare(url);
+    }
+  };
+
+  // Function to check Aadhaar verification before primary action (for share buttons)
+  const checkAadhaarBeforePrimaryAction = async (url: string, stepIndex: number) => {
+    const userId = localStorage.getItem('userId');
+    if (!userId) {
+      alert('User ID not found. Please login again.');
+      return;
+    }
+
+    try {
+      const result = await checkAadhaarVerification(userId);
+      if (result.success && result.data === false) {
+        setShowAadhaarMessage(stepIndex);
+        // Hide message after 5 seconds
+        setTimeout(() => setShowAadhaarMessage(null), 5000);
+        return;
+      }
+      
+      // If Aadhaar is verified or check fails, proceed with the action
+      handleLinkClick(url);
+    } catch (error) {
+      console.error('Error checking Aadhaar verification:', error);
+      // If there's an error checking Aadhaar, still allow the action
+      handleLinkClick(url);
+    }
+  };
+
+  // Function to check Aadhaar verification before copying
+  const checkAadhaarBeforeCopy = async (url: string, stepIndex: number) => {
+    const userId = localStorage.getItem('userId');
+    if (!userId) {
+      alert('User ID not found. Please login again.');
+      return;
+    }
+
+    try {
+      const result = await checkAadhaarVerification(userId);
+      if (result.success && result.data === false) {
+        setShowAadhaarMessage(stepIndex);
+        // Hide message after 5 seconds
+        setTimeout(() => setShowAadhaarMessage(null), 5000);
+        return;
+      }
+      
+      // If Aadhaar is verified or check fails, proceed with copying
+      copyToClipboard(url);
+    } catch (error) {
+      console.error('Error checking Aadhaar verification:', error);
+      // If there's an error checking Aadhaar, still allow copying
+      copyToClipboard(url);
+    }
   };
 
   const handleNativeShare = async (url: string) => {
@@ -168,7 +247,15 @@ const PaymentStepsMessage: React.FC<PaymentStepsMessageProps> = ({ steps, onLink
             
             {/* Primary Action Button */}
             <button
-              onClick={() => handleLinkClick(step.url)}
+              onClick={() => {
+                if (isCompleted) return;
+                // Check if this is a share button that needs Aadhaar verification
+                if (step.primaryButtonText.includes('Share link')) {
+                  checkAadhaarBeforePrimaryAction(step.url, index);
+                } else {
+                  handleLinkClick(step.url);
+                }
+              }}
               className={`w-full px-4 py-3 text-white font-bold rounded-lg transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-offset-1 shadow-lg transform hover:scale-105 mb-3 ${
                 isCompleted ? 'opacity-75 cursor-not-allowed' : ''
               }`}
@@ -187,7 +274,7 @@ const PaymentStepsMessage: React.FC<PaymentStepsMessageProps> = ({ steps, onLink
           {/* Secondary Action Buttons */}
           <div className="flex space-x-2">
             <button
-              onClick={() => handleNativeShare(step.url)}
+              onClick={() => checkAadhaarBeforeShare(step.url, index)}
               className="flex-1 px-3 py-2 font-medium rounded-lg transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-offset-1 flex items-center justify-center space-x-2 text-xs"
               style={{
                 backgroundColor: '#f3f2ff',
@@ -204,12 +291,30 @@ const PaymentStepsMessage: React.FC<PaymentStepsMessageProps> = ({ steps, onLink
               <span>{step.secondaryButtonText}</span>
             </button>
             <button
-              onClick={() => copyToClipboard(step.url)}
+              onClick={() => checkAadhaarBeforeCopy(step.url, index)}
               className="px-3 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium rounded-lg transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-1 flex items-center justify-center text-xs"
             >
               <Copy className="h-3 w-3" />
             </button>
           </div>
+          
+          {/* Aadhaar Verification Message */}
+          {showAadhaarMessage === index && (
+            <div className="mt-3 p-3 bg-red-50 border border-red-200 rounded-lg">
+              <div className="flex items-center">
+                <div className="flex-shrink-0">
+                  <svg className="h-5 w-5 text-red-400" viewBox="0 0 20 20" fill="currentColor">
+                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                  </svg>
+                </div>
+                <div className="ml-3">
+                  <p className="text-sm text-red-800">
+                    Please complete Aadhaar verification first, using the link above.
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
         );
       })}

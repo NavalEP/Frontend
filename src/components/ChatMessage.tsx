@@ -1306,14 +1306,14 @@ const ChatMessage: React.FC<ChatMessageProps> = ({ message, onButtonClick, selec
                     {isAddressDetailsCompleted ? (
                       <button
                         disabled
-                        className="w-full px-4 py-3 text-white font-bold rounded-lg transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-offset-1 disabled:opacity-50 disabled:cursor-not-allowed shadow-lg flex items-center justify-center space-x-2"
+                        className="w-full px-4 py-3 text-white font-bold rounded-lg flex items-center justify-center space-x-2"
                         style={{
                           background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
                           boxShadow: '0 4px 6px rgba(16, 185, 129, 0.3)'
                         }}
                       >
                         <CheckCircle className="h-5 w-5" />
-                        <span>Complete address details</span>
+                        <span>Completed the address details</span>
                       </button>
                     ) : (
                       <button

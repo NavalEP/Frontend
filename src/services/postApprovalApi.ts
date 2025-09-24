@@ -252,6 +252,36 @@ export interface LockTenureResult {
   message: string;
 }
 
+// Interface for OTP send API response
+export interface OtpSendResponse {
+  status: number;
+  data: string;
+  attachment: null;
+  message: string;
+}
+
+// Interface for OTP send API function return type
+export interface OtpSendResult {
+  success: boolean;
+  data?: string;
+  message: string;
+}
+
+// Interface for OTP verify API response
+export interface OtpVerifyResponse {
+  status: number;
+  data: string;
+  attachment: null;
+  message: string;
+}
+
+// Interface for OTP verify API function return type
+export interface OtpVerifyResult {
+  success: boolean;
+  data?: string;
+  message: string;
+}
+
 /**
  * Get post-approval status for a loan
  * @param loanId - The loan ID to check post-approval status for
@@ -828,6 +858,154 @@ export const calculateEmi = async (loanId: string): Promise<EmiCalculationResult
       
       if (error.response.status === 404) {
         throw new Error('EMI calculation not found for this loan ID.');
+      }
+      
+      if (error.response.status === 500) {
+        const errorMessage = error.response.data?.message || 'Internal server error';
+        throw new Error(`Server Error: ${errorMessage}`);
+      }
+      
+      // Handle other status codes
+      const errorMessage = error.response.data?.message || error.message;
+      throw new Error(`API Error (${error.response.status}): ${errorMessage}`);
+    }
+    
+    // Handle non-axios errors
+    throw new Error(`Unexpected error: ${error.message || 'Unknown error occurred'}`);
+  }
+};
+
+/**
+ * Send OTP to mobile number
+ * @param mobile - The mobile number to send OTP to
+ * @returns Promise with the OTP send result
+ */
+export const sendOtpToMobile = async (mobile: string): Promise<OtpSendResult> => {
+  try {
+    console.log('Sending OTP to mobile number:', mobile);
+
+    const response = await carePayApi.post<OtpSendResponse>(`/userDetails/sendOtpToMobile?mobile=${mobile}`, {}, {
+      headers: {
+        'Accept': 'application/json'
+      }
+    });
+
+    console.log('OTP send response:', response.data);
+
+    // Check if the response is successful
+    if (response.data.status === 200 && response.data.data) {
+      return {
+        success: true,
+        data: response.data.data,
+        message: response.data.message || 'OTP sent successfully'
+      };
+    }
+
+    // Handle non-200 status responses
+    return {
+      success: false,
+      message: response.data.message || 'Failed to send OTP'
+    };
+
+  } catch (error: any) {
+    console.error('Error sending OTP:', error);
+    
+    if (axios.isAxiosError(error)) {
+      if (error.code === 'ECONNABORTED') {
+        throw new Error('Request timed out. Please try again.');
+      }
+      
+      if (!error.response) {
+        throw new Error('Unable to connect to the CarePay backend server. Please check your internet connection.');
+      }
+      
+      // Handle specific HTTP status codes
+      if (error.response.status === 400) {
+        const errorMessage = error.response.data?.message || 'Invalid mobile number provided';
+        throw new Error(`Bad Request: ${errorMessage}`);
+      }
+      
+      if (error.response.status === 401) {
+        throw new Error('Authentication required. Please login again.');
+      }
+      
+      if (error.response.status === 404) {
+        throw new Error('OTP service not found.');
+      }
+      
+      if (error.response.status === 500) {
+        const errorMessage = error.response.data?.message || 'Internal server error';
+        throw new Error(`Server Error: ${errorMessage}`);
+      }
+      
+      // Handle other status codes
+      const errorMessage = error.response.data?.message || error.message;
+      throw new Error(`API Error (${error.response.status}): ${errorMessage}`);
+    }
+    
+    // Handle non-axios errors
+    throw new Error(`Unexpected error: ${error.message || 'Unknown error occurred'}`);
+  }
+};
+
+/**
+ * Verify OTP for mobile number
+ * @param mobile - The mobile number
+ * @param otp - The OTP to verify
+ * @returns Promise with the OTP verify result
+ */
+export const verifyOtp = async (mobile: string, otp: string): Promise<OtpVerifyResult> => {
+  try {
+    console.log('Verifying OTP for mobile number:', mobile);
+
+    const response = await carePayApi.post<OtpVerifyResponse>('/userDetails/verifyOtp', {}, {
+      params: { mobile, otp },
+      headers: {
+        'Accept': 'application/json'
+      }
+    });
+
+    console.log('OTP verify response:', response.data);
+
+    // Check if the response is successful
+    if (response.data.status === 200 && response.data.data) {
+      return {
+        success: true,
+        data: response.data.data,
+        message: response.data.message || 'OTP verified successfully'
+      };
+    }
+
+    // Handle non-200 status responses
+    return {
+      success: false,
+      message: response.data.message || 'Failed to verify OTP'
+    };
+
+  } catch (error: any) {
+    console.error('Error verifying OTP:', error);
+    
+    if (axios.isAxiosError(error)) {
+      if (error.code === 'ECONNABORTED') {
+        throw new Error('Request timed out. Please try again.');
+      }
+      
+      if (!error.response) {
+        throw new Error('Unable to connect to the CarePay backend server. Please check your internet connection.');
+      }
+      
+      // Handle specific HTTP status codes
+      if (error.response.status === 400) {
+        const errorMessage = error.response.data?.message || 'Invalid mobile number or OTP provided';
+        throw new Error(`Bad Request: ${errorMessage}`);
+      }
+      
+      if (error.response.status === 401) {
+        throw new Error('Authentication required. Please login again.');
+      }
+      
+      if (error.response.status === 404) {
+        throw new Error('OTP verification service not found.');
       }
       
       if (error.response.status === 500) {

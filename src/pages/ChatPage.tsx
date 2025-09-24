@@ -2090,31 +2090,30 @@ const ChatPage: React.FC = () => {
           )}
 
           
-          {/* Offer button - Always visible like status bar */}
-          <div className="px-4 py-3 flex justify-center flex-shrink-0 bg-gray-50">
-            <button
-              onClick={() => {
-                const userId = localStorage.getItem('userId');
-                if (userId) {
-                  // Open iframe with existing userId
-                  setRazorpayUserId(userId);
-                  setShowRazorpayIframe(true);
-                } else {
-                  // Show OTP popup when userId is not available
-                  setShowOtpPopup(true);
-                }
-              }}
-              className="bg-green-500 hover:bg-green-600 text-white font-medium py-3 px-6 rounded-full flex items-center shadow-lg transition-all duration-300 transform hover:scale-105"
-            >
-              <img 
-                src="https://carepay.money/static/media/Cards%202.f655246b233e2a166c74.gif" 
-                alt="Credit Card" 
-                className="h-6 w-6 mr-2" 
-              />
-              <span className="text-sm">No cost EMI on credit cards</span>
-              <span className="ml-2 text-xs bg-green-600 px-2 py-1 rounded-full">⚡ Quick</span>
-            </button>
-          </div>
+          {/* Offer button - Only show when showOfferButton is true */}
+          {showOfferButton && (
+            <div className="px-4 py-3 flex justify-center flex-shrink-0 bg-gray-50">
+              <button
+                onClick={() => {
+                  const userId = localStorage.getItem('userId');
+                  if (userId) {
+                    // Open iframe with existing userId
+                    setRazorpayUserId(userId);
+                    setShowRazorpayIframe(true);
+                  }
+                }}
+                className="bg-green-500 hover:bg-green-600 text-white font-medium py-3 px-6 rounded-full flex items-center shadow-lg transition-all duration-300 transform hover:scale-105"
+              >
+                <img 
+                  src="https://carepay.money/static/media/Cards%202.f655246b233e2a166c74.gif" 
+                  alt="Credit Card" 
+                  className="h-6 w-6 mr-2" 
+                />
+                <span className="text-sm">No cost EMI on credit cards</span>
+                <span className="ml-2 text-xs bg-green-600 px-2 py-1 rounded-full">⚡ Quick</span>
+              </button>
+            </div>
+          )}
           
           {/* Error message - Fixed */}
           {error && (

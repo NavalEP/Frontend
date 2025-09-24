@@ -282,6 +282,256 @@ export interface OtpVerifyResult {
   message: string;
 }
 
+// Interface for user basic detail data
+export interface UserBasicDetailData {
+  userId: string;
+  firstName: string;
+  middleName: string | null;
+  lastName: string | null;
+  loginType: string | null;
+  dateOfBirth: string;
+  maritalStatus: string;
+  emailId: string;
+  nameOfReference: string | null;
+  mobileNumber: number;
+  gender: string;
+  religion: string | null;
+  imageUrl: string | null;
+  mobileVerified: boolean;
+  loginDate: number;
+  loginDevice: string | null;
+  formStatus: string;
+  referenceCode: string | null;
+  sourceOfInfoPlateform: string | null;
+  nachStatus: boolean;
+  alternateNumber: string | null;
+  verified: boolean;
+  loanFrom: string;
+  mailSubscribe: boolean;
+  crifDecision: string | null;
+  recentLogin: number;
+  emailVerified: boolean;
+  saveDate: string | null;
+  important: string | null;
+  panNo: string;
+  panCardName: string | null;
+  completionStatus: boolean;
+  fatherName: string | null;
+  referenceRelation: string | null;
+  referenceNumber: string | null;
+  referenceName: string | null;
+  consent: boolean;
+  consentTimestamp: number;
+  aadhaarNo: string;
+  motherName: string | null;
+  typeOfEmail: string | null;
+  educationLevel: string;
+  aadhaarVerified: boolean;
+  nameAsPerPan: string;
+  nameAsPerAadhaar: string | null;
+  testLead: boolean;
+  activationStatus: string | null;
+  mother_name: string | null;
+  type_of_email: string | null;
+}
+
+// Interface for user basic detail API response
+export interface UserBasicDetailResponse {
+  status: number;
+  data: UserBasicDetailData;
+  attachment: null;
+  message: string;
+}
+
+// Interface for user basic detail API function return type
+export interface UserBasicDetailResult {
+  success: boolean;
+  data?: UserBasicDetailData;
+  message: string;
+}
+
+// Interface for user details by user ID data
+export interface UserDetailsByUserIdData {
+  userId: string;
+  firstName: string;
+  middleName: string | null;
+  fatherName: string | null;
+  lastName: string | null;
+  loginType: string | null;
+  dateOfBirth: string;
+  maritalStatus: string | null;
+  emailId: string | null;
+  nameOfReference: string | null;
+  mobileNumber: number;
+  gender: string;
+  religion: string | null;
+  imageUrl: string | null;
+  mobileVerified: boolean;
+  loginDate: string;
+  loginDevice: string | null;
+  formStatus: string;
+  referenceCode: string | null;
+  sourceOfInfoPlateform: string | null;
+  nachStatus: boolean;
+  alternateNumber: string | null;
+  verified: boolean;
+  loanFrom: string;
+  mailSubscribe: boolean;
+  crifDecision: string | null;
+  createdDate: string | null;
+  emailVerified: boolean;
+  saveDate: string | null;
+  important: string | null;
+  panNo: string;
+  panCardName: string | null;
+  referenceRelation: string | null;
+  referenceNumber: string | null;
+  referenceName: string | null;
+  aadhaarNo: string | null;
+  motherName: string | null;
+  typeOfEmail: string | null;
+  educationLevel: string | null;
+  aadhaarVerified: boolean;
+  nameAsPerPan: string;
+  nameAsPerAadhaar: string | null;
+}
+
+// Interface for user details by user ID API response
+export interface UserDetailsByUserIdResponse {
+  status: number;
+  data: UserDetailsByUserIdData;
+  attachment: null;
+  message: string;
+}
+
+// Interface for user details by user ID API function return type
+export interface UserDetailsByUserIdResult {
+  success: boolean;
+  data?: UserDetailsByUserIdData;
+  message: string;
+}
+
+// Interface for Aadhaar OTP send API response
+export interface AadhaarOtpSendResponse {
+  status: number;
+  data: string;
+  attachment: null;
+  message: string;
+}
+
+// Interface for Aadhaar OTP send API function return type
+export interface AadhaarOtpSendResult {
+  success: boolean;
+  data?: string;
+  message: string;
+}
+
+// Interface for Aadhaar OTP submit API response
+export interface AadhaarOtpSubmitResponse {
+  status: number;
+  data: object;
+  attachment: null;
+  message: string;
+}
+
+// Interface for Aadhaar OTP submit API function return type
+export interface AadhaarOtpSubmitResult {
+  success: boolean;
+  data?: object;
+  message: string;
+}
+
+// Interface for save photograph API response
+export interface SavePhotographResponse {
+  status: number;
+  data: string;
+  attachment: null;
+  message: string;
+}
+
+// Interface for save photograph API function return type
+export interface SavePhotographResult {
+  success: boolean;
+  data?: string;
+  message: string;
+}
+
+// Interface for advance liveliness data
+export interface AdvanceLivelinessData {
+  imageUrl: string;
+  imageQualityAttributes: {
+    result: {
+      quality: string;
+      score: number;
+    };
+  };
+  faceValid: boolean;
+  faceAttributes: {
+    faceCover: {
+      isFaceCovered: boolean;
+      faceGears: any[];
+    };
+    faceEmotion: {
+      emotion: string;
+      confidence: number;
+    };
+    age: number;
+    faceOrientation: string;
+    faceToBgRatio: number;
+    faceMask: {
+      found: boolean;
+      confidence: number;
+    };
+    headTillShoulders: boolean;
+  };
+  liveliness: {
+    liveliness: boolean;
+    score: number;
+  };
+  isBackgroundSolid: boolean;
+  status: string;
+}
+
+// Interface for advance liveliness API response
+export interface AdvanceLivelinessResponse {
+  status: number;
+  data: AdvanceLivelinessData;
+  attachment: null;
+  message: string;
+}
+
+// Interface for advance liveliness API function return type
+export interface AdvanceLivelinessResult {
+  success: boolean;
+  data?: AdvanceLivelinessData;
+  message: string;
+}
+
+// Interface for face match data
+export interface FaceMatchData {
+  result: {
+    verified: boolean;
+    message: string;
+    matchPercentage: string;
+    maskDetections: any[];
+  };
+}
+
+// Interface for face match API response
+export interface FaceMatchResponse {
+  status: number;
+  data: FaceMatchData;
+  attachment: null;
+  message: string;
+}
+
+// Interface for face match API function return type
+export interface FaceMatchResult {
+  success: boolean;
+  data?: FaceMatchData;
+  message: string;
+}
+
 /**
  * Get post-approval status for a loan
  * @param loanId - The loan ID to check post-approval status for
@@ -1084,6 +1334,528 @@ export const lockTenure = async (loanId: string, merchantPackageId: string): Pro
       
       if (error.response.status === 404) {
         throw new Error('Loan or merchant package not found.');
+      }
+      
+      if (error.response.status === 500) {
+        const errorMessage = error.response.data?.message || 'Internal server error';
+        throw new Error(`Server Error: ${errorMessage}`);
+      }
+      
+      // Handle other status codes
+      const errorMessage = error.response.data?.message || error.message;
+      throw new Error(`API Error (${error.response.status}): ${errorMessage}`);
+    }
+    
+    // Handle non-axios errors
+    throw new Error(`Unexpected error: ${error.message || 'Unknown error occurred'}`);
+  }
+};
+
+/**
+ * Get user basic details
+ * @param payload - The payload containing aadhaarNo, mobileNumber, and userId
+ * @returns Promise with the user basic detail result
+ */
+export const getUserBasicDetail = async (payload: {
+  aadhaarNo: string;
+  mobileNumber: number;
+  userId: string;
+}): Promise<UserBasicDetailResult> => {
+  try {
+    console.log('Fetching user basic details for user ID:', payload.userId);
+
+    const response = await carePayApi.post<UserBasicDetailResponse>('/userDetails/basicDetail', payload, {
+      headers: {
+        'Accept': 'application/json'
+      }
+    });
+
+    console.log('User basic detail response:', response.data);
+
+    // Check if the response is successful
+    if (response.data.status === 200 && response.data.data) {
+      return {
+        success: true,
+        data: response.data.data,
+        message: response.data.message || 'User basic details retrieved successfully'
+      };
+    }
+
+    // Handle non-200 status responses
+    return {
+      success: false,
+      message: response.data.message || 'Failed to retrieve user basic details'
+    };
+
+  } catch (error: any) {
+    console.error('Error getting user basic details:', error);
+    
+    if (axios.isAxiosError(error)) {
+      if (error.code === 'ECONNABORTED') {
+        throw new Error('Request timed out. Please try again.');
+      }
+      
+      if (!error.response) {
+        throw new Error('Unable to connect to the CarePay backend server. Please check your internet connection.');
+      }
+      
+      // Handle specific HTTP status codes
+      if (error.response.status === 400) {
+        const errorMessage = error.response.data?.message || 'Invalid payload provided';
+        throw new Error(`Bad Request: ${errorMessage}`);
+      }
+      
+      if (error.response.status === 401) {
+        throw new Error('Authentication required. Please login again.');
+      }
+      
+      if (error.response.status === 404) {
+        throw new Error('User basic details not found.');
+      }
+      
+      if (error.response.status === 500) {
+        const errorMessage = error.response.data?.message || 'Internal server error';
+        throw new Error(`Server Error: ${errorMessage}`);
+      }
+      
+      // Handle other status codes
+      const errorMessage = error.response.data?.message || error.message;
+      throw new Error(`API Error (${error.response.status}): ${errorMessage}`);
+    }
+    
+    // Handle non-axios errors
+    throw new Error(`Unexpected error: ${error.message || 'Unknown error occurred'}`);
+  }
+};
+
+/**
+ * Get user details by user ID
+ * @param userId - The user ID to get details for
+ * @returns Promise with the user details result
+ */
+export const getUserDetailsByUserId = async (userId: string): Promise<UserDetailsByUserIdResult> => {
+  try {
+    console.log('Fetching user details for user ID:', userId);
+
+    const response = await carePayApi.get<UserDetailsByUserIdResponse>('/userDetails/getUserDetailsByUserId', {
+      params: { userId },
+      headers: {
+        'Accept': 'application/json'
+      }
+    });
+
+    console.log('User details by user ID response:', response.data);
+
+    // Check if the response is successful
+    if (response.data.status === 200 && response.data.data) {
+      return {
+        success: true,
+        data: response.data.data,
+        message: response.data.message || 'User details retrieved successfully'
+      };
+    }
+
+    // Handle non-200 status responses
+    return {
+      success: false,
+      message: response.data.message || 'Failed to retrieve user details'
+    };
+
+  } catch (error: any) {
+    console.error('Error getting user details by user ID:', error);
+    
+    if (axios.isAxiosError(error)) {
+      if (error.code === 'ECONNABORTED') {
+        throw new Error('Request timed out. Please try again.');
+      }
+      
+      if (!error.response) {
+        throw new Error('Unable to connect to the CarePay backend server. Please check your internet connection.');
+      }
+      
+      // Handle specific HTTP status codes
+      if (error.response.status === 400) {
+        const errorMessage = error.response.data?.message || 'Invalid user ID provided';
+        throw new Error(`Bad Request: ${errorMessage}`);
+      }
+      
+      if (error.response.status === 401) {
+        throw new Error('Authentication required. Please login again.');
+      }
+      
+      if (error.response.status === 404) {
+        throw new Error('User details not found for this user ID.');
+      }
+      
+      if (error.response.status === 500) {
+        const errorMessage = error.response.data?.message || 'Internal server error';
+        throw new Error(`Server Error: ${errorMessage}`);
+      }
+      
+      // Handle other status codes
+      const errorMessage = error.response.data?.message || error.message;
+      throw new Error(`API Error (${error.response.status}): ${errorMessage}`);
+    }
+    
+    // Handle non-axios errors
+    throw new Error(`Unexpected error: ${error.message || 'Unknown error occurred'}`);
+  }
+};
+
+/**
+ * Send Aadhaar OTP to user
+ * @param userId - The user ID to send Aadhaar OTP to
+ * @returns Promise with the Aadhaar OTP send result
+ */
+export const sendAadhaarOtp = async (userId: string): Promise<AadhaarOtpSendResult> => {
+  try {
+    console.log('Sending Aadhaar OTP for user ID:', userId);
+
+    const response = await carePayApi.get<AadhaarOtpSendResponse>('/aadhaarVerify/sendOtp', {
+      params: { userId },
+      headers: {
+        'Accept': 'application/json'
+      }
+    });
+
+    console.log('Aadhaar OTP send response:', response.data);
+
+    // Check if the response is successful
+    if (response.data.status === 200 && response.data.data) {
+      return {
+        success: true,
+        data: response.data.data,
+        message: response.data.message || 'Aadhaar OTP sent successfully'
+      };
+    }
+
+    // Handle non-200 status responses
+    return {
+      success: false,
+      message: response.data.message || 'Failed to send Aadhaar OTP'
+    };
+
+  } catch (error: any) {
+    console.error('Error sending Aadhaar OTP:', error);
+    
+    if (axios.isAxiosError(error)) {
+      if (error.code === 'ECONNABORTED') {
+        throw new Error('Request timed out. Please try again.');
+      }
+      
+      if (!error.response) {
+        throw new Error('Unable to connect to the CarePay backend server. Please check your internet connection.');
+      }
+      
+      // Handle specific HTTP status codes
+      if (error.response.status === 400) {
+        const errorMessage = error.response.data?.message || 'Invalid user ID provided';
+        throw new Error(`Bad Request: ${errorMessage}`);
+      }
+      
+      if (error.response.status === 401) {
+        throw new Error('Authentication required. Please login again.');
+      }
+      
+      if (error.response.status === 404) {
+        throw new Error('Aadhaar OTP service not found.');
+      }
+      
+      if (error.response.status === 500) {
+        const errorMessage = error.response.data?.message || 'Internal server error';
+        throw new Error(`Server Error: ${errorMessage}`);
+      }
+      
+      // Handle other status codes
+      const errorMessage = error.response.data?.message || error.message;
+      throw new Error(`API Error (${error.response.status}): ${errorMessage}`);
+    }
+    
+    // Handle non-axios errors
+    throw new Error(`Unexpected error: ${error.message || 'Unknown error occurred'}`);
+  }
+};
+
+/**
+ * Submit Aadhaar OTP for verification
+ * @param userId - The user ID
+ * @param otp - The OTP to verify
+ * @returns Promise with the Aadhaar OTP submit result
+ */
+export const submitAadhaarOtp = async (userId: string, otp: string): Promise<AadhaarOtpSubmitResult> => {
+  try {
+    console.log('Submitting Aadhaar OTP for user ID:', userId);
+
+    const response = await carePayApi.get<AadhaarOtpSubmitResponse>('/aadhaarVerify/submitOtp', {
+      params: { userId, otp },
+      headers: {
+        'Accept': 'application/json'
+      }
+    });
+
+    console.log('Aadhaar OTP submit response:', response.data);
+
+    // Check if the response is successful
+    if (response.data.status === 200) {
+      return {
+        success: true,
+        data: response.data.data,
+        message: response.data.message || 'Aadhaar OTP verified successfully'
+      };
+    }
+
+    // Handle non-200 status responses
+    return {
+      success: false,
+      message: response.data.message || 'Failed to verify Aadhaar OTP'
+    };
+
+  } catch (error: any) {
+    console.error('Error submitting Aadhaar OTP:', error);
+    
+    if (axios.isAxiosError(error)) {
+      if (error.code === 'ECONNABORTED') {
+        throw new Error('Request timed out. Please try again.');
+      }
+      
+      if (!error.response) {
+        throw new Error('Unable to connect to the CarePay backend server. Please check your internet connection.');
+      }
+      
+      // Handle specific HTTP status codes
+      if (error.response.status === 400) {
+        const errorMessage = error.response.data?.message || 'Invalid user ID or OTP provided';
+        throw new Error(`Bad Request: ${errorMessage}`);
+      }
+      
+      if (error.response.status === 401) {
+        throw new Error('Authentication required. Please login again.');
+      }
+      
+      if (error.response.status === 404) {
+        throw new Error('Aadhaar OTP verification service not found.');
+      }
+      
+      if (error.response.status === 500) {
+        const errorMessage = error.response.data?.message || 'Internal server error';
+        throw new Error(`Server Error: ${errorMessage}`);
+      }
+      
+      // Handle other status codes
+      const errorMessage = error.response.data?.message || error.message;
+      throw new Error(`API Error (${error.response.status}): ${errorMessage}`);
+    }
+    
+    // Handle non-axios errors
+    throw new Error(`Unexpected error: ${error.message || 'Unknown error occurred'}`);
+  }
+};
+
+/**
+ * Save photograph for user
+ * @param formData - The form data containing the photograph
+ * @returns Promise with the save photograph result
+ */
+export const savePhotograph = async (formData: FormData): Promise<SavePhotographResult> => {
+  try {
+    console.log('Saving photograph');
+
+    const response = await carePayApi.post<SavePhotographResponse>('/savePhotograph', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+        'Accept': 'application/json'
+      }
+    });
+
+    console.log('Save photograph response:', response.data);
+
+    // Check if the response is successful
+    if (response.data.status === 200 && response.data.data) {
+      return {
+        success: true,
+        data: response.data.data,
+        message: response.data.message || 'Photograph saved successfully'
+      };
+    }
+
+    // Handle non-200 status responses
+    return {
+      success: false,
+      message: response.data.message || 'Failed to save photograph'
+    };
+
+  } catch (error: any) {
+    console.error('Error saving photograph:', error);
+    
+    if (axios.isAxiosError(error)) {
+      if (error.code === 'ECONNABORTED') {
+        throw new Error('Request timed out. Please try again.');
+      }
+      
+      if (!error.response) {
+        throw new Error('Unable to connect to the CarePay backend server. Please check your internet connection.');
+      }
+      
+      // Handle specific HTTP status codes
+      if (error.response.status === 400) {
+        const errorMessage = error.response.data?.message || 'Invalid photograph data provided';
+        throw new Error(`Bad Request: ${errorMessage}`);
+      }
+      
+      if (error.response.status === 401) {
+        throw new Error('Authentication required. Please login again.');
+      }
+      
+      if (error.response.status === 404) {
+        throw new Error('Photograph service not found.');
+      }
+      
+      if (error.response.status === 500) {
+        const errorMessage = error.response.data?.message || 'Internal server error';
+        throw new Error(`Server Error: ${errorMessage}`);
+      }
+      
+      // Handle other status codes
+      const errorMessage = error.response.data?.message || error.message;
+      throw new Error(`API Error (${error.response.status}): ${errorMessage}`);
+    }
+    
+    // Handle non-axios errors
+    throw new Error(`Unexpected error: ${error.message || 'Unknown error occurred'}`);
+  }
+};
+
+/**
+ * Check advance liveliness for user
+ * @param userId - The user ID to check liveliness for
+ * @returns Promise with the advance liveliness result
+ */
+export const checkAdvanceLiveliness = async (userId: string): Promise<AdvanceLivelinessResult> => {
+  try {
+    console.log('Checking advance liveliness for user ID:', userId);
+
+    const response = await carePayApi.get<AdvanceLivelinessResponse>('/advanceLiveliness', {
+      params: { userId },
+      headers: {
+        'Accept': 'application/json'
+      }
+    });
+
+    console.log('Advance liveliness response:', response.data);
+
+    // Check if the response is successful
+    if (response.data.status === 200 && response.data.data) {
+      return {
+        success: true,
+        data: response.data.data,
+        message: response.data.message || 'Advance liveliness checked successfully'
+      };
+    }
+
+    // Handle non-200 status responses
+    return {
+      success: false,
+      message: response.data.message || 'Failed to check advance liveliness'
+    };
+
+  } catch (error: any) {
+    console.error('Error checking advance liveliness:', error);
+    
+    if (axios.isAxiosError(error)) {
+      if (error.code === 'ECONNABORTED') {
+        throw new Error('Request timed out. Please try again.');
+      }
+      
+      if (!error.response) {
+        throw new Error('Unable to connect to the CarePay backend server. Please check your internet connection.');
+      }
+      
+      // Handle specific HTTP status codes
+      if (error.response.status === 400) {
+        const errorMessage = error.response.data?.message || 'Invalid user ID provided';
+        throw new Error(`Bad Request: ${errorMessage}`);
+      }
+      
+      if (error.response.status === 401) {
+        throw new Error('Authentication required. Please login again.');
+      }
+      
+      if (error.response.status === 404) {
+        throw new Error('Advance liveliness service not found.');
+      }
+      
+      if (error.response.status === 500) {
+        const errorMessage = error.response.data?.message || 'Internal server error';
+        throw new Error(`Server Error: ${errorMessage}`);
+      }
+      
+      // Handle other status codes
+      const errorMessage = error.response.data?.message || error.message;
+      throw new Error(`API Error (${error.response.status}): ${errorMessage}`);
+    }
+    
+    // Handle non-axios errors
+    throw new Error(`Unexpected error: ${error.message || 'Unknown error occurred'}`);
+  }
+};
+
+/**
+ * Check face match for user
+ * @param userId - The user ID to check face match for
+ * @returns Promise with the face match result
+ */
+export const checkFaceMatch = async (userId: string): Promise<FaceMatchResult> => {
+  try {
+    console.log('Checking face match for user ID:', userId);
+
+    const response = await carePayApi.get<FaceMatchResponse>('/faceMatch', {
+      params: { userId },
+      headers: {
+        'Accept': 'application/json'
+      }
+    });
+
+    console.log('Face match response:', response.data);
+
+    // Check if the response is successful
+    if (response.data.status === 200 && response.data.data) {
+      return {
+        success: true,
+        data: response.data.data,
+        message: response.data.message || 'Face match checked successfully'
+      };
+    }
+
+    // Handle non-200 status responses
+    return {
+      success: false,
+      message: response.data.message || 'Failed to check face match'
+    };
+
+  } catch (error: any) {
+    console.error('Error checking face match:', error);
+    
+    if (axios.isAxiosError(error)) {
+      if (error.code === 'ECONNABORTED') {
+        throw new Error('Request timed out. Please try again.');
+      }
+      
+      if (!error.response) {
+        throw new Error('Unable to connect to the CarePay backend server. Please check your internet connection.');
+      }
+      
+      // Handle specific HTTP status codes
+      if (error.response.status === 400) {
+        const errorMessage = error.response.data?.message || 'Invalid user ID provided';
+        throw new Error(`Bad Request: ${errorMessage}`);
+      }
+      
+      if (error.response.status === 401) {
+        throw new Error('Authentication required. Please login again.');
+      }
+      
+      if (error.response.status === 404) {
+        throw new Error('Face match service not found.');
       }
       
       if (error.response.status === 500) {

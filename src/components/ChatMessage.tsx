@@ -5,6 +5,7 @@ import { getShortlink, searchTreatments } from '../services/api';
 import { smartShare, isNativeSharingSupported } from '../utils/shareUtils';
 import ShareButton from './ShareButton';
 import PaymentStepsMessage from './PaymentStepsMessage';
+import AadhaarVerificationPopup from './AadhaarVerificationPopup';
 
 interface Message {
   id: string;
@@ -105,6 +106,18 @@ const ChatMessage: React.FC<ChatMessageProps> = ({ message, onButtonClick, selec
   const [treatmentSearchResults, setTreatmentSearchResults] = useState<any[]>([]);
   const [isSearchingTreatments, setIsSearchingTreatments] = useState(false);
   const treatmentSearchRef = useRef<HTMLDivElement>(null);
+  const [showAadhaarVerification, setShowAadhaarVerification] = useState(false);
+  
+  // Function to handle Aadhaar verification button click
+  const handleAadhaarVerificationClick = () => {
+    setShowAadhaarVerification(true);
+  };
+  
+  // Function to handle successful Aadhaar verification
+  const handleAadhaarVerificationSuccess = () => {
+    setShowAadhaarVerification(false);
+    // You can add additional logic here if needed, like refreshing the payment steps
+  };
   
   // Check if this is an OCR result message
   const isOcrResult = message.text.includes('📋 **Aadhaar Card Details Extracted Successfully!**') || 
@@ -1380,6 +1393,7 @@ const ChatMessage: React.FC<ChatMessageProps> = ({ message, onButtonClick, selec
                 steps={parsePaymentSteps(message.text)}
                 onLinkClick={onLinkClick}
                 loanId={loanId}
+                onAadhaarVerificationClick={handleAadhaarVerificationClick}
               />
             </div>
           )}
@@ -1408,6 +1422,14 @@ const ChatMessage: React.FC<ChatMessageProps> = ({ message, onButtonClick, selec
           </div>
         </div>
       )}
+
+      {/* Aadhaar Verification Popup */}
+      <AadhaarVerificationPopup
+        isOpen={showAadhaarVerification}
+        onClose={() => setShowAadhaarVerification(false)}
+        userId={localStorage.getItem('userId') || ''}
+        onSuccess={handleAadhaarVerificationSuccess}
+      />
 
     </div>
   );

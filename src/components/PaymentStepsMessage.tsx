@@ -15,9 +15,10 @@ interface PaymentStepsMessageProps {
   steps: PaymentStep[];
   onLinkClick?: (url: string) => void;
   loanId?: string;
+  onAadhaarVerificationClick?: () => void;
 }
 
-const PaymentStepsMessage: React.FC<PaymentStepsMessageProps> = ({ steps, onLinkClick, loanId }) => {
+const PaymentStepsMessage: React.FC<PaymentStepsMessageProps> = ({ steps, onLinkClick, loanId, onAadhaarVerificationClick }) => {
   const [postApprovalStatus, setPostApprovalStatus] = useState<PostApprovalStatusData | null>(null);
   const [showAadhaarMessage, setShowAadhaarMessage] = useState<number | null>(null);
 
@@ -249,6 +250,12 @@ const PaymentStepsMessage: React.FC<PaymentStepsMessageProps> = ({ steps, onLink
             <button
               onClick={() => {
                 if (isCompleted) return;
+                // Check if this is the Aadhaar verification button
+                if (step.primaryButtonText.includes('Complete Adhaar verification') || 
+                    step.primaryButtonText.includes('Complete Aadhaar verification')) {
+                  onAadhaarVerificationClick?.();
+                  return;
+                }
                 // Check if this is a share button that needs Aadhaar verification
                 if (step.primaryButtonText.includes('Share link')) {
                   checkAadhaarBeforePrimaryAction(step.url, index);

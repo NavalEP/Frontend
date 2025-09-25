@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Share2, Copy, CheckCircle } from 'lucide-react';
 import { smartShare } from '../utils/shareUtils';
 import { getPostApprovalStatus, PostApprovalStatusData, checkAadhaarVerification } from '../services/postApprovalApi';
+import SelfieVerificationButton from './SelfieVerificationButton';
 
 interface PaymentStep {
   title: string;
@@ -247,36 +248,62 @@ const PaymentStepsMessage: React.FC<PaymentStepsMessageProps> = ({ steps, onLink
             </div>
             
             {/* Primary Action Button */}
-            <button
-              onClick={() => {
-                if (isCompleted) return;
-                // Check if this is the Aadhaar verification button
-                if (step.primaryButtonText.includes('Complete Adhaar verification') || 
-                    step.primaryButtonText.includes('Complete Aadhaar verification')) {
-                  onAadhaarVerificationClick?.();
-                  return;
-                }
-                // Check if this is a share button that needs Aadhaar verification
-                if (step.primaryButtonText.includes('Share link')) {
-                  checkAadhaarBeforePrimaryAction(step.url, index);
-                } else {
-                  handleLinkClick(step.url);
-                }
-              }}
-              className={`w-full px-4 py-3 text-white font-bold rounded-lg transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-offset-1 shadow-lg transform hover:scale-105 mb-3 ${
-                isCompleted ? 'opacity-75 cursor-not-allowed' : ''
-              }`}
-              style={isCompleted ? {
-                background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
-                boxShadow: '0 4px 6px rgba(16, 185, 129, 0.3)'
-              } : {
-                background: 'linear-gradient(135deg, #514c9f 0%, #3d3a7a 100%)',
-                boxShadow: '0 4px 6px rgba(81, 76, 159, 0.3)'
-              }}
-              disabled={isCompleted}
-            >
-              {isCompleted ? `✓ ${completionText}` : step.primaryButtonText}
-            </button>
+            {step.primaryButtonText === "Share link for selfie with Patient" && !isCompleted ? (
+              <SelfieVerificationButton
+                userId={localStorage.getItem('userId') || ''}
+                onSuccess={() => {
+                  // Refresh the post-approval status after successful verification
+                  const fetchPostApprovalStatus = async () => {
+                    if (!loanId) return;
+                    try {
+                      const result = await getPostApprovalStatus(loanId);
+                      if (result.success && result.data) {
+                        setPostApprovalStatus(result.data);
+                      }
+                    } catch (error) {
+                      console.error('Error fetching post-approval status:', error);
+                    }
+                  };
+                  fetchPostApprovalStatus();
+                }}
+                className={`w-full px-4 py-3 text-white font-bold rounded-lg transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-offset-1 shadow-lg transform hover:scale-105 mb-3`}
+                style={{
+                  background: 'linear-gradient(135deg, #514c9f 0%, #3d3a7a 100%)',
+                  boxShadow: '0 4px 6px rgba(81, 76, 159, 0.3)'
+                }}
+              />
+            ) : (
+              <button
+                onClick={() => {
+                  if (isCompleted) return;
+                  // Check if this is the Aadhaar verification button
+                  if (step.primaryButtonText.includes('Complete Adhaar verification') || 
+                      step.primaryButtonText.includes('Complete Aadhaar verification')) {
+                    onAadhaarVerificationClick?.();
+                    return;
+                  }
+                  // Check if this is a share button that needs Aadhaar verification
+                  if (step.primaryButtonText.includes('Share link')) {
+                    checkAadhaarBeforePrimaryAction(step.url, index);
+                  } else {
+                    handleLinkClick(step.url);
+                  }
+                }}
+                className={`w-full px-4 py-3 text-white font-bold rounded-lg transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-offset-1 shadow-lg transform hover:scale-105 mb-3 ${
+                  isCompleted ? 'opacity-75 cursor-not-allowed' : ''
+                }`}
+                style={isCompleted ? {
+                  background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                  boxShadow: '0 4px 6px rgba(16, 185, 129, 0.3)'
+                } : {
+                  background: 'linear-gradient(135deg, #514c9f 0%, #3d3a7a 100%)',
+                  boxShadow: '0 4px 6px rgba(81, 76, 159, 0.3)'
+                }}
+                disabled={isCompleted}
+              >
+                {isCompleted ? `✓ ${completionText}` : step.primaryButtonText}
+              </button>
+            )}
           
           {/* Secondary Action Buttons */}
           <div className="flex space-x-2">

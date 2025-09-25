@@ -532,6 +532,108 @@ export interface FaceMatchResult {
   message: string;
 }
 
+// Interface for initiate agreement API response
+export interface InitiateAgreementResponse {
+  status: number;
+  data: string;
+  attachment: null;
+  message: string;
+}
+
+// Interface for initiate agreement API function return type
+export interface InitiateAgreementResult {
+  success: boolean;
+  data?: string;
+  message: string;
+}
+
+// Interface for agreement URL data
+export interface AgreementUrlData {
+  agreementUrl: string;
+  kfsUrl: string;
+}
+
+// Interface for get agreement URL API response
+export interface GetAgreementUrlResponse {
+  status: number;
+  data: AgreementUrlData;
+  attachment: null;
+  message: string;
+}
+
+// Interface for get agreement URL API function return type
+export interface GetAgreementUrlResult {
+  success: boolean;
+  data?: AgreementUrlData;
+  message: string;
+}
+
+// Interface for consent API request payload
+export interface ConsentRequestPayload {
+  loanId: string;
+  latitude: string;
+  longitude: string;
+}
+
+// Interface for consent API response
+export interface ConsentResponse {
+  status: number;
+  data: string;
+  attachment: null;
+  message: string;
+}
+
+// Interface for consent API function return type
+export interface ConsentResult {
+  success: boolean;
+  data?: string;
+  message: string;
+}
+
+// Interface for send OTP API request payload
+export interface SendOtpRequestPayload {
+  loanId: string;
+}
+
+// Interface for send OTP API response
+export interface SendOtpResponse {
+  status: number;
+  data: string;
+  attachment: null;
+  message: string;
+}
+
+// Interface for send OTP API function return type
+export interface SendOtpResult {
+  success: boolean;
+  data?: string;
+  message: string;
+}
+
+// Interface for verify OTP API request payload
+export interface VerifyOtpRequestPayload {
+  loanId: string;
+  otpCode: string;
+  agreement_text: string;
+  agreement_title: string;
+  agreement_version: string;
+}
+
+// Interface for verify OTP API response
+export interface VerifyOtpResponse {
+  status: number;
+  data: string;
+  attachment: null;
+  message: string;
+}
+
+// Interface for verify OTP API function return type
+export interface VerifyOtpResult {
+  success: boolean;
+  data?: string;
+  message: string;
+}
+
 /**
  * Get post-approval status for a loan
  * @param loanId - The loan ID to check post-approval status for
@@ -1856,6 +1958,374 @@ export const checkFaceMatch = async (userId: string): Promise<FaceMatchResult> =
       
       if (error.response.status === 404) {
         throw new Error('Face match service not found.');
+      }
+      
+      if (error.response.status === 500) {
+        const errorMessage = error.response.data?.message || 'Internal server error';
+        throw new Error(`Server Error: ${errorMessage}`);
+      }
+      
+      // Handle other status codes
+      const errorMessage = error.response.data?.message || error.message;
+      throw new Error(`API Error (${error.response.status}): ${errorMessage}`);
+    }
+    
+    // Handle non-axios errors
+    throw new Error(`Unexpected error: ${error.message || 'Unknown error occurred'}`);
+  }
+};
+
+/**
+ * Initiate agreement for a loan
+ * @param loanId - The loan ID to initiate agreement for
+ * @returns Promise with the initiate agreement result
+ */
+export const initiateAgreement = async (loanId: string): Promise<InitiateAgreementResult> => {
+  try {
+    console.log('Initiating agreement for loan ID:', loanId);
+
+    const response = await carePayApi.post<InitiateAgreementResponse>('/api/click-wrap/initiateAgreement', {
+      loanId
+    }, {
+      headers: {
+        'Accept': 'application/json'
+      }
+    });
+
+    console.log('Initiate agreement response:', response.data);
+
+    // Check if the response is successful
+    if (response.data.status === 200 && response.data.data) {
+      return {
+        success: true,
+        data: response.data.data,
+        message: response.data.message || 'Agreement initiated successfully'
+      };
+    }
+
+    // Handle non-200 status responses
+    return {
+      success: false,
+      message: response.data.message || 'Failed to initiate agreement'
+    };
+
+  } catch (error: any) {
+    console.error('Error initiating agreement:', error);
+    
+    if (axios.isAxiosError(error)) {
+      if (error.code === 'ECONNABORTED') {
+        throw new Error('Request timed out. Please try again.');
+      }
+      
+      if (!error.response) {
+        throw new Error('Unable to connect to the CarePay backend server. Please check your internet connection.');
+      }
+      
+      // Handle specific HTTP status codes
+      if (error.response.status === 400) {
+        const errorMessage = error.response.data?.message || 'Invalid loan ID provided';
+        throw new Error(`Bad Request: ${errorMessage}`);
+      }
+      
+      if (error.response.status === 401) {
+        throw new Error('Authentication required. Please login again.');
+      }
+      
+      if (error.response.status === 404) {
+        throw new Error('Agreement service not found.');
+      }
+      
+      if (error.response.status === 500) {
+        const errorMessage = error.response.data?.message || 'Internal server error';
+        throw new Error(`Server Error: ${errorMessage}`);
+      }
+      
+      // Handle other status codes
+      const errorMessage = error.response.data?.message || error.message;
+      throw new Error(`API Error (${error.response.status}): ${errorMessage}`);
+    }
+    
+    // Handle non-axios errors
+    throw new Error(`Unexpected error: ${error.message || 'Unknown error occurred'}`);
+  }
+};
+
+/**
+ * Get agreement URL for a loan
+ * @param loanId - The loan ID to get agreement URL for
+ * @returns Promise with the agreement URL result
+ */
+export const getAgreementUrl = async (loanId: string): Promise<GetAgreementUrlResult> => {
+  try {
+    console.log('Getting agreement URL for loan ID:', loanId);
+
+    const response = await carePayApi.get<GetAgreementUrlResponse>('/api/click-wrap/getAgreementUrl', {
+      params: { loanId },
+      headers: {
+        'Accept': 'application/json'
+      }
+    });
+
+    console.log('Get agreement URL response:', response.data);
+
+    // Check if the response is successful
+    if (response.data.status === 200 && response.data.data) {
+      return {
+        success: true,
+        data: response.data.data,
+        message: response.data.message || 'Agreement URL retrieved successfully'
+      };
+    }
+
+    // Handle non-200 status responses
+    return {
+      success: false,
+      message: response.data.message || 'Failed to retrieve agreement URL'
+    };
+
+  } catch (error: any) {
+    console.error('Error getting agreement URL:', error);
+    
+    if (axios.isAxiosError(error)) {
+      if (error.code === 'ECONNABORTED') {
+        throw new Error('Request timed out. Please try again.');
+      }
+      
+      if (!error.response) {
+        throw new Error('Unable to connect to the CarePay backend server. Please check your internet connection.');
+      }
+      
+      // Handle specific HTTP status codes
+      if (error.response.status === 400) {
+        const errorMessage = error.response.data?.message || 'Invalid loan ID provided';
+        throw new Error(`Bad Request: ${errorMessage}`);
+      }
+      
+      if (error.response.status === 401) {
+        throw new Error('Authentication required. Please login again.');
+      }
+      
+      if (error.response.status === 404) {
+        throw new Error('Agreement URL not found for this loan ID.');
+      }
+      
+      if (error.response.status === 500) {
+        const errorMessage = error.response.data?.message || 'Internal server error';
+        throw new Error(`Server Error: ${errorMessage}`);
+      }
+      
+      // Handle other status codes
+      const errorMessage = error.response.data?.message || error.message;
+      throw new Error(`API Error (${error.response.status}): ${errorMessage}`);
+    }
+    
+    // Handle non-axios errors
+    throw new Error(`Unexpected error: ${error.message || 'Unknown error occurred'}`);
+  }
+};
+
+/**
+ * Record user consent for agreement
+ * @param payload - The consent payload containing loanId, latitude, and longitude
+ * @returns Promise with the consent result
+ */
+export const recordConsent = async (payload: ConsentRequestPayload): Promise<ConsentResult> => {
+  try {
+    console.log('Recording consent for loan ID:', payload.loanId);
+
+    const response = await carePayApi.post<ConsentResponse>('/api/click-wrap/consent', payload, {
+      headers: {
+        'Accept': 'application/json'
+      }
+    });
+
+    console.log('Record consent response:', response.data);
+
+    // Check if the response is successful
+    if (response.data.status === 200 && response.data.data) {
+      return {
+        success: true,
+        data: response.data.data,
+        message: response.data.message || 'User consent recorded successfully'
+      };
+    }
+
+    // Handle non-200 status responses
+    return {
+      success: false,
+      message: response.data.message || 'Failed to record consent'
+    };
+
+  } catch (error: any) {
+    console.error('Error recording consent:', error);
+    
+    if (axios.isAxiosError(error)) {
+      if (error.code === 'ECONNABORTED') {
+        throw new Error('Request timed out. Please try again.');
+      }
+      
+      if (!error.response) {
+        throw new Error('Unable to connect to the CarePay backend server. Please check your internet connection.');
+      }
+      
+      // Handle specific HTTP status codes
+      if (error.response.status === 400) {
+        const errorMessage = error.response.data?.message || 'Invalid consent data provided';
+        throw new Error(`Bad Request: ${errorMessage}`);
+      }
+      
+      if (error.response.status === 401) {
+        throw new Error('Authentication required. Please login again.');
+      }
+      
+      if (error.response.status === 404) {
+        throw new Error('Consent service not found.');
+      }
+      
+      if (error.response.status === 500) {
+        const errorMessage = error.response.data?.message || 'Internal server error';
+        throw new Error(`Server Error: ${errorMessage}`);
+      }
+      
+      // Handle other status codes
+      const errorMessage = error.response.data?.message || error.message;
+      throw new Error(`API Error (${error.response.status}): ${errorMessage}`);
+    }
+    
+    // Handle non-axios errors
+    throw new Error(`Unexpected error: ${error.message || 'Unknown error occurred'}`);
+  }
+};
+
+/**
+ * Send OTP for agreement verification
+ * @param payload - The send OTP payload containing loanId
+ * @returns Promise with the send OTP result
+ */
+export const sendAgreementOtp = async (payload: SendOtpRequestPayload): Promise<SendOtpResult> => {
+  try {
+    console.log('Sending agreement OTP for loan ID:', payload.loanId);
+
+    const response = await carePayApi.post<SendOtpResponse>('/api/click-wrap/send-otp', payload, {
+      headers: {
+        'Accept': 'application/json'
+      }
+    });
+
+    console.log('Send agreement OTP response:', response.data);
+
+    // Check if the response is successful
+    if (response.data.status === 200 && response.data.data) {
+      return {
+        success: true,
+        data: response.data.data,
+        message: response.data.message || 'OTP sent successfully'
+      };
+    }
+
+    // Handle non-200 status responses
+    return {
+      success: false,
+      message: response.data.message || 'Failed to send OTP'
+    };
+
+  } catch (error: any) {
+    console.error('Error sending agreement OTP:', error);
+    
+    if (axios.isAxiosError(error)) {
+      if (error.code === 'ECONNABORTED') {
+        throw new Error('Request timed out. Please try again.');
+      }
+      
+      if (!error.response) {
+        throw new Error('Unable to connect to the CarePay backend server. Please check your internet connection.');
+      }
+      
+      // Handle specific HTTP status codes
+      if (error.response.status === 400) {
+        const errorMessage = error.response.data?.message || 'Invalid loan ID provided';
+        throw new Error(`Bad Request: ${errorMessage}`);
+      }
+      
+      if (error.response.status === 401) {
+        throw new Error('Authentication required. Please login again.');
+      }
+      
+      if (error.response.status === 404) {
+        throw new Error('OTP service not found.');
+      }
+      
+      if (error.response.status === 500) {
+        const errorMessage = error.response.data?.message || 'Internal server error';
+        throw new Error(`Server Error: ${errorMessage}`);
+      }
+      
+      // Handle other status codes
+      const errorMessage = error.response.data?.message || error.message;
+      throw new Error(`API Error (${error.response.status}): ${errorMessage}`);
+    }
+    
+    // Handle non-axios errors
+    throw new Error(`Unexpected error: ${error.message || 'Unknown error occurred'}`);
+  }
+};
+
+/**
+ * Verify OTP for agreement
+ * @param payload - The verify OTP payload containing loanId, otpCode, and agreement details
+ * @returns Promise with the verify OTP result
+ */
+export const verifyAgreementOtp = async (payload: VerifyOtpRequestPayload): Promise<VerifyOtpResult> => {
+  try {
+    console.log('Verifying agreement OTP for loan ID:', payload.loanId);
+
+    const response = await carePayApi.post<VerifyOtpResponse>('/api/click-wrap/verify-otp', payload, {
+      headers: {
+        'Accept': 'application/json'
+      }
+    });
+
+    console.log('Verify agreement OTP response:', response.data);
+
+    // Check if the response is successful
+    if (response.data.status === 200 && response.data.data) {
+      return {
+        success: true,
+        data: response.data.data,
+        message: response.data.message || 'OTP verified successfully'
+      };
+    }
+
+    // Handle non-200 status responses
+    return {
+      success: false,
+      message: response.data.message || 'Failed to verify OTP'
+    };
+
+  } catch (error: any) {
+    console.error('Error verifying agreement OTP:', error);
+    
+    if (axios.isAxiosError(error)) {
+      if (error.code === 'ECONNABORTED') {
+        throw new Error('Request timed out. Please try again.');
+      }
+      
+      if (!error.response) {
+        throw new Error('Unable to connect to the CarePay backend server. Please check your internet connection.');
+      }
+      
+      // Handle specific HTTP status codes
+      if (error.response.status === 400) {
+        const errorMessage = error.response.data?.message || 'Invalid OTP or agreement data provided';
+        throw new Error(`Bad Request: ${errorMessage}`);
+      }
+      
+      if (error.response.status === 401) {
+        throw new Error('Authentication required. Please login again.');
+      }
+      
+      if (error.response.status === 404) {
+        throw new Error('OTP verification service not found.');
       }
       
       if (error.response.status === 500) {

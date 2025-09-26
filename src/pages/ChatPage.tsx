@@ -18,7 +18,7 @@ import DisbursalOrderOverlay from '../components/DisbursalOrderOverlay';
 
 
 import { useProgressBarState } from '../utils/progressUtils';
-import { PostApprovalStatusData, callFinDocApis, getDoctorCategory, sendOtpToMobile, verifyOtp } from '../services/postApprovalApi';
+import { PostApprovalStatusData, callFinDocApis, getDoctorCategory, sendOtpToMobile, verifyOtp, getPostApprovalStatus } from '../services/postApprovalApi';
 import { SendHorizonal, Plus, Notebook as Robot, History, ArrowLeft, Search, LogOut, User, MapPin, Briefcase, Calendar, Mail, GraduationCap, Heart, Edit3, Phone, Menu, TrendingUp } from 'lucide-react';
 import LoanTransactionsPage from './LoanTransactionsPage';
 import BusinessOverviewPage from './BusinessOverviewPage';
@@ -158,7 +158,6 @@ const ChatPage: React.FC = () => {
   // Disbursal Order State
   const [showDisbursalOrder, setShowDisbursalOrder] = useState(false);
   const [hasProcessedFinDoc, setHasProcessedFinDoc] = useState(false);
-  const [showRefreshButton, setShowRefreshButton] = useState(false);
   
 
   // Function to process FinDoc APIs and check doctor category
@@ -196,7 +195,6 @@ const ChatPage: React.FC = () => {
           if (category === 'A') {
             console.log('Doctor category is A, automatically showing disbursal order');
             setShowDisbursalOrder(true);
-            setShowRefreshButton(true); // Show refresh button when disbursal order is shown
           } else {
             console.log('Doctor category is not A, not showing disbursal order automatically');
           }
@@ -702,6 +700,39 @@ const ChatPage: React.FC = () => {
     if (userHasSentFirstMessage) {
       console.log('Refreshing progress bar data after session refresh');
       fetchUserStatuses();
+    }
+  };
+
+  // Function to refresh post-approval status and update components
+  const refreshPostApprovalStatus = async () => {
+    if (!loanId) {
+      console.log('No loanId available for refresh');
+      return;
+    }
+
+    try {
+      console.log('Refreshing post-approval status for loanId:', loanId);
+      const result = await getPostApprovalStatus(loanId);
+      
+      if (result.success && result.data) {
+        console.log('Updated post-approval status:', result.data);
+        setPostApprovalData(result.data);
+        
+        // Update step completion based on new data
+        setStepCompletion({
+          eligibility: true, // Always true if we have post-approval data
+          selectPlan: true, // Always true if we have post-approval data
+          kyc: result.data.aadhaar_verified,
+          autopaySetup: result.data.auto_pay,
+          authorize: result.data.agreement_setup
+        });
+        
+        console.log('Post-approval status refreshed successfully');
+      } else {
+        console.error('Failed to refresh post-approval status:', result.message);
+      }
+    } catch (error) {
+      console.error('Error refreshing post-approval status:', error);
     }
   };
   
@@ -1610,8 +1641,6 @@ const ChatPage: React.FC = () => {
         if (progressData.postApprovalData) {
           const { selfie, agreement_setup, auto_pay, aadhaar_verified } = progressData.postApprovalData;
           if (selfie && agreement_setup && auto_pay && aadhaar_verified) {
-           
-            setShowRefreshButton(true); // Show refresh button when all statuses are true
             console.log('🎉 All post-approval statuses are true! Showing celebration!');
             
             // Trigger FinDoc processing and doctor category check
@@ -2141,6 +2170,7 @@ const ChatPage: React.FC = () => {
                   onAddressDetailsPopupOpen={handleOpenAddressDetailsPopup}
                   isPaymentPlanCompleted={isPaymentPlanCompleted}
                   isAddressDetailsCompleted={isAddressDetailsCompleted}
+                  onAadhaarVerificationSuccess={refreshPostApprovalStatus}
                 />
               ))}
               {isLoading && messages.some(m => m.sender === 'user') && (
@@ -2160,8 +2190,8 @@ const ChatPage: React.FC = () => {
               <div className="flex items-center justify-center">
                 <button
                   onClick={() => {
-                    // Refresh the entire page
-                    window.location.reload();
+                    // Refresh post-approval status and components
+                    refreshPostApprovalStatus();
                   }}
                   className="bg-green-600 hover:bg-green-700 text-white px-6 py-3 rounded-full transition-colors duration-200 flex items-center space-x-2"
                 >

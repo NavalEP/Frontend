@@ -3,6 +3,7 @@ import { Share2, Copy, CheckCircle } from 'lucide-react';
 import { smartShare } from '../utils/shareUtils';
 import { getPostApprovalStatus, PostApprovalStatusData, checkAadhaarVerification } from '../services/postApprovalApi';
 import SelfieVerificationButton from './SelfieVerificationButton';
+import AgreementSigningPopup from './AgreementSigningPopup';
 
 interface PaymentStep {
   title: string;
@@ -22,6 +23,7 @@ interface PaymentStepsMessageProps {
 const PaymentStepsMessage: React.FC<PaymentStepsMessageProps> = ({ steps, onLinkClick, loanId, onAadhaarVerificationClick }) => {
   const [postApprovalStatus, setPostApprovalStatus] = useState<PostApprovalStatusData | null>(null);
   const [showAadhaarMessage, setShowAadhaarMessage] = useState<number | null>(null);
+  const [showAgreementPopup, setShowAgreementPopup] = useState(false);
 
   // Fetch post-approval status when component mounts or loanId changes
   useEffect(() => {
@@ -282,8 +284,13 @@ const PaymentStepsMessage: React.FC<PaymentStepsMessageProps> = ({ steps, onLink
                     onAadhaarVerificationClick?.();
                     return;
                   }
-                  // Check if this is a share button that needs Aadhaar verification
-                  if (step.primaryButtonText.includes('Share link')) {
+                  // Check if this is the E-sign agreement button
+                  if (step.primaryButtonText.includes('E-sign agreement')) {
+                    setShowAgreementPopup(true);
+                    return;
+                  }
+                  // Check if this is a share button that needs Aadhaar verification (only for Face verification)
+                  if (step.primaryButtonText.includes('Share link') && (step.title.includes('Face') || step.title.includes('Face verification'))) {
                     checkAadhaarBeforePrimaryAction(step.url, index);
                   } else {
                     handleLinkClick(step.url);
@@ -293,8 +300,8 @@ const PaymentStepsMessage: React.FC<PaymentStepsMessageProps> = ({ steps, onLink
                   isCompleted ? 'opacity-75 cursor-not-allowed' : ''
                 }`}
                 style={isCompleted ? {
-                  background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
-                  boxShadow: '0 4px 6px rgba(16, 185, 129, 0.3)'
+                  background: 'linear-gradient(135deg, rgb(16, 185, 129) 0%, rgb(5, 150, 105) 100%)',
+                  boxShadow: 'rgba(16, 185, 129, 0.3) 0px 4px 6px'
                 } : {
                   background: 'linear-gradient(135deg, #514c9f 0%, #3d3a7a 100%)',
                   boxShadow: '0 4px 6px rgba(81, 76, 159, 0.3)'
@@ -308,7 +315,14 @@ const PaymentStepsMessage: React.FC<PaymentStepsMessageProps> = ({ steps, onLink
           {/* Secondary Action Buttons */}
           <div className="flex space-x-2">
             <button
-              onClick={() => checkAadhaarBeforeShare(step.url, index)}
+              onClick={() => {
+                // Only check Aadhaar verification for Face verification section
+                if (step.title.includes('Face') || step.title.includes('Face verification')) {
+                  checkAadhaarBeforeShare(step.url, index);
+                } else {
+                  handleNativeShare(step.url);
+                }
+              }}
               className="flex-1 px-3 py-2 font-medium rounded-lg transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-offset-1 flex items-center justify-center space-x-2 text-xs"
               style={{
                 backgroundColor: '#f3f2ff',
@@ -325,7 +339,14 @@ const PaymentStepsMessage: React.FC<PaymentStepsMessageProps> = ({ steps, onLink
               <span>{step.secondaryButtonText}</span>
             </button>
             <button
-              onClick={() => checkAadhaarBeforeCopy(step.url, index)}
+              onClick={() => {
+                // Only check Aadhaar verification for Face verification section
+                if (step.title.includes('Face') || step.title.includes('Face verification')) {
+                  checkAadhaarBeforeCopy(step.url, index);
+                } else {
+                  copyToClipboard(step.url);
+                }
+              }}
               className="px-3 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium rounded-lg transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-1 flex items-center justify-center text-xs"
             >
               <Copy className="h-3 w-3" />
@@ -352,6 +373,30 @@ const PaymentStepsMessage: React.FC<PaymentStepsMessageProps> = ({ steps, onLink
         </div>
         );
       })}
+
+      {/* Agreement Signing Popup */}
+      {loanId && (
+        <AgreementSigningPopup
+          isOpen={showAgreementPopup}
+          onClose={() => setShowAgreementPopup(false)}
+          loanId={loanId}
+          onSuccess={() => {
+            // Refresh the post-approval status after successful agreement signing
+            const fetchPostApprovalStatus = async () => {
+              if (!loanId) return;
+              try {
+                const result = await getPostApprovalStatus(loanId);
+                if (result.success && result.data) {
+                  setPostApprovalStatus(result.data);
+                }
+              } catch (error) {
+                console.error('Error fetching post-approval status:', error);
+              }
+            };
+            fetchPostApprovalStatus();
+          }}
+        />
+      )}
     </div>
   );
 };

@@ -1978,14 +1978,16 @@ export const checkFaceMatch = async (userId: string): Promise<FaceMatchResult> =
 /**
  * Initiate agreement for a loan
  * @param loanId - The loan ID to initiate agreement for
+ * @param language - The language for the agreement
  * @returns Promise with the initiate agreement result
  */
-export const initiateAgreement = async (loanId: string): Promise<InitiateAgreementResult> => {
+export const initiateAgreement = async (loanId: string, language: string = 'English'): Promise<InitiateAgreementResult> => {
   try {
-    console.log('Initiating agreement for loan ID:', loanId);
+    console.log('Initiating agreement for loan ID:', loanId, 'with language:', language);
 
     const response = await carePayApi.post<InitiateAgreementResponse>('/api/click-wrap/initiateAgreement', {
-      loanId
+      loanId,
+      language
     }, {
       headers: {
         'Accept': 'application/json'

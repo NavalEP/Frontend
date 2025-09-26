@@ -30,6 +30,7 @@ interface ChatMessageProps {
   loanId?: string;
   isPaymentPlanCompleted?: boolean;
   isAddressDetailsCompleted?: boolean;
+  onAadhaarVerificationSuccess?: () => void;
 }
 
 // Component for styled treatment amount display
@@ -97,7 +98,7 @@ const TreatmentAmountDisplay: React.FC<{ text: string }> = ({ text }) => {
   return <span>{parts}</span>;
 };
 
-const ChatMessage: React.FC<ChatMessageProps> = ({ message, onButtonClick, selectedOption, disabledOptions, onLinkClick, onTreatmentSelect, selectedTreatment, onUploadClick, onPaymentPlanPopupOpen, onAddressDetailsPopupOpen, loanId, isPaymentPlanCompleted, isAddressDetailsCompleted }) => {
+const ChatMessage: React.FC<ChatMessageProps> = ({ message, onButtonClick, selectedOption, disabledOptions, onLinkClick, onTreatmentSelect, selectedTreatment, onUploadClick, onPaymentPlanPopupOpen, onAddressDetailsPopupOpen, loanId, isPaymentPlanCompleted, isAddressDetailsCompleted, onAadhaarVerificationSuccess }) => {
   const isUser = message.sender === 'user';
   const [resolvedUrls, setResolvedUrls] = useState<Record<string, string>>({});
   const [loadingUrls, setLoadingUrls] = useState<Set<string>>(new Set());
@@ -107,6 +108,7 @@ const ChatMessage: React.FC<ChatMessageProps> = ({ message, onButtonClick, selec
   const [isSearchingTreatments, setIsSearchingTreatments] = useState(false);
   const treatmentSearchRef = useRef<HTMLDivElement>(null);
   const [showAadhaarVerification, setShowAadhaarVerification] = useState(false);
+  const [aadhaarVerificationUrl, setAadhaarVerificationUrl] = useState<string>('');
   
   // Function to handle Aadhaar verification button click
   const handleAadhaarVerificationClick = () => {
@@ -116,7 +118,8 @@ const ChatMessage: React.FC<ChatMessageProps> = ({ message, onButtonClick, selec
   // Function to handle successful Aadhaar verification
   const handleAadhaarVerificationSuccess = () => {
     setShowAadhaarVerification(false);
-    // You can add additional logic here if needed, like refreshing the payment steps
+    // Call the parent callback to refresh post-approval status
+    onAadhaarVerificationSuccess?.();
   };
   
   // Check if this is an OCR result message
@@ -236,6 +239,12 @@ const ChatMessage: React.FC<ChatMessageProps> = ({ message, onButtonClick, selec
     // Check if this is 4 steps or 3 steps format
     const is4Steps = text.toLowerCase().includes('payment is now just 4 steps away') ||
                      text.toLowerCase().includes('adhaar verification');
+    
+    // Extract and store Aadhaar verification URL for fallback
+    const aadhaarUrl = urls.find(url => url.includes('adhaar') || url.includes('aadhaar'));
+    if (aadhaarUrl) {
+      setAadhaarVerificationUrl(aadhaarUrl);
+    }
     
     // Define step patterns and their corresponding URLs
     const stepPatterns = is4Steps ? [
@@ -1429,6 +1438,7 @@ const ChatMessage: React.FC<ChatMessageProps> = ({ message, onButtonClick, selec
         onClose={() => setShowAadhaarVerification(false)}
         userId={localStorage.getItem('userId') || ''}
         onSuccess={handleAadhaarVerificationSuccess}
+        fallbackUrl={aadhaarVerificationUrl}
       />
 
     </div>

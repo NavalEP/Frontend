@@ -6,13 +6,15 @@ interface AadhaarVerificationPopupProps {
   onClose: () => void;
   userId: string;
   onSuccess?: () => void;
+  fallbackUrl?: string; // DigiLocker or alternative verification URL
 }
 
 const AadhaarVerificationPopup: React.FC<AadhaarVerificationPopupProps> = ({
   isOpen,
   onClose,
   userId,
-  onSuccess
+  onSuccess,
+  fallbackUrl
 }) => {
   const [step, setStep] = useState<'aadhaar' | 'otp'>('aadhaar');
   const [aadhaarNumber, setAadhaarNumber] = useState('');
@@ -21,6 +23,7 @@ const AadhaarVerificationPopup: React.FC<AadhaarVerificationPopupProps> = ({
   const [error, setError] = useState('');
   const [otpTimer, setOtpTimer] = useState(0);
   const [userMobileNumber, setUserMobileNumber] = useState<number | null>(null);
+  const [showFallback, setShowFallback] = useState(false);
 
   // Timer for OTP resend
   useEffect(() => {
@@ -89,7 +92,13 @@ const AadhaarVerificationPopup: React.FC<AadhaarVerificationPopupProps> = ({
         setOtpTimer(50); // 50 seconds timer
         setError('');
       } else {
-        setError(otpResult.message || 'Failed to send OTP');
+        // Show fallback option if OTP send fails and fallback URL is available
+        if (fallbackUrl) {
+          setShowFallback(true);
+          setError('OTP service is currently unavailable. You can use the alternative verification method below.');
+        } else {
+          setError(otpResult.message || 'Failed to send OTP');
+        }
       }
     } catch (error: any) {
       setError(error.message || 'An error occurred while processing Aadhaar verification');
@@ -119,7 +128,13 @@ const AadhaarVerificationPopup: React.FC<AadhaarVerificationPopupProps> = ({
         setOtp('');
         setError('');
       } else {
-        setError(result.message || 'Invalid OTP. Please try again.');
+        // Show fallback option if OTP verification fails and fallback URL is available
+        if (fallbackUrl) {
+          setShowFallback(true);
+          setError('OTP verification failed. You can use the alternative verification method below.');
+        } else {
+          setError(result.message || 'Invalid OTP. Please try again.');
+        }
       }
     } catch (error: any) {
       setError(error.message || 'An error occurred while verifying OTP');
@@ -158,6 +173,13 @@ const AadhaarVerificationPopup: React.FC<AadhaarVerificationPopupProps> = ({
     setAadhaarNumber(limited);
   };
 
+  const handleFallbackRedirect = () => {
+    if (fallbackUrl) {
+      window.open(fallbackUrl, '_blank');
+      onClose();
+    }
+  };
+
   if (!isOpen) return null;
 
   return (
@@ -176,7 +198,7 @@ const AadhaarVerificationPopup: React.FC<AadhaarVerificationPopupProps> = ({
                 value={aadhaarNumber}
                 onChange={handleAadhaarChange}
                 placeholder="123456789012"
-                className="w-full px-3 py-2 border-2 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                className="w-full px-3 py-2 border-2 rounded-md focus:outline-none focus:ring-2"
                 style={{
                   backgroundColor: 'rgba(81, 76, 159, 0.05)',
                   borderColor: 'rgb(81, 76, 159)'
@@ -188,6 +210,33 @@ const AadhaarVerificationPopup: React.FC<AadhaarVerificationPopupProps> = ({
             
             {error && (
               <div className="text-red-600 text-sm">{error}</div>
+            )}
+            
+            {/* Fallback Option */}
+            {showFallback && fallbackUrl && (
+              <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                <div className="flex items-center mb-2">
+                  <div className="flex-shrink-0">
+                    <svg className="h-5 w-5 text-blue-400" viewBox="0 0 20 20" fill="currentColor">
+                      <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+                    </svg>
+                  </div>
+                  <div className="ml-3">
+                    <h3 className="text-sm font-medium text-blue-800">
+                      Alternative Verification Method
+                    </h3>
+                  </div>
+                </div>
+                <p className="text-sm text-blue-700 mb-3">
+                  You can complete your Aadhaar verification using the alternative method below.
+                </p>
+                <button
+                  onClick={handleFallbackRedirect}
+                  className="w-full px-4 py-2 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1"
+                >
+                  Complete Verification via Alternative Method
+                </button>
+              </div>
             )}
             
             <button
@@ -213,7 +262,7 @@ const AadhaarVerificationPopup: React.FC<AadhaarVerificationPopupProps> = ({
                 value={otp}
                 onChange={(e) => setOtp(e.target.value.replace(/\D/g, '').slice(0, 6))}
                 placeholder="Enter 6-digit OTP"
-                className="w-full px-3 py-2 border-2 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                className="w-full px-3 py-2 border-2 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 style={{
                   backgroundColor: 'rgba(81, 76, 159, 0.05)',
                   borderColor: 'rgb(81, 76, 159)'
@@ -238,6 +287,33 @@ const AadhaarVerificationPopup: React.FC<AadhaarVerificationPopupProps> = ({
             
             {error && (
               <div className="text-red-600 text-sm">{error}</div>
+            )}
+            
+            {/* Fallback Option for OTP step */}
+            {showFallback && fallbackUrl && (
+              <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                <div className="flex items-center mb-2">
+                  <div className="flex-shrink-0">
+                    <svg className="h-5 w-5 text-blue-400" viewBox="0 0 20 20" fill="currentColor">
+                      <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+                    </svg>
+                  </div>
+                  <div className="ml-3">
+                    <h3 className="text-sm font-medium text-blue-800">
+                      Alternative Verification Method
+                    </h3>
+                  </div>
+                </div>
+                <p className="text-sm text-blue-700 mb-3">
+                  You can complete your Aadhaar verification using the alternative method below.
+                </p>
+                <button
+                  onClick={handleFallbackRedirect}
+                  className="w-full px-4 py-2 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1"
+                >
+                  Complete Verification via Alternative Method
+                </button>
+              </div>
             )}
             
             <button

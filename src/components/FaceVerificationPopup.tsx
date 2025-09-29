@@ -426,7 +426,7 @@ const FaceVerificationPopup: React.FC<FaceVerificationPopupProps> = ({
             autoPlay
             playsInline
             muted
-            className="w-full h-64 bg-gray-200 rounded-lg object-cover"
+            className="w-full h-80 bg-gray-200 rounded-lg object-cover"
           />
           <canvas ref={canvasRef} className="hidden" />
           
@@ -434,10 +434,6 @@ const FaceVerificationPopup: React.FC<FaceVerificationPopupProps> = ({
           {isCapturing && (
             <div className="absolute inset-0 bg-white opacity-80 animate-pulse pointer-events-none"></div>
           )}
-          
-          <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-            <div className="w-48 h-48 border-4 border-white border-dashed rounded-full opacity-50"></div>
-          </div>
           
           <div className="mt-4 text-center">
             <button
@@ -451,7 +447,12 @@ const FaceVerificationPopup: React.FC<FaceVerificationPopupProps> = ({
               className="w-16 h-16 bg-white rounded-full shadow-lg flex items-center justify-center mx-auto hover:scale-105 transition-transform disabled:opacity-50 disabled:cursor-not-allowed relative z-10"
               style={{ pointerEvents: 'auto' }}
             >
-              <div className="w-12 h-12 bg-purple-600 rounded-full flex items-center justify-center">
+              <div 
+                className="w-12 h-12 rounded-full flex items-center justify-center"
+                style={{
+                  background: 'linear-gradient(135deg, rgb(81, 76, 159) 0%, rgb(61, 58, 122) 100%)'
+                }}
+              >
                 {loading ? (
                   <svg className="w-6 h-6 text-white animate-spin" fill="none" viewBox="0 0 24 24">
                     <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
@@ -478,7 +479,21 @@ const FaceVerificationPopup: React.FC<FaceVerificationPopupProps> = ({
                 capturePhoto();
               }}
               disabled={loading}
-              className="mt-4 w-full px-6 py-3 bg-purple-600 text-white font-semibold rounded-lg hover:bg-purple-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              className="mt-4 w-full px-6 py-3 font-semibold rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              style={{
+                background: loading ? 'rgba(81, 76, 159, 0.6)' : 'linear-gradient(135deg, rgb(81, 76, 159) 0%, rgb(61, 58, 122) 100%)',
+                color: 'white'
+              }}
+              onMouseEnter={(e) => {
+                if (!loading) {
+                  e.currentTarget.style.background = 'linear-gradient(135deg, rgb(61, 58, 122) 0%, rgb(41, 38, 82) 100%)';
+                }
+              }}
+              onMouseLeave={(e) => {
+                if (!loading) {
+                  e.currentTarget.style.background = 'linear-gradient(135deg, rgb(81, 76, 159) 0%, rgb(61, 58, 122) 100%)';
+                }
+              }}
             >
               {loading ? 'Capturing...' : '📸 Capture Photo'}
             </button>
@@ -501,9 +516,6 @@ const FaceVerificationPopup: React.FC<FaceVerificationPopupProps> = ({
           alt="Captured selfie"
           className="w-full h-64 bg-gray-200 rounded-lg object-cover"
         />
-        <div className="absolute inset-0 flex items-center justify-center">
-          <div className="w-48 h-48 border-4 border-white border-dashed rounded-full opacity-30"></div>
-        </div>
       </div>
       
       {error && (

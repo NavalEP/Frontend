@@ -208,7 +208,7 @@ const AadhaarVerificationPopup: React.FC<AadhaarVerificationPopupProps> = ({
               />
             </div>
             
-            {error && (
+            {error && !showFallback && (
               <div className="text-red-600 text-sm">{error}</div>
             )}
             
@@ -285,7 +285,7 @@ const AadhaarVerificationPopup: React.FC<AadhaarVerificationPopupProps> = ({
               </button>
             </div>
             
-            {error && (
+            {error && !showFallback && (
               <div className="text-red-600 text-sm">{error}</div>
             )}
             

@@ -5,7 +5,6 @@ import { getShortlink, searchTreatments } from '../services/api';
 import { smartShare, isNativeSharingSupported } from '../utils/shareUtils';
 import ShareButton from './ShareButton';
 import PaymentStepsMessage from './PaymentStepsMessage';
-import AadhaarVerificationPopup from './AadhaarVerificationPopup';
 
 interface Message {
   id: string;
@@ -30,7 +29,7 @@ interface ChatMessageProps {
   loanId?: string;
   isPaymentPlanCompleted?: boolean;
   isAddressDetailsCompleted?: boolean;
-  onAadhaarVerificationSuccess?: () => void;
+  onAadhaarVerificationClick?: () => void;
 }
 
 // Component for styled treatment amount display
@@ -98,7 +97,7 @@ const TreatmentAmountDisplay: React.FC<{ text: string }> = ({ text }) => {
   return <span>{parts}</span>;
 };
 
-const ChatMessage: React.FC<ChatMessageProps> = ({ message, onButtonClick, selectedOption, disabledOptions, onLinkClick, onTreatmentSelect, selectedTreatment, onUploadClick, onPaymentPlanPopupOpen, onAddressDetailsPopupOpen, loanId, isPaymentPlanCompleted, isAddressDetailsCompleted, onAadhaarVerificationSuccess }) => {
+const ChatMessage: React.FC<ChatMessageProps> = ({ message, onButtonClick, selectedOption, disabledOptions, onLinkClick, onTreatmentSelect, selectedTreatment, onUploadClick, onPaymentPlanPopupOpen, onAddressDetailsPopupOpen, loanId, isPaymentPlanCompleted, isAddressDetailsCompleted, onAadhaarVerificationClick }) => {
   const isUser = message.sender === 'user';
   const [resolvedUrls, setResolvedUrls] = useState<Record<string, string>>({});
   const [loadingUrls, setLoadingUrls] = useState<Set<string>>(new Set());
@@ -107,20 +106,8 @@ const ChatMessage: React.FC<ChatMessageProps> = ({ message, onButtonClick, selec
   const [treatmentSearchResults, setTreatmentSearchResults] = useState<any[]>([]);
   const [isSearchingTreatments, setIsSearchingTreatments] = useState(false);
   const treatmentSearchRef = useRef<HTMLDivElement>(null);
-  const [showAadhaarVerification, setShowAadhaarVerification] = useState(false);
   const [aadhaarVerificationUrl, setAadhaarVerificationUrl] = useState<string>('');
   
-  // Function to handle Aadhaar verification button click
-  const handleAadhaarVerificationClick = () => {
-    setShowAadhaarVerification(true);
-  };
-  
-  // Function to handle successful Aadhaar verification
-  const handleAadhaarVerificationSuccess = () => {
-    setShowAadhaarVerification(false);
-    // Call the parent callback to refresh post-approval status
-    onAadhaarVerificationSuccess?.();
-  };
   
   // Check if this is an OCR result message
   const isOcrResult = message.text.includes('📋 **Aadhaar Card Details Extracted Successfully!**') || 
@@ -1402,7 +1389,7 @@ const ChatMessage: React.FC<ChatMessageProps> = ({ message, onButtonClick, selec
                 steps={parsePaymentSteps(message.text)}
                 onLinkClick={onLinkClick}
                 loanId={loanId}
-                onAadhaarVerificationClick={handleAadhaarVerificationClick}
+                onAadhaarVerificationClick={onAadhaarVerificationClick}
               />
             </div>
           )}
@@ -1432,14 +1419,6 @@ const ChatMessage: React.FC<ChatMessageProps> = ({ message, onButtonClick, selec
         </div>
       )}
 
-      {/* Aadhaar Verification Popup */}
-      <AadhaarVerificationPopup
-        isOpen={showAadhaarVerification}
-        onClose={() => setShowAadhaarVerification(false)}
-        userId={localStorage.getItem('userId') || ''}
-        onSuccess={handleAadhaarVerificationSuccess}
-        fallbackUrl={aadhaarVerificationUrl}
-      />
 
     </div>
   );

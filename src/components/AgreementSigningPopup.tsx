@@ -302,7 +302,7 @@ const AgreementSigningPopup: React.FC<AgreementSigningPopupProps> = ({
       <div className="bg-white rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto mx-4 my-0">
         {/* Header */}
         <div className="flex items-center justify-between p-10 border-b border-gray-400">
-          <h2 className="text-xl font-bold text-gray-900">Agreement Signing</h2>
+          <h2 className="text-xl font-bold text-gray-900">Authorise payment</h2>
           <button
             onClick={onClose}
             className="text-gray-400 hover:text-gray-600 transition-colors"
@@ -364,12 +364,16 @@ const AgreementSigningPopup: React.FC<AgreementSigningPopupProps> = ({
                                 setShowLanguageDropdown(false);
                               }}
                               className={`w-full px-4 py-3 text-left hover:bg-gray-50 flex items-center justify-between ${
-                                selectedLanguage === lang.name ? 'bg-purple-50 text-purple-700' : 'text-gray-900'
+                                selectedLanguage === lang.name ? 'text-gray-900' : 'text-gray-900'
                               }`}
+                              style={{
+                                backgroundColor: selectedLanguage === lang.name ? 'rgba(81, 76, 159, 0.05)' : 'transparent',
+                                color: selectedLanguage === lang.name ? 'rgb(81, 76, 159)' : undefined
+                              }}
                             >
                               <span>{lang.name}</span>
                               {selectedLanguage === lang.name && (
-                                <CheckCircle className="w-4 h-4 text-purple-600" />
+                                <CheckCircle className="w-4 h-4" style={{ color: 'rgb(81, 76, 159)' }} />
                               )}
                             </button>
                           ))}
@@ -422,7 +426,7 @@ const AgreementSigningPopup: React.FC<AgreementSigningPopupProps> = ({
                   onClick={() => setActiveTab('kfs')}
                   className={`flex-1 py-3 px-4 text-center font-medium border-b-2 transition-colors ${
                     activeTab === 'kfs'
-                      ? 'border-purple-600 text-purple-600'
+                      ? 'border-blue-600 text-blue-600'
                       : 'border-transparent text-gray-500 hover:text-gray-700'
                   }`}
                 >
@@ -432,7 +436,7 @@ const AgreementSigningPopup: React.FC<AgreementSigningPopupProps> = ({
                   onClick={() => setActiveTab('agreement')}
                   className={`flex-1 py-3 px-4 text-center font-medium border-b-2 transition-colors ${
                     activeTab === 'agreement'
-                      ? 'border-purple-600 text-purple-600'
+                      ? 'border-blue-600 text-blue-600'
                       : 'border-transparent text-gray-500 hover:text-gray-700'
                   }`}
                 >
@@ -459,7 +463,7 @@ const AgreementSigningPopup: React.FC<AgreementSigningPopupProps> = ({
                     checked={consentChecked}
                     onChange={(e) => handleConsentChange(e.target.checked)}
                     disabled={!location}
-                    className="mt-1 w-4 h-4 text-purple-600 border-gray-300 rounded focus:ring-purple-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="mt-1 w-5 h-5 text-purple-600 border-gray-300 rounded focus:ring-purple-500 disabled:opacity-50 disabled:cursor-not-allowed"
                   />
                   <span className={`text-sm ${!location ? 'text-gray-400' : 'text-gray-700'}`}>
                     I have read and understood the contents of this document and I accept this KFS and Sanction letter.

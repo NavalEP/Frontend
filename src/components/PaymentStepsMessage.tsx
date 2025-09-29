@@ -4,6 +4,8 @@ import { smartShare } from '../utils/shareUtils';
 import { getPostApprovalStatus, PostApprovalStatusData, checkAadhaarVerification } from '../services/postApprovalApi';
 import SelfieVerificationButton from './SelfieVerificationButton';
 import AgreementSigningPopup from './AgreementSigningPopup';
+import EmiAutoPayPopup from './EmiAutoPayPopup';
+import AadhaarVerificationPopup from './AadhaarVerificationPopup';
 
 interface PaymentStep {
   title: string;
@@ -24,6 +26,8 @@ const PaymentStepsMessage: React.FC<PaymentStepsMessageProps> = ({ steps, onLink
   const [postApprovalStatus, setPostApprovalStatus] = useState<PostApprovalStatusData | null>(null);
   const [showAadhaarMessage, setShowAadhaarMessage] = useState<number | null>(null);
   const [showAgreementPopup, setShowAgreementPopup] = useState(false);
+  const [showEmiAutoPayPopup, setShowEmiAutoPayPopup] = useState(false);
+  const [showAadhaarVerificationPopup, setShowAadhaarVerificationPopup] = useState(false);
 
   // Fetch post-approval status when component mounts or loanId changes
   useEffect(() => {
@@ -281,12 +285,17 @@ const PaymentStepsMessage: React.FC<PaymentStepsMessageProps> = ({ steps, onLink
                   // Check if this is the Aadhaar verification button
                   if (step.primaryButtonText.includes('Complete Adhaar verification') || 
                       step.primaryButtonText.includes('Complete Aadhaar verification')) {
-                    onAadhaarVerificationClick?.();
+                    setShowAadhaarVerificationPopup(true);
                     return;
                   }
                   // Check if this is the E-sign agreement button
                   if (step.primaryButtonText.includes('E-sign agreement')) {
                     setShowAgreementPopup(true);
+                    return;
+                  }
+                  // Check if this is the Complete auto pay setup button
+                  if (step.primaryButtonText.includes('Complete auto pay setup')) {
+                    setShowEmiAutoPayPopup(true);
                     return;
                   }
                   // Check if this is a share button that needs Aadhaar verification (only for Face verification)
@@ -397,6 +406,53 @@ const PaymentStepsMessage: React.FC<PaymentStepsMessageProps> = ({ steps, onLink
           }}
         />
       )}
+
+      {/* EMI Auto Pay Popup */}
+      {loanId && (
+        <EmiAutoPayPopup
+          isOpen={showEmiAutoPayPopup}
+          onClose={() => setShowEmiAutoPayPopup(false)}
+          userId={localStorage.getItem('userId') || ''}
+          loanId={loanId}
+          onSuccess={() => {
+            // Refresh the post-approval status after successful EMI auto pay setup
+            const fetchPostApprovalStatus = async () => {
+              if (!loanId) return;
+              try {
+                const result = await getPostApprovalStatus(loanId);
+                if (result.success && result.data) {
+                  setPostApprovalStatus(result.data);
+                }
+              } catch (error) {
+                console.error('Error fetching post-approval status:', error);
+              }
+            };
+            fetchPostApprovalStatus();
+          }}
+        />
+      )}
+
+      {/* Aadhaar Verification Popup */}
+      <AadhaarVerificationPopup
+        isOpen={showAadhaarVerificationPopup}
+        onClose={() => setShowAadhaarVerificationPopup(false)}
+        userId={localStorage.getItem('userId') || ''}
+        onSuccess={() => {
+          // Refresh the post-approval status after successful Aadhaar verification
+          const fetchPostApprovalStatus = async () => {
+            if (!loanId) return;
+            try {
+              const result = await getPostApprovalStatus(loanId);
+              if (result.success && result.data) {
+                setPostApprovalStatus(result.data);
+              }
+            } catch (error) {
+              console.error('Error fetching post-approval status:', error);
+            }
+          };
+          fetchPostApprovalStatus();
+        }}
+      />
     </div>
   );
 };

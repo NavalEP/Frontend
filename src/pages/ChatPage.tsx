@@ -2170,7 +2170,7 @@ const ChatPage: React.FC = () => {
                   onAddressDetailsPopupOpen={handleOpenAddressDetailsPopup}
                   isPaymentPlanCompleted={isPaymentPlanCompleted}
                   isAddressDetailsCompleted={isAddressDetailsCompleted}
-                  onAadhaarVerificationSuccess={refreshPostApprovalStatus}
+                  onAadhaarVerificationClick={() => {}} // This is now handled in PaymentStepsMessage
                 />
               ))}
               {isLoading && messages.some(m => m.sender === 'user') && (
@@ -2674,6 +2674,7 @@ const ChatPage: React.FC = () => {
         onSessionRefresh={refreshSessionAndProgress}
         onAddressDetailsCompleted={handleAddressDetailsCompleted}
       />
+
 
       {/* Disbursal Order Overlay */}
       {showDisbursalOrder && loanId && (

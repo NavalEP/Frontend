@@ -575,6 +575,205 @@ export interface ConsentRequestPayload {
   longitude: string;
 }
 
+// Interface for account info data
+export interface AccountInfoData {
+  userId: string;
+  accountNumber: string;
+  bankName: string;
+  ifscCode: string;
+  branchName: string;
+  ifSalariedAccount: boolean | null;
+  nameAsBankAccount: string;
+  ifVerified: boolean;
+  accountType: string;
+}
+
+// Interface for account info API response
+export interface AccountInfoResponse {
+  status: number;
+  data: AccountInfoData;
+  attachment: null;
+  message: string;
+}
+
+// Interface for account info API function return type
+export interface AccountInfoResult {
+  success: boolean;
+  data?: AccountInfoData;
+  message: string;
+}
+
+// Interface for add account details request payload
+export interface AddAccountDetailsPayload {
+  userId: string;
+  accountNumber: string;
+  accountType: string;
+  bankBranch: string;
+  bankName: string;
+  formStatus: string;
+  ifscCode: string;
+  nameAsBankAccount: string;
+}
+
+// Interface for add account details API response
+export interface AddAccountDetailsResponse {
+  status: number;
+  data: AccountInfoData;
+  attachment: null;
+  message: string;
+}
+
+// Interface for add account details API function return type
+export interface AddAccountDetailsResult {
+  success: boolean;
+  data?: AccountInfoData;
+  message: string;
+}
+
+// Interface for penny drop API response
+export interface PennyDropResponse {
+  status: number;
+  data: string;
+  attachment: null;
+  message: string;
+}
+
+// Interface for penny drop API function return type
+export interface PennyDropResult {
+  success: boolean;
+  data?: string;
+  message: string;
+}
+
+// Interface for digio mandate bank detail data
+export interface DigioMandateBankDetailData {
+  id: number;
+  bankId: string;
+  name: string;
+  ifscPrefix: string;
+  active: boolean;
+  primaryBank: boolean;
+  routingCode: string;
+  esignMandate: boolean;
+  apiMandate: boolean;
+  physicalMandate: boolean;
+  allowedAuthSubType: string[];
+  pennyLess: boolean;
+}
+
+// Interface for digio mandate bank detail API response
+export interface DigioMandateBankDetailResponse {
+  status: number;
+  data: DigioMandateBankDetailData;
+  attachment: null;
+  message: string;
+}
+
+// Interface for digio mandate bank detail API function return type
+export interface DigioMandateBankDetailResult {
+  success: boolean;
+  data?: DigioMandateBankDetailData;
+  message: string;
+}
+
+// Interface for user loan and product detail data
+export interface UserLoanAndProductDetailData {
+  // This interface will be defined based on the actual response structure
+  // Since the response was not provided, using a generic structure
+  [key: string]: any;
+}
+
+// Interface for user loan and product detail API response
+export interface UserLoanAndProductDetailResponse {
+  status: number;
+  data: UserLoanAndProductDetailData;
+  attachment: null;
+  message: string;
+}
+
+// Interface for user loan and product detail API function return type
+export interface UserLoanAndProductDetailResult {
+  success: boolean;
+  data?: UserLoanAndProductDetailData;
+  message: string;
+}
+
+// Interface for access token data
+export interface AccessTokenData {
+  valid_till: string;
+  created_at: string;
+  id: string;
+  entity_id: string;
+}
+
+// Interface for mandate details data
+export interface MandateDetailsData {
+  scheme_ref_number: string;
+  auth_type: string;
+  first_collection_date: string;
+  customer_identifier: string;
+  maximum_amount: number;
+  customer_account_number: string;
+  customer_name: string;
+  is_recurring: boolean;
+  final_collection_date: string;
+  customer_ref_number: string;
+  frequency: string;
+}
+
+// Interface for mandate data (parsed from JSON string)
+export interface MandateData {
+  access_token: AccessTokenData;
+  mandate_details: MandateDetailsData;
+  authentication_url: string;
+  id: string;
+  state: string;
+  status: string;
+}
+
+// Interface for create mandate request data
+export interface CreateMandateRequestData {
+  id: string;
+  loanId: string;
+  mandateId: string;
+  umrn: string | null;
+  state: string;
+  status: string;
+  createdAt: string | null;
+  validTill: number;
+  data: string; // JSON string that needs to be parsed
+  addedOn: number;
+  updatedOn: string | null;
+  mandateType: string;
+  authenticationUrl: string;
+  currentStage: string | null;
+  message: string | null;
+  npciTxnID: string | null;
+  phoneNumber: string;
+}
+
+// Interface for create mandate request payload
+export interface CreateMandateRequestPayload {
+  loanId: string;
+  mandateType: string;
+}
+
+// Interface for create mandate request API response
+export interface CreateMandateRequestResponse {
+  status: number;
+  data: CreateMandateRequestData;
+  attachment: null;
+  message: string;
+}
+
+// Interface for create mandate request API function return type
+export interface CreateMandateRequestResult {
+  success: boolean;
+  data?: CreateMandateRequestData;
+  parsedData?: MandateData;
+  message: string;
+}
+
 // Interface for consent API response
 export interface ConsentResponse {
   status: number;
@@ -866,7 +1065,7 @@ export const callFinDocApis = async (loanId: string): Promise<FinDocApiResult> =
   try {
     console.log('Calling FinDoc APIs for loan ID:', loanId);
 
-    const response = await carePayApi.get<FinDocApiResponse>('/finDoc/callFinDocApis', {
+    const response = await carePayApi.get<FinDocApiResponse>('/finDoc/callFinDocApisdisable', {
       params: { loanId },
       headers: {
         'Accept': 'application/json'
@@ -2346,6 +2545,466 @@ export const verifyAgreementOtp = async (payload: VerifyOtpRequestPayload): Prom
 };
 
 /**
+ * Get account info by user ID
+ * @param userId - The user ID to get account info for
+ * @returns Promise with the account info result
+ */
+export const getAccountInfoByUserId = async (userId: string): Promise<AccountInfoResult> => {
+  try {
+    console.log('Fetching account info for user ID:', userId);
+
+    const response = await carePayApi.get<AccountInfoResponse>('/userDetails/getAccountInfoByUserId', {
+      params: { userId },
+      headers: {
+        'Accept': 'application/json'
+      }
+    });
+
+    console.log('Account info response:', response.data);
+
+    // Check if the response is successful
+    if (response.data.status === 200 && response.data.data) {
+      return {
+        success: true,
+        data: response.data.data,
+        message: response.data.message || 'Account info retrieved successfully'
+      };
+    }
+
+    // Handle non-200 status responses (like 500 status)
+    return {
+      success: false,
+      message: response.data.message || 'Failed to retrieve account info'
+    };
+
+  } catch (error: any) {
+    console.error('Error getting account info:', error);
+    
+    if (axios.isAxiosError(error)) {
+      if (error.code === 'ECONNABORTED') {
+        throw new Error('Request timed out. Please try again.');
+      }
+      
+      if (!error.response) {
+        throw new Error('Unable to connect to the CarePay backend server. Please check your internet connection.');
+      }
+      
+      // Handle specific HTTP status codes
+      if (error.response.status === 400) {
+        const errorMessage = error.response.data?.message || 'Invalid user ID provided';
+        throw new Error(`Bad Request: ${errorMessage}`);
+      }
+      
+      if (error.response.status === 401) {
+        throw new Error('Authentication required. Please login again.');
+      }
+      
+      if (error.response.status === 404) {
+        throw new Error('Account info not found for this user ID.');
+      }
+      
+      if (error.response.status === 500) {
+        const errorMessage = error.response.data?.message || 'Internal server error';
+        throw new Error(`Server Error: ${errorMessage}`);
+      }
+      
+      // Handle other status codes
+      const errorMessage = error.response.data?.message || error.message;
+      throw new Error(`API Error (${error.response.status}): ${errorMessage}`);
+    }
+    
+    // Handle non-axios errors
+    throw new Error(`Unexpected error: ${error.message || 'Unknown error occurred'}`);
+  }
+};
+
+/**
+ * Add account details for a user
+ * @param payload - The account details payload
+ * @returns Promise with the add account details result
+ */
+export const addAccountDetails = async (payload: AddAccountDetailsPayload): Promise<AddAccountDetailsResult> => {
+  try {
+    console.log('Adding account details for user ID:', payload.userId);
+
+    const response = await carePayApi.post<AddAccountDetailsResponse>('/userDetails/addAccountDetails', payload, {
+      headers: {
+        'Accept': 'application/json'
+      }
+    });
+
+    console.log('Add account details response:', response.data);
+
+    // Check if the response is successful
+    if (response.data.status === 200 && response.data.data) {
+      return {
+        success: true,
+        data: response.data.data,
+        message: response.data.message || 'Account details added successfully'
+      };
+    }
+
+    // Handle non-200 status responses
+    return {
+      success: false,
+      message: response.data.message || 'Failed to add account details'
+    };
+
+  } catch (error: any) {
+    console.error('Error adding account details:', error);
+    
+    if (axios.isAxiosError(error)) {
+      if (error.code === 'ECONNABORTED') {
+        throw new Error('Request timed out. Please try again.');
+      }
+      
+      if (!error.response) {
+        throw new Error('Unable to connect to the CarePay backend server. Please check your internet connection.');
+      }
+      
+      // Handle specific HTTP status codes
+      if (error.response.status === 400) {
+        const errorMessage = error.response.data?.message || 'Invalid account details provided';
+        throw new Error(`Bad Request: ${errorMessage}`);
+      }
+      
+      if (error.response.status === 401) {
+        throw new Error('Authentication required. Please login again.');
+      }
+      
+      if (error.response.status === 404) {
+        throw new Error('Account details service not found.');
+      }
+      
+      if (error.response.status === 500) {
+        const errorMessage = error.response.data?.message || 'Internal server error';
+        throw new Error(`Server Error: ${errorMessage}`);
+      }
+      
+      // Handle other status codes
+      const errorMessage = error.response.data?.message || error.message;
+      throw new Error(`API Error (${error.response.status}): ${errorMessage}`);
+    }
+    
+    // Handle non-axios errors
+    throw new Error(`Unexpected error: ${error.message || 'Unknown error occurred'}`);
+  }
+};
+
+/**
+ * Perform penny drop verification
+ * @param loanId - The loan ID for penny drop
+ * @param userId - The user ID for penny drop
+ * @returns Promise with the penny drop result
+ */
+export const pennyDrop = async (loanId: string, userId: string): Promise<PennyDropResult> => {
+  try {
+    console.log('Performing penny drop for loan ID:', loanId, 'and user ID:', userId);
+
+    const response = await carePayApi.get<PennyDropResponse>('/pennyDrop', {
+      params: { loanId, userId },
+      headers: {
+        'Accept': 'application/json'
+      }
+    });
+
+    console.log('Penny drop response:', response.data);
+
+    // Check if the response is successful
+    if (response.data.status === 200 && response.data.data) {
+      return {
+        success: true,
+        data: response.data.data,
+        message: response.data.message || 'Penny drop completed successfully'
+      };
+    }
+
+    // Handle non-200 status responses
+    return {
+      success: false,
+      message: response.data.message || 'Failed to complete penny drop'
+    };
+
+  } catch (error: any) {
+    console.error('Error performing penny drop:', error);
+    
+    if (axios.isAxiosError(error)) {
+      if (error.code === 'ECONNABORTED') {
+        throw new Error('Request timed out. Please try again.');
+      }
+      
+      if (!error.response) {
+        throw new Error('Unable to connect to the CarePay backend server. Please check your internet connection.');
+      }
+      
+      // Handle specific HTTP status codes
+      if (error.response.status === 400) {
+        const errorMessage = error.response.data?.message || 'Invalid loan ID or user ID provided';
+        throw new Error(`Bad Request: ${errorMessage}`);
+      }
+      
+      if (error.response.status === 401) {
+        throw new Error('Authentication required. Please login again.');
+      }
+      
+      if (error.response.status === 404) {
+        throw new Error('Penny drop service not found.');
+      }
+      
+      if (error.response.status === 500) {
+        const errorMessage = error.response.data?.message || 'Internal server error';
+        throw new Error(`Server Error: ${errorMessage}`);
+      }
+      
+      // Handle other status codes
+      const errorMessage = error.response.data?.message || error.message;
+      throw new Error(`API Error (${error.response.status}): ${errorMessage}`);
+    }
+    
+    // Handle non-axios errors
+    throw new Error(`Unexpected error: ${error.message || 'Unknown error occurred'}`);
+  }
+};
+
+/**
+ * Get Digio mandate bank details for a user
+ * @param userId - The user ID to get mandate bank details for
+ * @returns Promise with the Digio mandate bank detail result
+ */
+export const getDigioMandateBankDetail = async (userId: string): Promise<DigioMandateBankDetailResult> => {
+  try {
+    console.log('Fetching Digio mandate bank details for user ID:', userId);
+
+    const response = await carePayApi.get<DigioMandateBankDetailResponse>('/getDigioMandateBankDetail', {
+      params: { userId },
+      headers: {
+        'Accept': 'application/json'
+      }
+    });
+
+    console.log('Digio mandate bank detail response:', response.data);
+
+    // Check if the response is successful
+    if (response.data.status === 200 && response.data.data) {
+      return {
+        success: true,
+        data: response.data.data,
+        message: response.data.message || 'Digio mandate bank details retrieved successfully'
+      };
+    }
+
+    // Handle non-200 status responses
+    return {
+      success: false,
+      message: response.data.message || 'Failed to retrieve Digio mandate bank details'
+    };
+
+  } catch (error: any) {
+    console.error('Error getting Digio mandate bank details:', error);
+    
+    if (axios.isAxiosError(error)) {
+      if (error.code === 'ECONNABORTED') {
+        throw new Error('Request timed out. Please try again.');
+      }
+      
+      if (!error.response) {
+        throw new Error('Unable to connect to the CarePay backend server. Please check your internet connection.');
+      }
+      
+      // Handle specific HTTP status codes
+      if (error.response.status === 400) {
+        const errorMessage = error.response.data?.message || 'Invalid user ID provided';
+        throw new Error(`Bad Request: ${errorMessage}`);
+      }
+      
+      if (error.response.status === 401) {
+        throw new Error('Authentication required. Please login again.');
+      }
+      
+      if (error.response.status === 404) {
+        throw new Error('Digio mandate bank details not found for this user ID.');
+      }
+      
+      if (error.response.status === 500) {
+        const errorMessage = error.response.data?.message || 'Internal server error';
+        throw new Error(`Server Error: ${errorMessage}`);
+      }
+      
+      // Handle other status codes
+      const errorMessage = error.response.data?.message || error.message;
+      throw new Error(`API Error (${error.response.status}): ${errorMessage}`);
+    }
+    
+    // Handle non-axios errors
+    throw new Error(`Unexpected error: ${error.message || 'Unknown error occurred'}`);
+  }
+};
+
+/**
+ * Get user loan and product details
+ * @param userId - The user ID to get loan and product details for
+ * @returns Promise with the user loan and product detail result
+ */
+export const getUserLoanAndProductDetail = async (userId: string): Promise<UserLoanAndProductDetailResult> => {
+  try {
+    console.log('Fetching user loan and product details for user ID:', userId);
+
+    const response = await carePayApi.get<UserLoanAndProductDetailResponse>('/userDetails/getUserLoanAndProductDetail', {
+      params: { userId },
+      headers: {
+        'Accept': 'application/json'
+      }
+    });
+
+    console.log('User loan and product detail response:', response.data);
+
+    // Check if the response is successful
+    if (response.data.status === 200 && response.data.data) {
+      return {
+        success: true,
+        data: response.data.data,
+        message: response.data.message || 'User loan and product details retrieved successfully'
+      };
+    }
+
+    // Handle non-200 status responses
+    return {
+      success: false,
+      message: response.data.message || 'Failed to retrieve user loan and product details'
+    };
+
+  } catch (error: any) {
+    console.error('Error getting user loan and product details:', error);
+    
+    if (axios.isAxiosError(error)) {
+      if (error.code === 'ECONNABORTED') {
+        throw new Error('Request timed out. Please try again.');
+      }
+      
+      if (!error.response) {
+        throw new Error('Unable to connect to the CarePay backend server. Please check your internet connection.');
+      }
+      
+      // Handle specific HTTP status codes
+      if (error.response.status === 400) {
+        const errorMessage = error.response.data?.message || 'Invalid user ID provided';
+        throw new Error(`Bad Request: ${errorMessage}`);
+      }
+      
+      if (error.response.status === 401) {
+        throw new Error('Authentication required. Please login again.');
+      }
+      
+      if (error.response.status === 404) {
+        throw new Error('User loan and product details not found for this user ID.');
+      }
+      
+      if (error.response.status === 500) {
+        const errorMessage = error.response.data?.message || 'Internal server error';
+        throw new Error(`Server Error: ${errorMessage}`);
+      }
+      
+      // Handle other status codes
+      const errorMessage = error.response.data?.message || error.message;
+      throw new Error(`API Error (${error.response.status}): ${errorMessage}`);
+    }
+    
+    // Handle non-axios errors
+    throw new Error(`Unexpected error: ${error.message || 'Unknown error occurred'}`);
+  }
+};
+
+/**
+ * Create mandate request
+ * @param loanId - The loan ID for the mandate request
+ * @param mandateType - The type of mandate (upi, api, etc.)
+ * @returns Promise with the create mandate request result
+ */
+export const createMandateRequest = async (loanId: string, mandateType: string): Promise<CreateMandateRequestResult> => {
+  try {
+    console.log('Creating mandate request for loan ID:', loanId, 'with mandate type:', mandateType);
+
+    const response = await carePayApi.get<CreateMandateRequestResponse>('/createMandateRequest', {
+      params: { 
+        loanId,
+        mandateType 
+      },
+      headers: {
+        'Accept': 'application/json'
+      }
+    });
+
+    console.log('Create mandate request response:', response.data);
+
+    // Check if the response is successful
+    if (response.data.status === 200 && response.data.data) {
+      let parsedData: MandateData | undefined;
+      
+      // Parse the JSON data string if it exists
+      if (response.data.data.data) {
+        try {
+          parsedData = JSON.parse(response.data.data.data);
+        } catch (parseError) {
+          console.warn('Failed to parse mandate data JSON:', parseError);
+        }
+      }
+
+      return {
+        success: true,
+        data: response.data.data,
+        parsedData,
+        message: response.data.message || 'Mandate request created successfully'
+      };
+    }
+
+    // Handle non-200 status responses
+    return {
+      success: false,
+      message: response.data.message || 'Failed to create mandate request'
+    };
+
+  } catch (error: any) {
+    console.error('Error creating mandate request:', error);
+    
+    if (axios.isAxiosError(error)) {
+      if (error.code === 'ECONNABORTED') {
+        throw new Error('Request timed out. Please try again.');
+      }
+      
+      if (!error.response) {
+        throw new Error('Unable to connect to the CarePay backend server. Please check your internet connection.');
+      }
+      
+      // Handle specific HTTP status codes
+      if (error.response.status === 400) {
+        const errorMessage = error.response.data?.message || 'Invalid loan ID or mandate type provided';
+        throw new Error(`Bad Request: ${errorMessage}`);
+      }
+      
+      if (error.response.status === 401) {
+        throw new Error('Authentication required. Please login again.');
+      }
+      
+      if (error.response.status === 404) {
+        throw new Error('Mandate request service not found.');
+      }
+      
+      if (error.response.status === 500) {
+        const errorMessage = error.response.data?.message || 'Internal server error';
+        throw new Error(`Server Error: ${errorMessage}`);
+      }
+      
+      // Handle other status codes
+      const errorMessage = error.response.data?.message || error.message;
+      throw new Error(`API Error (${error.response.status}): ${errorMessage}`);
+    }
+    
+    // Handle non-axios errors
+    throw new Error(`Unexpected error: ${error.message || 'Unknown error occurred'}`);
+  }
+};
+
+/**
  * Check if all post-approval requirements are completed
  * @param statusData - The post-approval status data
  * @returns boolean indicating if all requirements are met
@@ -2425,7 +3084,7 @@ export const getCompletedPostApprovalRequirements = (statusData: PostApprovalSta
     completed.push('Aadhaar Verification');
   }
   
-  return completed;
+  return completed
 };
 
 export default carePayApi;

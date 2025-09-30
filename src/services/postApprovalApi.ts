@@ -789,6 +789,31 @@ export interface ConsentResult {
   message: string;
 }
 
+// Interface for save mandate SDK details request payload
+export interface SaveMandateSdkDetailsPayload {
+  status: 'success' | 'failure';
+  digio_doc_id?: string;
+  message?: string;
+  npci_txn_id?: string;
+  error_code?: string;
+  method?: string;
+}
+
+// Interface for save mandate SDK details API response
+export interface SaveMandateSdkDetailsResponse {
+  status: number;
+  data: string;
+  attachment: null;
+  message: string;
+}
+
+// Interface for save mandate SDK details API function return type
+export interface SaveMandateSdkDetailsResult {
+  success: boolean;
+  data?: string;
+  message: string;
+}
+
 // Interface for send OTP API request payload
 export interface SendOtpRequestPayload {
   loanId: string;
@@ -3001,6 +3026,183 @@ export const createMandateRequest = async (loanId: string, mandateType: string):
     
     // Handle non-axios errors
     throw new Error(`Unexpected error: ${error.message || 'Unknown error occurred'}`);
+  }
+};
+
+/**
+ * Save mandate SDK details for Digio integration
+ * @param payload - The payload containing mandate SDK details
+ * @returns Promise with the save mandate SDK details result
+ */
+export const saveMandateSdkDetails = async (payload: SaveMandateSdkDetailsPayload): Promise<SaveMandateSdkDetailsResult> => {
+  try {
+    console.log('Saving mandate SDK details:', payload);
+
+    const response = await carePayApi.get<SaveMandateSdkDetailsResponse>('/saveMandateSdkDetails', {
+      params: payload,
+      headers: {
+        'Accept': 'application/json'
+      }
+    });
+
+    console.log('Save mandate SDK details response:', response.data);
+
+    // Check if the response is successful
+    if (response.data.status === 200 && response.data.data) {
+      return {
+        success: true,
+        data: response.data.data,
+        message: response.data.message || 'Mandate SDK details saved successfully'
+      };
+    }
+
+    // Handle non-200 status responses
+    return {
+      success: false,
+      message: response.data.message || 'Failed to save mandate SDK details'
+    };
+
+  } catch (error: any) {
+    console.error('Error saving mandate SDK details:', error);
+    
+    if (axios.isAxiosError(error)) {
+      if (error.code === 'ECONNABORTED') {
+        throw new Error('Request timed out. Please try again.');
+      }
+      
+      if (!error.response) {
+        throw new Error('Unable to connect to the CarePay backend server. Please check your internet connection.');
+      }
+      
+      // Handle specific HTTP status codes
+      if (error.response.status === 400) {
+        const errorMessage = error.response.data?.message || 'Invalid mandate SDK details provided';
+        throw new Error(`Bad Request: ${errorMessage}`);
+      }
+      
+      if (error.response.status === 401) {
+        throw new Error('Authentication required. Please login again.');
+      }
+      
+      if (error.response.status === 404) {
+        throw new Error('Mandate SDK details service not found.');
+      }
+      
+      if (error.response.status === 500) {
+        const errorMessage = error.response.data?.message || 'Internal server error';
+        throw new Error(`Server Error: ${errorMessage}`);
+      }
+      
+      // Handle other status codes
+      const errorMessage = error.response.data?.message || error.message;
+      throw new Error(`API Error (${error.response.status}): ${errorMessage}`);
+    }
+    
+    // Handle non-axios errors
+    throw new Error(`Unexpected error: ${error.message || 'Unknown error occurred'}`);
+  }
+};
+
+/**
+ * Initialize global Digio URL parameter handler
+ * Call this function in your main App component to automatically handle Digio SDK responses
+ * @param onSuccess - Optional callback for successful mandate setup
+ * @param onError - Optional callback for failed mandate setup
+ */
+export const initializeDigioHandler = (
+  onSuccess?: (result: SaveMandateSdkDetailsResult) => void,
+  onError?: (result: SaveMandateSdkDetailsResult) => void
+) => {
+  const handleDigioResponse = async () => {
+    try {
+      const result = await handleDigioUrlParameters();
+      
+      if (result) {
+        if (result.success) {
+          console.log('Global Digio handler - Success:', result);
+          onSuccess?.(result);
+        } else {
+          console.log('Global Digio handler - Error:', result);
+          onError?.(result);
+        }
+      }
+    } catch (error: any) {
+      console.error('Global Digio handler error:', error);
+      const errorResult: SaveMandateSdkDetailsResult = {
+        success: false,
+        message: error.message || 'Failed to handle Digio response'
+      };
+      onError?.(errorResult);
+    }
+  };
+
+  // Handle URL parameters on page load
+  handleDigioResponse();
+};
+
+/**
+ * Extract Digio SDK parameters from URL and automatically save them
+ * This function should be called when the page loads or when returning from Digio SDK
+ * @returns Promise with the save result
+ */
+export const handleDigioUrlParameters = async (): Promise<SaveMandateSdkDetailsResult | null> => {
+  try {
+    const urlParams = new URLSearchParams(window.location.search);
+    
+    // Extract parameters from URL
+    const status = urlParams.get('status');
+    const digioDocId = urlParams.get('digio_doc_id');
+    const message = urlParams.get('message');
+    const npciTxnId = urlParams.get('npci_txn_id');
+    const errorCode = urlParams.get('error_code');
+    const method = urlParams.get('method');
+    
+    // Check if we have any Digio-related parameters
+    if (!status && !digioDocId && !npciTxnId && !errorCode) {
+      console.log('No Digio SDK parameters found in URL');
+      return null;
+    }
+    
+    console.log('Found Digio SDK parameters in URL:', {
+      status,
+      digioDocId,
+      message,
+      npciTxnId,
+      errorCode,
+      method
+    });
+    
+    // Prepare payload for API call
+    const payload: SaveMandateSdkDetailsPayload = {
+      status: (status as 'success' | 'failure') || (errorCode ? 'failure' : 'success'),
+      ...(digioDocId && { digio_doc_id: digioDocId }),
+      ...(message && { message: decodeURIComponent(message) }),
+      ...(npciTxnId && { npci_txn_id: npciTxnId }),
+      ...(errorCode && { error_code: errorCode }),
+      ...(method && { method })
+    };
+    
+    // Save the parameters using our API
+    const result = await saveMandateSdkDetails(payload);
+    
+    if (result.success) {
+      console.log('Successfully saved Digio SDK parameters:', result.data);
+      
+      // Clean up URL parameters after successful save
+      const cleanUrl = window.location.pathname;
+      window.history.replaceState({}, document.title, cleanUrl);
+    } else {
+      console.error('Failed to save Digio SDK parameters:', result.message);
+    }
+    
+    return result;
+    
+  } catch (error: any) {
+    console.error('Error handling Digio URL parameters:', error);
+    return {
+      success: false,
+      message: error.message || 'Failed to handle Digio URL parameters'
+    };
   }
 };
 

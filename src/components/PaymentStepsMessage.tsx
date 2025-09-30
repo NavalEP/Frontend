@@ -20,9 +20,10 @@ interface PaymentStepsMessageProps {
   onLinkClick?: (url: string) => void;
   loanId?: string;
   onAadhaarVerificationClick?: () => void;
+  fallbackUrl?: string; // DigiLocker or alternative verification URL
 }
 
-const PaymentStepsMessage: React.FC<PaymentStepsMessageProps> = ({ steps, onLinkClick, loanId, onAadhaarVerificationClick }) => {
+const PaymentStepsMessage: React.FC<PaymentStepsMessageProps> = ({ steps, onLinkClick, loanId, onAadhaarVerificationClick, fallbackUrl }) => {
   const [postApprovalStatus, setPostApprovalStatus] = useState<PostApprovalStatusData | null>(null);
   const [showAadhaarMessage, setShowAadhaarMessage] = useState<number | null>(null);
   const [showAgreementPopup, setShowAgreementPopup] = useState(false);
@@ -437,6 +438,7 @@ const PaymentStepsMessage: React.FC<PaymentStepsMessageProps> = ({ steps, onLink
         isOpen={showAadhaarVerificationPopup}
         onClose={() => setShowAadhaarVerificationPopup(false)}
         userId={localStorage.getItem('userId') || ''}
+        fallbackUrl={fallbackUrl}
         onSuccess={() => {
           // Refresh the post-approval status after successful Aadhaar verification
           const fetchPostApprovalStatus = async () => {
@@ -451,6 +453,7 @@ const PaymentStepsMessage: React.FC<PaymentStepsMessageProps> = ({ steps, onLink
             }
           };
           fetchPostApprovalStatus();
+          
         }}
       />
     </div>

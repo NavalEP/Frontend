@@ -1390,6 +1390,7 @@ const ChatMessage: React.FC<ChatMessageProps> = ({ message, onButtonClick, selec
                 onLinkClick={onLinkClick}
                 loanId={loanId}
                 onAadhaarVerificationClick={onAadhaarVerificationClick}
+                fallbackUrl={aadhaarVerificationUrl}
               />
             </div>
           )}

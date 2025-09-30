@@ -9,6 +9,7 @@ import DoctorProtectedRoute from './components/DoctorProtectedRoute';
 import { useAuth } from './context/AuthContext';
 import Layout from './components/Layout';
 import { useEffect } from 'react';
+import { initializeDigioHandler } from './services/postApprovalApi';
 
 function App() {
   const { isAuthenticated, isInitialized } = useAuth();
@@ -53,6 +54,24 @@ function App() {
         window.history.replaceState({}, document.title, cleanUrl);
       }
     }
+  }, []);
+
+  // Initialize Digio SDK URL parameter handler
+  useEffect(() => {
+    initializeDigioHandler(
+      // Success callback
+      (result) => {
+        console.log('Digio mandate setup completed successfully:', result);
+        // You can add additional success handling here if needed
+        // For example, show a success notification or update UI state
+      },
+      // Error callback
+      (result) => {
+        console.error('Digio mandate setup failed:', result);
+        // You can add additional error handling here if needed
+        // For example, show an error notification
+      }
+    );
   }, []);
 
   return (

@@ -54,6 +54,33 @@ const AadhaarVerificationPopup: React.FC<AadhaarVerificationPopupProps> = ({
     }
   };
 
+  // Helper function to check if error indicates system unavailability
+  const isSystemUnavailableError = (result: any) => {
+    const errorChecks = [
+      result?.message === "failure",
+      result?.message === "something went wrong",
+      result?.status === 500,
+      result?.data?.includes('verification_failed'),
+      result?.data?.includes('Authorised source is temporarily unavailable'),
+      result?.data?.includes('internal_error')
+    ];
+    
+    return errorChecks.some(check => check);
+  };
+
+  // Helper function to check if this is an invalid OTP error from submitAadhaarOtp
+  const isInvalidOtpError = (result: any) => {
+    if (result?.status === 500 && 
+        result?.message === "something went wrong" && 
+        result?.data && 
+        typeof result.data === 'string') {
+      // Check for the specific pattern in the error response that indicates invalid OTP
+      return result.data.includes('verification_failed') && 
+             result.data.includes('OTP entered is invalid');
+    }
+    return false;
+  };
+
   const handleAadhaarSubmit = async () => {
     // Remove any non-digit characters for validation
     const cleanAadhaarNumber = aadhaarNumber.replace(/\D/g, '');
@@ -70,6 +97,7 @@ const AadhaarVerificationPopup: React.FC<AadhaarVerificationPopupProps> = ({
 
     setLoading(true);
     setError('');
+    setShowFallback(false); // Reset fallback state when trying again
 
     try {
       // Save Aadhaar number using getUserBasicDetail
@@ -92,16 +120,20 @@ const AadhaarVerificationPopup: React.FC<AadhaarVerificationPopupProps> = ({
         setOtpTimer(50); // 50 seconds timer
         setError('');
       } else {
-        // Show fallback option if OTP send fails and fallback URL is available
-        if (fallbackUrl) {
+        // Check if this is a system unavailability error
+        if (isSystemUnavailableError(otpResult) && fallbackUrl) {
           setShowFallback(true);
-          setError('OTP service is currently unavailable. You can use the alternative verification method below.');
         } else {
           setError(otpResult.message || 'Failed to send OTP');
         }
       }
     } catch (error: any) {
-      setError(error.message || 'An error occurred while processing Aadhaar verification');
+      // Check if this is a system unavailability error
+      if (isSystemUnavailableError(error) && fallbackUrl) {
+        setShowFallback(true);
+      } else {
+        setError(error.message || 'An error occurred while processing Aadhaar verification');
+      }
     } finally {
       setLoading(false);
     }
@@ -115,6 +147,7 @@ const AadhaarVerificationPopup: React.FC<AadhaarVerificationPopupProps> = ({
 
     setLoading(true);
     setError('');
+    setShowFallback(false); // Reset fallback state when trying again
 
     try {
       const result = await submitAadhaarOtp(userId, otp);
@@ -128,16 +161,67 @@ const AadhaarVerificationPopup: React.FC<AadhaarVerificationPopupProps> = ({
         setOtp('');
         setError('');
       } else {
-        // Show fallback option if OTP verification fails and fallback URL is available
-        if (fallbackUrl) {
+        // Check if this is specifically an invalid OTP error
+        if (isInvalidOtpError(result)) {
+          setError('Invalid OTP. Please try again.');
+          // Also show fallback if available for invalid OTP
+          if (fallbackUrl) {
+            setShowFallback(true);
+          }
+        } else if (isSystemUnavailableError(result) && fallbackUrl) {
           setShowFallback(true);
-          setError('OTP verification failed. You can use the alternative verification method below.');
         } else {
-          setError(result.message || 'Invalid OTP. Please try again.');
+          // For other errors, show the actual API error message
+          let errorMessage = result.message || 'An error occurred while verifying OTP';
+          
+          // Parse the error response for OTP validation errors
+          if (result.data && typeof result.data === 'string') {
+            try {
+              // Try to extract meaningful error from the response
+              const dataString = result.data as string;
+              if (dataString.includes('verification_failed') || dataString.includes('OTP entered is invalid')) {
+                errorMessage = 'Invalid OTP. Please try again.';
+                // Show fallback for invalid OTP errors
+                if (fallbackUrl) {
+                  setShowFallback(true);
+                }
+              }
+            } catch (parseError) {
+              // If parsing fails, use the original message
+              console.error('Error parsing API response:', parseError);
+            }
+          }
+          
+          setError(errorMessage);
         }
       }
     } catch (error: any) {
-      setError(error.message || 'An error occurred while verifying OTP');
+      // Check if this is specifically an invalid OTP error
+      if (isInvalidOtpError(error)) {
+        setError('Invalid OTP. Please try again.');
+        // Also show fallback if available for invalid OTP
+        if (fallbackUrl) {
+          setShowFallback(true);
+        }
+      } else if (isSystemUnavailableError(error) && fallbackUrl) {
+        setShowFallback(true);
+      } else {
+        // Handle network or other errors - show the actual error message
+        let errorMessage = 'An error occurred while verifying OTP';
+        
+        // Check if the error contains OTP validation failure information
+        if (error.message && (error.message.includes('verification_failed') || error.message.includes('OTP entered is invalid'))) {
+          errorMessage = 'Invalid OTP. Please try again.';
+          // Show fallback for invalid OTP errors
+          if (fallbackUrl) {
+            setShowFallback(true);
+          }
+        } else if (error.message) {
+          errorMessage = error.message;
+        }
+        
+        setError(errorMessage);
+      }
     } finally {
       setLoading(false);
     }
@@ -156,10 +240,20 @@ const AadhaarVerificationPopup: React.FC<AadhaarVerificationPopupProps> = ({
         setOtpTimer(50);
         setError('');
       } else {
-        setError(result.message || 'Failed to resend OTP');
+        // Check if this is a system unavailability error
+        if (isSystemUnavailableError(result) && fallbackUrl) {
+          setShowFallback(true);
+        } else {
+          setError(result.message || 'Failed to resend OTP');
+        }
       }
     } catch (error: any) {
-      setError(error.message || 'An error occurred while resending OTP');
+      // Check if this is a system unavailability error
+      if (isSystemUnavailableError(error) && fallbackUrl) {
+        setShowFallback(true);
+      } else {
+        setError(error.message || 'An error occurred while resending OTP');
+      }
     } finally {
       setLoading(false);
     }
@@ -223,33 +317,46 @@ const AadhaarVerificationPopup: React.FC<AadhaarVerificationPopupProps> = ({
                   </div>
                   <div className="ml-3">
                     <h3 className="text-sm font-medium text-blue-800">
-                      Alternative Verification Method
+                      System Temporarily Unavailable
                     </h3>
                   </div>
                 </div>
                 <p className="text-sm text-blue-700 mb-3">
-                  You can complete your Aadhaar verification using the alternative method below.
+                  The verification system is temporarily unavailable. Please use the alternative method below to complete your Aadhaar verification.
                 </p>
-                <button
-                  onClick={handleFallbackRedirect}
-                  className="w-full px-4 py-2 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1"
-                >
-                  Complete Verification via Alternative Method
-                </button>
+                <div className="space-y-2">
+                  <button
+                    onClick={handleFallbackRedirect}
+                    className="w-full px-4 py-2 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1"
+                  >
+                    Complete Verification via Alternative Method
+                  </button>
+                  <button
+                    onClick={() => {
+                      setShowFallback(false);
+                      setError('');
+                    }}
+                    className="w-full px-4 py-2 bg-gray-200 text-gray-700 font-medium rounded-lg hover:bg-gray-300 transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-1"
+                  >
+                    Try Again
+                  </button>
+                </div>
               </div>
             )}
             
-            <button
-              onClick={handleAadhaarSubmit}
-              disabled={loading || aadhaarNumber.replace(/\D/g, '').length < 12}
-              className="w-full px-4 py-3 text-white font-bold rounded-lg transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-offset-1 shadow-lg transform hover:scale-105 mb-3 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none"
-              style={{
-                background: 'linear-gradient(135deg, rgb(81, 76, 159) 0%, rgb(61, 58, 122) 100%)',
-                boxShadow: 'rgba(81, 76, 159, 0.3) 0px 4px 6px'
-              }}
-            >
-              {loading ? 'Processing...' : 'Submit'}
-            </button>
+            {!showFallback && (
+              <button
+                onClick={handleAadhaarSubmit}
+                disabled={loading || aadhaarNumber.replace(/\D/g, '').length < 12}
+                className="w-full px-4 py-3 text-white font-bold rounded-lg transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-offset-1 shadow-lg transform hover:scale-105 mb-3 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none"
+                style={{
+                  background: 'linear-gradient(135deg, rgb(81, 76, 159) 0%, rgb(61, 58, 122) 100%)',
+                  boxShadow: 'rgba(81, 76, 159, 0.3) 0px 4px 6px'
+                }}
+              >
+                {loading ? 'Processing...' : 'Submit'}
+              </button>
+            )}
           </div>
         ) : (
           <div className="space-y-4">
@@ -272,6 +379,8 @@ const AadhaarVerificationPopup: React.FC<AadhaarVerificationPopupProps> = ({
               />
             </div>
             
+            
+            
             <div className="flex justify-between items-center text-sm">
               <span className="text-gray-600">
                 Resend OTP in {Math.floor(otpTimer / 60)} : {String(otpTimer % 60).padStart(2, '0')}
@@ -285,10 +394,7 @@ const AadhaarVerificationPopup: React.FC<AadhaarVerificationPopupProps> = ({
               </button>
             </div>
             
-            {error && !showFallback && (
-              <div className="text-red-600 text-sm">{error}</div>
-            )}
-            
+        
             {/* Fallback Option for OTP step */}
             {showFallback && fallbackUrl && (
               <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
@@ -307,26 +413,39 @@ const AadhaarVerificationPopup: React.FC<AadhaarVerificationPopupProps> = ({
                 <p className="text-sm text-blue-700 mb-3">
                   You can complete your Aadhaar verification using the alternative method below.
                 </p>
-                <button
-                  onClick={handleFallbackRedirect}
-                  className="w-full px-4 py-2 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1"
-                >
-                  Complete Verification via Alternative Method
-                </button>
+                <div className="space-y-2">
+                  <button
+                    onClick={handleFallbackRedirect}
+                    className="w-full px-4 py-2 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1"
+                  >
+                    Complete Verification via Alternative Method
+                  </button>
+                  <button
+                    onClick={() => {
+                      setShowFallback(false);
+                      setError('');
+                    }}
+                    className="w-full px-4 py-2 bg-gray-200 text-gray-700 font-medium rounded-lg hover:bg-gray-300 transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-1"
+                  >
+                    Try Again
+                  </button>
+                </div>
               </div>
             )}
             
-            <button
-              onClick={handleOtpSubmit}
-              disabled={loading || otp.length !== 6}
-              className="w-full px-4 py-3 text-white font-bold rounded-lg transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-offset-1 shadow-lg transform hover:scale-105 mb-3 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none"
-              style={{
-                background: 'linear-gradient(135deg, rgb(81, 76, 159) 0%, rgb(61, 58, 122) 100%)',
-                boxShadow: 'rgba(81, 76, 159, 0.3) 0px 4px 6px'
-              }}
-            >
-              {loading ? 'Verifying...' : 'Verify'}
-            </button>
+            {!showFallback && (
+              <button
+                onClick={handleOtpSubmit}
+                disabled={loading || otp.length !== 6}
+                className="w-full px-4 py-3 text-white font-bold rounded-lg transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-offset-1 shadow-lg transform hover:scale-105 mb-3 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none"
+                style={{
+                  background: 'linear-gradient(135deg, rgb(81, 76, 159) 0%, rgb(61, 58, 122) 100%)',
+                  boxShadow: 'rgba(81, 76, 159, 0.3) 0px 4px 6px'
+                }}
+              >
+                {loading ? 'Verifying...' : 'Verify'}
+              </button>
+            )}
           </div>
         )}
         

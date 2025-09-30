@@ -6,6 +6,7 @@ import {
   getDigioMandateBankDetail,
   getUserLoanAndProductDetail,
   createMandateRequest,
+  handleDigioUrlParameters,
   AddAccountDetailsPayload,
   DigioMandateBankDetailData,
   UserLoanAndProductDetailData
@@ -115,30 +116,39 @@ const EmiAutoPayPopup: React.FC<EmiAutoPayPopupProps> = ({
 
   // Handle URL parameters when returning from Digio redirection
   useEffect(() => {
-    const urlParams = new URLSearchParams(window.location.search);
-    const txnId = urlParams.get('txn_id');
-    const digioDocId = urlParams.get('digio_doc_id');
-    const errorCode = urlParams.get('error_code');
-    
-    if (txnId || digioDocId || errorCode) {
-      console.log('Digio redirection response:', { txnId, digioDocId, errorCode });
-      
-      if (errorCode) {
-        setError(`Mandate setup failed: ${urlParams.get('message') || 'Unknown error'}`);
-        setMandateLoading(false);
-      } else if (txnId && digioDocId) {
-        // Success case
-        console.log('Mandate setup completed successfully via redirection');
-        if (onSuccess) {
-          onSuccess();
+    const handleDigioResponse = async () => {
+      try {
+        const result = await handleDigioUrlParameters();
+        
+        if (result) {
+          console.log('Digio SDK response handled:', result);
+          
+          if (result.success) {
+            // Success case - mandate setup completed
+            console.log('Mandate setup completed successfully via redirection');
+            setMandateLoading(false);
+            if (onSuccess) {
+              onSuccess();
+            }
+            onClose();
+          } else {
+            // Error case
+            setError(`Mandate setup failed: ${result.message}`);
+            setMandateLoading(false);
+          }
         }
-        onClose();
+      } catch (error: any) {
+        console.error('Error handling Digio response:', error);
+        setError(`Error processing mandate response: ${error.message}`);
+        setMandateLoading(false);
       }
-      
-      // Clean up URL parameters
-      window.history.replaceState({}, document.title, window.location.pathname);
+    };
+
+    // Only handle URL parameters when popup is open
+    if (isOpen) {
+      handleDigioResponse();
     }
-  }, [onSuccess, onClose]);
+  }, [isOpen, onSuccess, onClose]);
 
   const loadAccountInfo = async () => {
     try {
@@ -641,9 +651,6 @@ const EmiAutoPayPopup: React.FC<EmiAutoPayPopupProps> = ({
         </div>
       </div>
 
-      <p className="text-sm text-gray-500 mb-6">
-        Your auto-debit will be processed by Digiotech Solutions Pvt. Ltd.
-      </p>
 
       <div className="space-y-4">
         {mandateBankDetails?.esignMandate && (

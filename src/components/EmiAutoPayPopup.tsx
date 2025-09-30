@@ -656,8 +656,7 @@ const EmiAutoPayPopup: React.FC<EmiAutoPayPopupProps> = ({
         {mandateBankDetails?.esignMandate && (
           <button
             onClick={() => handlePaymentMethodSelect('UPI')}
-            disabled={mandateLoading}
-            className="w-full p-4 rounded-lg border text-left hover:opacity-80 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed"
+            className="w-full p-4 rounded-lg border text-left hover:opacity-80 transition-opacity"
             style={{ backgroundColor: 'rgba(81, 76, 159, 0.1)', borderColor: 'rgba(81, 76, 159, 0.3)' }}
           >
             <div className="flex items-center justify-between">
@@ -692,8 +691,7 @@ const EmiAutoPayPopup: React.FC<EmiAutoPayPopupProps> = ({
         {mandateBankDetails?.physicalMandate && (
           <button
             onClick={() => handlePaymentMethodSelect('NACH')}
-            disabled={mandateLoading}
-            className="w-full p-4 rounded-lg border text-left hover:opacity-80 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed"
+            className="w-full p-4 rounded-lg border text-left hover:opacity-80 transition-opacity"
             style={{ backgroundColor: 'rgba(81, 76, 159, 0.1)', borderColor: 'rgba(81, 76, 159, 0.3)' }}
           >
             <div className="flex items-center justify-between">

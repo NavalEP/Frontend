@@ -255,7 +255,7 @@ const PaymentStepsMessage: React.FC<PaymentStepsMessageProps> = ({ steps, onLink
             </div>
             
             {/* Primary Action Button */}
-            {step.primaryButtonText === "Share link for selfie with Patient" && !isCompleted ? (
+            {step.primaryButtonText === "Complete Face verification" && !isCompleted ? (
               <SelfieVerificationButton
                 userId={localStorage.getItem('userId') || ''}
                 onSuccess={() => {
@@ -290,7 +290,7 @@ const PaymentStepsMessage: React.FC<PaymentStepsMessageProps> = ({ steps, onLink
                     return;
                   }
                   // Check if this is the E-sign agreement button
-                  if (step.primaryButtonText.includes('E-sign agreement')) {
+                  if (step.primaryButtonText.includes('Complete E-sign agreement')) {
                     setShowAgreementPopup(true);
                     return;
                   }
@@ -307,7 +307,7 @@ const PaymentStepsMessage: React.FC<PaymentStepsMessageProps> = ({ steps, onLink
                   }
                 }}
                 className={`w-full px-4 py-3 text-white font-bold rounded-lg transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-offset-1 shadow-lg transform hover:scale-105 mb-3 ${
-                  isCompleted ? 'opacity-75 cursor-not-allowed' : ''
+                  isCompleted ? 'flex items-center justify-center space-x-2' : ''
                 }`}
                 style={isCompleted ? {
                   background: 'linear-gradient(135deg, rgb(16, 185, 129) 0%, rgb(5, 150, 105) 100%)',
@@ -318,7 +318,14 @@ const PaymentStepsMessage: React.FC<PaymentStepsMessageProps> = ({ steps, onLink
                 }}
                 disabled={isCompleted}
               >
-                {isCompleted ? `✓ ${completionText}` : step.primaryButtonText}
+                {isCompleted ? (
+                  <>
+                    <CheckCircle className="h-5 w-5" />
+                    <span>{completionText}</span>
+                  </>
+                ) : (
+                  step.primaryButtonText
+                )}
               </button>
             )}
           

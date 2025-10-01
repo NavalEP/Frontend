@@ -246,7 +246,7 @@ const ChatMessage: React.FC<ChatMessageProps> = ({ message, onButtonClick, selec
         title: "Face verification.",
         description: "Now, let's complete face verification.",
         url: urls.find(url => url.includes('faceverified') || url.includes('face')) || urls[1] || '',
-        primaryButtonText: "Share link for selfie with Patient",
+        primaryButtonText: "Complete Face verification",
         secondaryButtonText: "Share link with patient"
       },
       {
@@ -260,7 +260,7 @@ const ChatMessage: React.FC<ChatMessageProps> = ({ message, onButtonClick, selec
         title: "E-sign agreement using this link.",
         description: "Complete the agreement e-signing process.",
         url: urls.find(url => url.includes('agreementesigning') || url.includes('agreement')) || urls[3] || '',
-        primaryButtonText: "E-sign agreement",
+        primaryButtonText: "Complete E-sign agreement",
         secondaryButtonText: "Share link with patient"
       }
     ] : [
@@ -268,14 +268,14 @@ const ChatMessage: React.FC<ChatMessageProps> = ({ message, onButtonClick, selec
         title: "Face verification.",
         description: "Now, let's complete face verification.",
         url: urls.find(url => url.includes('faceverified')) || urls[0] || '',
-        primaryButtonText: "Share link for selfie with Patient",
+        primaryButtonText: "Complete Face verification",
         secondaryButtonText: "Share link with patient"
       },
       {
         title: "E-sign agreement using this link.",
         description: "Complete the agreement e-signing process.",
         url: urls.find(url => url.includes('agreementesigning')) || urls[1] || '',
-        primaryButtonText: "E-sign agreement",
+        primaryButtonText: "Complete E-sign agreement",
         secondaryButtonText: "Share link with patient"
       },
       {

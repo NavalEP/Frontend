@@ -168,10 +168,13 @@ const ProgressBar: React.FC<ProgressBarProps> = ({
             // Determine clip-path based on position - smaller arrows for mobile
             let clipPathStyle;
             if (index === 0) {
-              // First step - no left arrow
+              // First step - no left arrow, touches left edge
               clipPathStyle = "polygon(0 0, calc(100% - 8px) 0, 100% 50%, calc(100% - 8px) 100%, 0 100%)";
+            } else if (index === steps.length - 1) {
+              // Last step - no right arrow, touches right edge
+              clipPathStyle = "polygon(0 0, 100% 0, 100% 100%, 0 100%, 8px 50%)";
             } else {
-              // All other steps - both arrows
+              // Middle steps - both arrows
               clipPathStyle = "polygon(0 0, calc(100% - 8px) 0, 100% 50%, calc(100% - 8px) 100%, 0 100%, 8px 50%)";
             }
             

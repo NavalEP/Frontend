@@ -566,16 +566,6 @@ const FaceVerificationPopup: React.FC<FaceVerificationPopupProps> = ({
       
       <h2 className="text-2xl font-bold text-gray-900 mb-2">Verification Successful!</h2>
       <p className="text-gray-600">Your selfie has been verified successfully.</p>
-      
-      {verificationResult && (
-        <div className="bg-green-50 border border-green-200 rounded-lg p-4 text-left">
-          <h3 className="font-semibold text-green-800 mb-2">Verification Details:</h3>
-          <div className="space-y-1 text-sm text-green-700">
-            <p>Liveliness Score: {(verificationResult.liveliness?.liveliness?.score * 100).toFixed(1)}%</p>
-            <p>Face Match: {verificationResult.faceMatch?.result?.matchPercentage}</p>
-          </div>
-        </div>
-      )}
     </div>
   );
 

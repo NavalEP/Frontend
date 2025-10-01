@@ -18,7 +18,7 @@ const SelfieVerificationButton: React.FC<SelfieVerificationButtonProps> = ({
     background: 'linear-gradient(135deg, rgb(81, 76, 159) 0%, rgb(61, 58, 122) 100%)',
     boxShadow: 'rgba(81, 76, 159, 0.3) 0px 4px 6px'
   },
-  children = "Share link for selfie with Patient"
+  children = "Complete Face verification"
 }) => {
   const [isPopupOpen, setIsPopupOpen] = useState(false);
   const [showAadhaarMessage, setShowAadhaarMessage] = useState(false);

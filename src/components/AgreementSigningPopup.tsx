@@ -59,6 +59,7 @@ const AgreementSigningPopup: React.FC<AgreementSigningPopupProps> = ({
   const [otpTimer, setOtpTimer] = useState(0);
   const [userPhone, setUserPhone] = useState<string>('');
   const [isRequestingLocation, setIsRequestingLocation] = useState(false);
+  const [otpError, setOtpError] = useState<string | null>(null);
 
   // Reset state when popup opens
   useEffect(() => {
@@ -77,6 +78,7 @@ const AgreementSigningPopup: React.FC<AgreementSigningPopupProps> = ({
       setOtpTimer(0);
       setUserPhone('');
       setIsRequestingLocation(false);
+      setOtpError(null);
     }
   }, [isOpen]);
 
@@ -98,6 +100,16 @@ const AgreementSigningPopup: React.FC<AgreementSigningPopupProps> = ({
     }
     return () => clearInterval(interval);
   }, [otpTimer]);
+
+  // Auto-verify OTP when 4 digits are entered
+  useEffect(() => {
+    if (otp.length === 4 && !isLoading && currentStep === 'otp') {
+      const timer = setTimeout(() => {
+        handleVerifyOtp();
+      }, 100);
+      return () => clearTimeout(timer);
+    }
+  }, [otp, isLoading, currentStep]);
 
   // Request location permission
   const requestLocationPermission = async () => {
@@ -239,15 +251,46 @@ const AgreementSigningPopup: React.FC<AgreementSigningPopupProps> = ({
     }
   };
 
+  // Helper function to check if this is an invalid OTP error
+  const isInvalidOtpError = (result: any) => {
+    if (result?.status === 500 && 
+        result?.message === "failure" && 
+        result?.data && 
+        typeof result.data === 'string') {
+      return result.data.toLowerCase().includes('invalid otp') ||
+             result.data.toLowerCase().includes('otp code');
+    }
+    // Also check if the error object itself has the invalid OTP pattern
+    if (result?.message === "failure" && result?.data === "Invalid OTP code") {
+      return true;
+    }
+    return false;
+  };
+
+  // Helper function to check if this is a maximum attempts exceeded error
+  const isMaxAttemptsError = (result: any) => {
+    if (result?.status === 500 && 
+        result?.message === "failure" && 
+        result?.data && 
+        typeof result.data === 'string') {
+      return result.data.toLowerCase().includes('maximum verification attempts exceeded');
+    }
+    // Also check for the exact error pattern
+    if (result?.message === "failure" && result?.data === "Maximum verification attempts exceeded") {
+      return true;
+    }
+    return false;
+  };
+
   // Handle OTP verification
   const handleVerifyOtp = async () => {
     if (otp.length !== 4) {
-      setError('Please enter a valid 4-digit OTP');
+      setOtpError('Please enter a valid 4-digit OTP');
       return;
     }
 
     setIsLoading(true);
-    setError(null);
+    setOtpError(null);
 
     try {
       const verifyResult: VerifyOtpResult = await verifyAgreementOtp({
@@ -259,7 +302,19 @@ const AgreementSigningPopup: React.FC<AgreementSigningPopupProps> = ({
       });
 
       if (!verifyResult.success) {
-        throw new Error(verifyResult.message || 'Failed to verify OTP');
+        // Check if this is specifically a maximum attempts exceeded error
+        if (isMaxAttemptsError(verifyResult)) {
+          setOtpError('Maximum verification attempts exceeded. Please try again later.');
+          setOtp(''); // Clear OTP
+        }
+        // Check if this is specifically an invalid OTP error
+        else if (isInvalidOtpError(verifyResult)) {
+          setOtpError('Invalid OTP. Please try again.');
+          setOtp(''); // Clear OTP to allow user to enter new one
+        } else {
+          throw new Error(verifyResult.message || 'Failed to verify OTP');
+        }
+        return;
       }
 
       setCurrentStep('success');
@@ -268,7 +323,24 @@ const AgreementSigningPopup: React.FC<AgreementSigningPopupProps> = ({
         onClose();
       }, 2000);
     } catch (error: any) {
-      setError(error.message || 'Failed to verify OTP');
+      console.error('OTP verification error:', error);
+      
+      // Check if this is specifically a maximum attempts exceeded error
+      if (isMaxAttemptsError(error) || 
+          (error?.response?.data?.message === "failure" && error?.response?.data?.data === "Maximum verification attempts exceeded")) {
+        setOtpError('Maximum verification attempts exceeded. Please try again later.');
+        setOtp(''); // Clear OTP
+      }
+      // Check if this is specifically an invalid OTP error
+      else if (isInvalidOtpError(error) || 
+          (error?.response?.data?.message === "failure" && error?.response?.data?.data === "Invalid OTP code")) {
+        setOtpError('Invalid OTP. Please try again.');
+        setOtp(''); // Clear OTP to allow user to enter new one
+      } else {
+        // For any other error, show a generic message
+        setOtpError('Failed to verify OTP. Please try again.');
+        setOtp(''); // Clear OTP to allow user to enter new one
+      }
     } finally {
       setIsLoading(false);
     }
@@ -279,7 +351,7 @@ const AgreementSigningPopup: React.FC<AgreementSigningPopupProps> = ({
     if (otpTimer > 0) return;
     
     setIsLoading(true);
-    setError(null);
+    setOtpError(null);
 
     try {
       const otpResult: SendOtpResult = await sendAgreementOtp({ loanId });
@@ -289,7 +361,7 @@ const AgreementSigningPopup: React.FC<AgreementSigningPopupProps> = ({
 
       setOtpTimer(30);
     } catch (error: any) {
-      setError(error.message || 'Failed to resend OTP');
+      setOtpError(error.message || 'Failed to resend OTP');
     } finally {
       setIsLoading(false);
     }
@@ -313,7 +385,7 @@ const AgreementSigningPopup: React.FC<AgreementSigningPopupProps> = ({
 
         {/* Content */}
         <div className="p-12">
-          {error && (
+          {error && currentStep !== 'otp' && (
             <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg">
               <p className="text-sm text-red-800">{error}</p>
             </div>
@@ -494,42 +566,96 @@ const AgreementSigningPopup: React.FC<AgreementSigningPopupProps> = ({
 
           {/* Step 3: OTP Verification */}
           {currentStep === 'otp' && (
-            <div className="space-y-4">
+            <div className="bg-white rounded-lg p-4 shadow-sm border border-gray-100">
               <div className="text-center">
                 <h3 className="text-lg font-semibold text-gray-900 mb-2">
                   Enter OTP sent on {userPhone}
                 </h3>
                 
                 <div className="space-y-4">
-                  <input
-                    type="text"
-                    value={otp}
-                    onChange={(e) => setOtp(e.target.value.replace(/\D/g, '').slice(0, 4))}
-                    placeholder="- - - -"
-                    className="w-full px-4 py-3 text-center text-2xl font-mono border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                    maxLength={4}
-                  />
+                  <div className="flex space-x-2 justify-center">
+                    {[0, 1, 2, 3].map((index) => (
+                      <input
+                        key={index}
+                        type="text"
+                        value={otp[index] || ''}
+                        onChange={(e) => {
+                          const value = e.target.value.replace(/\D/g, '');
+                          if (value.length <= 1) {
+                            const newOtp = otp.split('');
+                            newOtp[index] = value;
+                            setOtp(newOtp.join(''));
+                            
+                            // Clear error when user starts typing new OTP
+                            if (otpError) {
+                              setOtpError(null);
+                            }
+                            
+                            // Auto-focus next input
+                            if (value && index < 3) {
+                              const nextInput = (e.target as HTMLInputElement).parentElement?.children[index + 1] as HTMLInputElement;
+                              nextInput?.focus();
+                            }
+                          }
+                        }}
+                        onKeyDown={(e) => {
+                          // Handle backspace to focus previous input
+                          if (e.key === 'Backspace' && !otp[index] && index > 0) {
+                            const prevInput = (e.target as HTMLInputElement).parentElement?.children[index - 1] as HTMLInputElement;
+                            prevInput?.focus();
+                          }
+                        }}
+                        className="w-12 h-12 text-center text-lg font-semibold border-2 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                        style={{
+                          backgroundColor: 'rgba(81, 76, 159, 0.05)',
+                          borderColor: 'rgb(81, 76, 159)'
+                        }}
+                        maxLength={1}
+                        disabled={isLoading}
+                      />
+                    ))}
+                  </div>
 
-                  <div className="flex space-x-3">
+                  {/* Auto-verification indicator */}
+                  {isLoading && otp.length === 4 && (
+                    <div className="text-center">
+                      <div className="text-sm text-blue-600 font-medium">
+                        Auto-verifying OTP...
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Error message display */}
+                  {otpError && (
+                    <div className="text-red-600 text-sm text-center bg-red-50 p-3 rounded-lg border border-red-200">
+                      {otpError}
+                    </div>
+                  )}
+
+                  <div className="flex justify-between items-center text-sm">
+                    <span className="text-gray-600">
+                      Resend OTP in {Math.floor(otpTimer / 60)} : {String(otpTimer % 60).padStart(2, '0')}
+                    </span>
                     <button
                       onClick={handleResendOtp}
                       disabled={otpTimer > 0 || isLoading}
-                      className="flex-1 px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium rounded-lg transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-1 disabled:opacity-50 disabled:cursor-not-allowed"
+                      className="text-purple-600 hover:text-purple-700 disabled:text-gray-400 disabled:cursor-not-allowed"
                     >
-                      {otpTimer > 0 ? `Resend OTP ${otpTimer}s` : 'Resend OTP'}
-                    </button>
-                    <button
-                      onClick={handleVerifyOtp}
-                      disabled={otp.length !== 4 || isLoading}
-                      className="flex-1 px-4 py-2 text-white font-bold rounded-lg transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-offset-1 shadow-lg transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
-                      style={{
-                        background: 'linear-gradient(135deg, rgb(81, 76, 159) 0%, rgb(61, 58, 122) 100%)',
-                        boxShadow: 'rgba(81, 76, 159, 0.3) 0px 4px 6px'
-                      }}
-                    >
-                      {isLoading ? 'Verifying...' : 'Submit OTP'}
+                      Resend OTP
                     </button>
                   </div>
+
+                  <button
+                    onClick={handleVerifyOtp}
+                    disabled={otp.length !== 4 || isLoading}
+                    className="w-full px-4 py-3 text-white font-bold rounded-lg transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-offset-1 shadow-lg transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
+                    style={{
+                      background: 'linear-gradient(135deg, rgb(81, 76, 159) 0%, rgb(61, 58, 122) 100%)',
+                      boxShadow: 'rgba(81, 76, 159, 0.3) 0px 4px 6px'
+                    }}
+                  >
+                    {isLoading ? 'Verifying...' : 'Submit OTP'}
+                  </button>
                 </div>
               </div>
             </div>

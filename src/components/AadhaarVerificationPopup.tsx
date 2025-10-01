@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { getUserDetailsByUserId, getUserBasicDetail, sendAadhaarOtp, submitAadhaarOtp } from '../services/postApprovalApi';
 
 interface AadhaarVerificationPopupProps {
@@ -24,6 +24,7 @@ const AadhaarVerificationPopup: React.FC<AadhaarVerificationPopupProps> = ({
   const [otpTimer, setOtpTimer] = useState(0);
   const [userMobileNumber, setUserMobileNumber] = useState<number | null>(null);
   const [showFallback, setShowFallback] = useState(false);
+  const [isAutoSubmitting, setIsAutoSubmitting] = useState(false);
 
   // Timer for OTP resend
   useEffect(() => {
@@ -65,6 +66,16 @@ const AadhaarVerificationPopup: React.FC<AadhaarVerificationPopupProps> = ({
       result?.data?.includes('internal_error')
     ];
     
+    // Special check for the specific error pattern from the API response
+    if (result?.status === 500 && 
+        result?.message === "something went wrong" && 
+        result?.data && 
+        typeof result.data === 'string') {
+      return result.data.includes('verification_failed') && 
+             result.data.includes('internal_error') &&
+             result.data.includes('Authorised source is temporarily unavailable');
+    }
+    
     return errorChecks.some(check => check);
   };
 
@@ -74,9 +85,21 @@ const AadhaarVerificationPopup: React.FC<AadhaarVerificationPopupProps> = ({
         result?.message === "something went wrong" && 
         result?.data && 
         typeof result.data === 'string') {
-      // Check for the specific pattern in the error response that indicates invalid OTP
-      return result.data.includes('verification_failed') && 
-             result.data.includes('OTP entered is invalid');
+      
+      // First check if this is a system unavailability error (should show fallback)
+      if (result.data.includes('verification_failed') && 
+          result.data.includes('internal_error') &&
+          result.data.includes('Authorised source is temporarily unavailable')) {
+        return false; // This is not an invalid OTP, it's a system issue
+      }
+      
+      // Check for various patterns that indicate invalid OTP
+      const dataString = result.data.toLowerCase();
+      return dataString.includes('otp entered is invalid') ||
+             dataString.includes('invalid otp') ||
+             dataString.includes('otp is invalid') ||
+             dataString.includes('wrong otp') ||
+             dataString.includes('incorrect otp');
     }
     return false;
   };
@@ -139,13 +162,19 @@ const AadhaarVerificationPopup: React.FC<AadhaarVerificationPopupProps> = ({
     }
   };
 
-  const handleOtpSubmit = async () => {
+  const handleOtpSubmit = useCallback(async () => {
     if (!otp || otp.length !== 6) {
       setError('Please enter a valid 6-digit OTP');
       return;
     }
 
+    // Prevent multiple submissions
+    if (loading || isAutoSubmitting) {
+      return;
+    }
+
     setLoading(true);
+    setIsAutoSubmitting(true);
     setError('');
     setShowFallback(false); // Reset fallback state when trying again
 
@@ -160,10 +189,12 @@ const AadhaarVerificationPopup: React.FC<AadhaarVerificationPopupProps> = ({
         setAadhaarNumber('');
         setOtp('');
         setError('');
+        setIsAutoSubmitting(false);
       } else {
         // Check if this is specifically an invalid OTP error
         if (isInvalidOtpError(result)) {
           setError('Invalid OTP. Please try again.');
+          setOtp(''); // Clear OTP to allow user to enter new one
           // Also show fallback if available for invalid OTP
           if (fallbackUrl) {
             setShowFallback(true);
@@ -177,10 +208,26 @@ const AadhaarVerificationPopup: React.FC<AadhaarVerificationPopupProps> = ({
           // Parse the error response for OTP validation errors
           if (result.data && typeof result.data === 'string') {
             try {
+              // Check if this is a system unavailability error first
+              if ((result.data as string).includes('verification_failed') && 
+                  (result.data as string).includes('internal_error') &&
+                  (result.data as string).includes('Authorised source is temporarily unavailable')) {
+                // This is a system issue, not an invalid OTP
+                if (fallbackUrl) {
+                  setShowFallback(true);
+                }
+                return; // Exit early to show fallback
+              }
+              
               // Try to extract meaningful error from the response
-              const dataString = result.data as string;
-              if (dataString.includes('verification_failed') || dataString.includes('OTP entered is invalid')) {
+              const dataString = (result.data as string).toLowerCase();
+              if (dataString.includes('otp entered is invalid') ||
+                  dataString.includes('invalid otp') ||
+                  dataString.includes('otp is invalid') ||
+                  dataString.includes('wrong otp') ||
+                  dataString.includes('incorrect otp')) {
                 errorMessage = 'Invalid OTP. Please try again.';
+                setOtp(''); // Clear OTP to allow user to enter new one
                 // Show fallback for invalid OTP errors
                 if (fallbackUrl) {
                   setShowFallback(true);
@@ -192,6 +239,17 @@ const AadhaarVerificationPopup: React.FC<AadhaarVerificationPopupProps> = ({
             }
           }
           
+          // If the message is "something went wrong" and we're in OTP verification context,
+          // it's most likely an invalid OTP
+          if (result.message === "something went wrong" && !errorMessage.includes('Invalid OTP')) {
+            errorMessage = 'Invalid OTP. Please try again.';
+            setOtp(''); // Clear OTP to allow user to enter new one
+            // Show fallback for invalid OTP errors
+            if (fallbackUrl) {
+              setShowFallback(true);
+            }
+          }
+          
           setError(errorMessage);
         }
       }
@@ -199,6 +257,7 @@ const AadhaarVerificationPopup: React.FC<AadhaarVerificationPopupProps> = ({
       // Check if this is specifically an invalid OTP error
       if (isInvalidOtpError(error)) {
         setError('Invalid OTP. Please try again.');
+        setOtp(''); // Clear OTP to allow user to enter new one
         // Also show fallback if available for invalid OTP
         if (fallbackUrl) {
           setShowFallback(true);
@@ -210,22 +269,55 @@ const AadhaarVerificationPopup: React.FC<AadhaarVerificationPopupProps> = ({
         let errorMessage = 'An error occurred while verifying OTP';
         
         // Check if the error contains OTP validation failure information
-        if (error.message && (error.message.includes('verification_failed') || error.message.includes('OTP entered is invalid'))) {
-          errorMessage = 'Invalid OTP. Please try again.';
-          // Show fallback for invalid OTP errors
-          if (fallbackUrl) {
-            setShowFallback(true);
+        if (error.message) {
+          const errorMsgLower = error.message.toLowerCase();
+          
+          // Check if this is a system unavailability error first
+          if (error.message.includes('verification_failed') && 
+              error.message.includes('internal_error') &&
+              error.message.includes('Authorised source is temporarily unavailable')) {
+            // This is a system issue, not an invalid OTP
+            if (fallbackUrl) {
+              setShowFallback(true);
+            }
+            return; // Exit early to show fallback
           }
-        } else if (error.message) {
-          errorMessage = error.message;
+          
+          if (errorMsgLower.includes('otp entered is invalid') ||
+              errorMsgLower.includes('invalid otp') ||
+              errorMsgLower.includes('otp is invalid') ||
+              errorMsgLower.includes('wrong otp') ||
+              errorMsgLower.includes('incorrect otp')) {
+            errorMessage = 'Invalid OTP. Please try again.';
+            setOtp(''); // Clear OTP to allow user to enter new one
+            // Show fallback for invalid OTP errors
+            if (fallbackUrl) {
+              setShowFallback(true);
+            }
+          } else {
+            errorMessage = error.message;
+          }
         }
         
         setError(errorMessage);
       }
     } finally {
       setLoading(false);
+      setIsAutoSubmitting(false);
     }
-  };
+  }, [otp, userId, onSuccess, onClose, fallbackUrl, isInvalidOtpError, isSystemUnavailableError]);
+
+  // Auto-verify OTP when 6 digits are entered
+  useEffect(() => {
+    console.log('OTP useEffect triggered:', { otpLength: otp.length, loading, isAutoSubmitting, step, error });
+    if (otp.length === 6 && !loading && !isAutoSubmitting && step === 'otp' && !error) {
+      console.log('Auto-verifying OTP...');
+      const timer = setTimeout(() => {
+        handleOtpSubmit();
+      }, 100);
+      return () => clearTimeout(timer);
+    }
+  }, [otp, loading, isAutoSubmitting, step, error, handleOtpSubmit]);
 
   const handleResendOtp = async () => {
     if (otpTimer > 0) return;
@@ -289,15 +381,16 @@ const AadhaarVerificationPopup: React.FC<AadhaarVerificationPopupProps> = ({
               </label>
               <input
                 type="text"
-                value={aadhaarNumber}
+                value={aadhaarNumber.replace(/(\d{4})(\d{4})(\d{4})/, '$1 $2 $3')}
                 onChange={handleAadhaarChange}
-                placeholder="123456789012"
-                className="w-full px-3 py-2 border-2 rounded-md focus:outline-none focus:ring-2"
+                placeholder="1234 5678 9012"
+                className="w-full px-3 py-2 border-2 rounded-md focus:outline-none focus:ring-2 text-center tracking-widest font-mono"
                 style={{
                   backgroundColor: 'rgba(81, 76, 159, 0.05)',
-                  borderColor: 'rgb(81, 76, 159)'
+                  borderColor: 'rgb(81, 76, 159)',
+                  letterSpacing: '0.2em'
                 }}
-                maxLength={12}
+                maxLength={14}
                 disabled={loading}
               />
             </div>
@@ -364,22 +457,59 @@ const AadhaarVerificationPopup: React.FC<AadhaarVerificationPopupProps> = ({
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 Enter OTP
               </label>
-              <input
-                type="text"
-                value={otp}
-                onChange={(e) => setOtp(e.target.value.replace(/\D/g, '').slice(0, 6))}
-                placeholder="Enter 6-digit OTP"
-                className="w-full px-3 py-2 border-2 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                style={{
-                  backgroundColor: 'rgba(81, 76, 159, 0.05)',
-                  borderColor: 'rgb(81, 76, 159)'
-                }}
-                maxLength={6}
-                disabled={loading}
-              />
+              <div className="flex space-x-2 justify-center">
+                {[0, 1, 2, 3, 4, 5].map((index) => (
+                  <input
+                    key={index}
+                    type="text"
+                    value={otp[index] || ''}
+                    onChange={(e) => {
+                      const value = e.target.value.replace(/\D/g, '');
+                      if (value.length <= 1) {
+                        const newOtp = otp.split('');
+                        newOtp[index] = value;
+                        const updatedOtp = newOtp.join('');
+                        setOtp(updatedOtp);
+                        
+                        // Clear error when user starts typing new OTP
+                        if (error) {
+                          setError('');
+                        }
+                        
+                        // Auto-focus next input
+                        if (value && index < 5) {
+                          const nextInput = (e.target as HTMLInputElement).parentElement?.children[index + 1] as HTMLInputElement;
+                          nextInput?.focus();
+                        }
+                      }
+                    }}
+                    onKeyDown={(e) => {
+                      // Handle backspace to focus previous input
+                      if (e.key === 'Backspace' && !otp[index] && index > 0) {
+                        const prevInput = (e.target as HTMLInputElement).parentElement?.children[index - 1] as HTMLInputElement;
+                        prevInput?.focus();
+                      }
+                    }}
+                    className="w-12 h-12 text-center text-lg font-semibold border-2 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    style={{
+                      backgroundColor: 'rgba(81, 76, 159, 0.05)',
+                      borderColor: 'rgb(81, 76, 159)'
+                    }}
+                    maxLength={1}
+                    disabled={loading || isAutoSubmitting}
+                  />
+                ))}
+              </div>
             </div>
             
-            
+            {/* Auto-verification indicator */}
+            {isAutoSubmitting && (
+              <div className="text-center">
+                <div className="text-sm text-blue-600 font-medium">
+                  Auto-verifying OTP...
+                </div>
+              </div>
+            )}
             
             <div className="flex justify-between items-center text-sm">
               <span className="text-gray-600">
@@ -387,13 +517,19 @@ const AadhaarVerificationPopup: React.FC<AadhaarVerificationPopupProps> = ({
               </span>
               <button
                 onClick={handleResendOtp}
-                disabled={otpTimer > 0 || loading}
+                disabled={otpTimer > 0 || loading || isAutoSubmitting}
                 className="text-purple-600 hover:text-purple-700 disabled:text-gray-400 disabled:cursor-not-allowed"
               >
                 Resend OTP
               </button>
             </div>
             
+            {/* Error message display for OTP step */}
+            {error && !showFallback && (
+              <div className="text-red-600 text-sm text-center bg-red-50 p-3 rounded-lg border border-red-200">
+                {error}
+              </div>
+            )}
         
             {/* Fallback Option for OTP step */}
             {showFallback && fallbackUrl && (
@@ -436,14 +572,14 @@ const AadhaarVerificationPopup: React.FC<AadhaarVerificationPopupProps> = ({
             {!showFallback && (
               <button
                 onClick={handleOtpSubmit}
-                disabled={loading || otp.length !== 6}
+                disabled={loading || otp.length !== 6 || isAutoSubmitting}
                 className="w-full px-4 py-3 text-white font-bold rounded-lg transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-offset-1 shadow-lg transform hover:scale-105 mb-3 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none"
                 style={{
                   background: 'linear-gradient(135deg, rgb(81, 76, 159) 0%, rgb(61, 58, 122) 100%)',
                   boxShadow: 'rgba(81, 76, 159, 0.3) 0px 4px 6px'
                 }}
               >
-                {loading ? 'Verifying...' : 'Verify'}
+                {loading || isAutoSubmitting ? 'Verifying...' : 'Verify'}
               </button>
             )}
           </div>

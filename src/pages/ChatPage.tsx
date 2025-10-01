@@ -1038,7 +1038,8 @@ const ChatPage: React.FC = () => {
 
   // Function to handle payment plan completion
   const handlePaymentPlanCompleted = () => {
-    setIsPaymentPlanCompleted(true);
+    // Don't set completion immediately - wait for "Preferred EMI plan" message
+    // setIsPaymentPlanCompleted(true);
   };
 
   // Monitor messages for "Preferred EMI plan" to auto-complete payment plan

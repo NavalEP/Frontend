@@ -874,6 +874,21 @@ export interface DigiLockerUrlResult {
   message: string;
 }
 
+// Interface for add activity API response
+export interface AddActivityResponse {
+  status: number;
+  data: string;
+  attachment: null;
+  message: string;
+}
+
+// Interface for add activity API function return type
+export interface AddActivityResult {
+  success: boolean;
+  data?: string;
+  message: string;
+}
+
 /**
  * Get post-approval status for a loan
  * @param loanId - The loan ID to check post-approval status for
@@ -3372,6 +3387,91 @@ export const createDigiLockerUrl = async (loanId: string): Promise<DigiLockerUrl
       
       if (error.response.status === 404) {
         throw new Error('DigiLocker URL creation service not found.');
+      }
+      
+      if (error.response.status === 500) {
+        const errorMessage = error.response.data?.message || 'Internal server error';
+        throw new Error(`Server Error: ${errorMessage}`);
+      }
+      
+      // Handle other status codes
+      const errorMessage = error.response.data?.message || error.message;
+      throw new Error(`API Error (${error.response.status}): ${errorMessage}`);
+    }
+    
+    // Handle non-axios errors
+    throw new Error(`Unexpected error: ${error.message || 'Unknown error occurred'}`);
+  }
+};
+
+/**
+ * Add activity for a user
+ * @param userId - The user ID to add activity for
+ * @param activity - The activity type to add
+ * @param type - The type of activity (optional)
+ * @returns Promise with the add activity result
+ */
+export const addActivity = async (userId: string, activity: string, type?: string): Promise<AddActivityResult> => {
+  try {
+    console.log('Adding activity for user ID:', userId, 'activity:', activity, 'type:', type);
+
+    const params: Record<string, string> = {
+      userId,
+      activity
+    };
+
+    if (type) {
+      params.type = type;
+    }
+
+    const response = await carePayApi.get<AddActivityResponse>('/addActivity', {
+      params,
+      headers: {
+        'Accept': 'application/json'
+      }
+    });
+
+    console.log('Add activity response:', response.data);
+
+    // Check if the response is successful
+    if (response.data.status === 200) {
+      return {
+        success: true,
+        data: response.data.data,
+        message: response.data.message || 'Activity added successfully'
+      };
+    }
+
+    // Handle non-200 status responses
+    return {
+      success: false,
+      message: response.data.message || 'Failed to add activity'
+    };
+
+  } catch (error: any) {
+    console.error('Error adding activity:', error);
+    
+    if (axios.isAxiosError(error)) {
+      if (error.code === 'ECONNABORTED') {
+        throw new Error('Request timed out. Please try again.');
+      }
+      
+      if (!error.response) {
+        throw new Error('Unable to connect to the CarePay backend server. Please check your internet connection.');
+      }
+      
+      // Handle specific HTTP status codes
+      if (error.response.status === 400) {
+        const errorMessage = error.response.data?.message || 'Invalid parameters provided';
+        throw new Error(`Bad Request: ${errorMessage}`);
+      }
+      
+      if (error.response.status === 401) {
+        throw new Error('Authentication required. Please login again.');
+      }
+      
+      if (error.response.status === 404) {
+        throw new Error('Activity service not found.');
       }
       
       if (error.response.status === 500) {

@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Loader2, CheckCircle, X } from 'lucide-react';
 import { getLoanDetailsByUserId, getBureauDecisionData, updateTreatmentAndLoanAmount, updateProductDetail, BureauDecisionData, BureauEmiPlan, LoanDetailsByUserId } from '../services/loanApi';
-import { getFibeResponseDetail, calculateEmi, lockTenure, getBreDecision, FibeResponseDetailData, EmiCalculationData, BreDecisionData } from '../services/postApprovalApi';
+import { getFibeResponseDetail, calculateEmi, lockTenure, getBreDecision, FibeResponseDetailData, EmiCalculationData, BreDecisionData, addActivity } from '../services/postApprovalApi';
 import { createSession, sendMessage } from '../services/api';
 
 interface PaymentPlanPopupProps {
@@ -40,6 +40,8 @@ const PaymentPlanPopup: React.FC<PaymentPlanPopupProps> = ({
   const [fibeEmiCalculations, setFibeEmiCalculations] = useState<EmiCalculationData[]>([]);
   const [selectedFibePlan, setSelectedFibePlan] = useState<EmiCalculationData | null>(null);
   const [isPaymentPlanCompleted, setIsPaymentPlanCompleted] = useState(false);
+  const [treatmentAmountError, setTreatmentAmountError] = useState<string | null>(null);
+  const [isEnhancingLimit, setIsEnhancingLimit] = useState(false);
 
   // Create session when popup opens (only if no sessionId provided)
   useEffect(() => {
@@ -109,6 +111,13 @@ const PaymentPlanPopup: React.FC<PaymentPlanPopupProps> = ({
       setHasAmountChanged(false); // Reset amount changed flag when loan details are loaded
     }
   }, [loanDetails]);
+
+  // Validate treatment amount when bureau decision or fibe response detail changes
+  useEffect(() => {
+    if (treatmentAmount > 0) {
+      validateTreatmentAmount(treatmentAmount);
+    }
+  }, [bureauDecision, fibeResponseDetail, lenderType]);
 
   // Initialize data when popup opens - prioritize localStorage for userId
   const initializeData = () => {
@@ -272,6 +281,44 @@ const PaymentPlanPopup: React.FC<PaymentPlanPopupProps> = ({
 
   const handleFibePlanSelect = (plan: EmiCalculationData) => {
     setSelectedFibePlan(plan);
+  };
+
+  const handleEnhanceCreditLimit = async () => {
+    if (!extractedUserId) {
+      console.error('User ID not available for enhancing credit limit');
+      setError('User ID not found. Please try again.');
+      return;
+    }
+
+    setIsEnhancingLimit(true);
+    setError(null);
+    
+    try {
+      console.log('Requesting limit enhancement for userId:', extractedUserId);
+      const result = await addActivity(extractedUserId, 'LIMIT_ENHANCEMENT_REQUESTED', 'FINDOC');
+      
+      if (result.success) {
+        console.log('Limit enhancement request submitted successfully:', result.data);
+        
+        // Redirect to bank statement sharing page
+        const redirectUrl = `https://carepay.money/patient/digibankstatement/${extractedUserId}`;
+        console.log('Redirecting to:', redirectUrl);
+        
+        // Open in new tab/window
+        window.open(redirectUrl, '_blank');
+        
+        // Optionally close the popup after successful submission
+        // onClose();
+      } else {
+        console.error('Failed to submit limit enhancement request:', result.message);
+        setError('Failed to submit limit enhancement request. Please try again.');
+      }
+    } catch (error: any) {
+      console.error('Error submitting limit enhancement request:', error);
+      setError('An error occurred while submitting your request. Please try again.');
+    } finally {
+      setIsEnhancingLimit(false);
+    }
   };
 
   const handleContinue = async () => {
@@ -527,18 +574,41 @@ Loan Amount: ${selectedPlan.netLoanAmount}\n\n
     }
   };
 
+  // Validate treatment amount against available limits
+  const validateTreatmentAmount = (amount: number) => {
+    if (lenderType === 'findoc' && bureauDecision?.emiPlanList && bureauDecision.emiPlanList.length > 0) {
+      const maxGrossTreatmentAmount = Math.max(...bureauDecision.emiPlanList.map(plan => plan.grossTreatmentAmount));
+      
+      if (amount > maxGrossTreatmentAmount) {
+        setTreatmentAmountError(`Please enter treatment amount under the available limit of ${formatCurrency(maxGrossTreatmentAmount)}`);
+      } else {
+        setTreatmentAmountError(null);
+      }
+    } else if (lenderType === 'fibe' && fibeResponseDetail) {
+      // For Fibe, check against sanctionMaxLimit
+      if (amount > fibeResponseDetail.sanctionMaxLimit) {
+        setTreatmentAmountError(`Please enter treatment amount under the available limit of ${formatCurrency(fibeResponseDetail.sanctionMaxLimit)}`);
+      } else {
+        setTreatmentAmountError(null);
+      }
+    } else {
+      setTreatmentAmountError(null);
+    }
+  };
+
   const handleTreatmentAmountChange = (newAmount: number) => {
     setTreatmentAmount(newAmount);
-    // Check if amount has changed from the original treatment amount
-    if (loanDetails && Math.abs(newAmount - loanDetails.treatmentAmount) > 0) {
-      setHasAmountChanged(true);
-      // Clear selected plan when amount changes
-      setSelectedPlan(null);
-      // Clear bureau decision to hide payment plans until user clicks "Check EMI Plans"
-      setBureauDecision(null);
-    } else {
-      setHasAmountChanged(false);
-    }
+    
+    // Validate the new amount
+    validateTreatmentAmount(newAmount);
+    
+    // Always set hasAmountChanged to true when user enters any amount
+    // This ensures "Check EMI plans" button appears even for same amounts
+    setHasAmountChanged(true);
+    // Clear selected plan when amount changes
+    setSelectedPlan(null);
+    // Clear bureau decision to hide payment plans until user clicks "Check EMI Plans"
+    setBureauDecision(null);
   };
 
   const formatCurrency = (amount: number) => {
@@ -605,20 +675,48 @@ Loan Amount: ${selectedPlan.netLoanAmount}\n\n
               </div>
             ) : (
               <div className="space-y-6">
+                {/* Error Display */}
+                {error && (
+                  <div className="bg-red-50 border border-red-200 rounded-xl p-4">
+                    <div className="flex items-center space-x-2">
+                      <div className="flex-shrink-0">
+                        <svg className="h-5 w-5 text-red-400" viewBox="0 0 20 20" fill="currentColor">
+                          <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                        </svg>
+                      </div>
+                      <p className="text-red-800 font-medium">{error}</p>
+                    </div>
+                  </div>
+                )}
                 {/* Treatment Amount Input - Only for Findoc */}
                 {loanDetails && lenderType === 'findoc' && (
                   <div className="space-y-3">
                     <label className="block text-lg font-bold text-gray-900">
                       Enter treatment amount
                     </label>
-                    <div className="rounded-xl p-4" style={{ backgroundColor: '#f3f2ff' }}>
+                    
+                    {/* Error Message */}
+                    {treatmentAmountError && (
+                      <div className="bg-red-50 border border-red-200 rounded-xl p-4">
+                        <div className="flex items-center space-x-2">
+                          <div className="flex-shrink-0">
+                            <svg className="h-5 w-5 text-red-400" viewBox="0 0 20 20" fill="currentColor">
+                              <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                            </svg>
+                          </div>
+                          <p className="text-red-800 font-medium">{treatmentAmountError}</p>
+                        </div>
+                      </div>
+                    )}
+                    
+                    <div className={`rounded-xl p-4 ${treatmentAmountError ? 'border-2 border-red-300' : ''}`} style={{ backgroundColor: '#f3f2ff' }}>
                       <div className="flex items-center">
                         <span className="text-2xl font-bold text-gray-900 mr-2">₹</span>
                         <input
                           type="number"
                           value={treatmentAmount}
                           onChange={(e) => handleTreatmentAmountChange(parseFloat(e.target.value) || 0)}
-                          className="flex-1 text-left text-2xl font-bold text-gray-900 bg-transparent border-none outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                          className={`flex-1 text-left text-2xl font-bold bg-transparent border-none outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none ${treatmentAmountError ? 'text-red-600' : 'text-gray-900'}`}
                           placeholder="Enter amount"
                         />
                       </div>
@@ -634,6 +732,43 @@ Loan Amount: ${selectedPlan.netLoanAmount}\n\n
                       <span className="text-2xl font-bold text-green-600">
                         {formatCurrency(Math.max(...bureauDecision.emiPlanList.map(plan => plan.grossTreatmentAmount)))}
                       </span>
+                    </div>
+                  </div>
+                )}
+
+
+                {/* Treatment Amount Input - For Fibe */}
+                {loanDetails && lenderType === 'fibe' && (
+                  <div className="space-y-3">
+                    <label className="block text-lg font-bold text-gray-900">
+                      Enter treatment amount
+                    </label>
+                    
+                    {/* Error Message */}
+                    {treatmentAmountError && (
+                      <div className="bg-red-50 border border-red-200 rounded-xl p-4">
+                        <div className="flex items-center space-x-2">
+                          <div className="flex-shrink-0">
+                            <svg className="h-5 w-5 text-red-400" viewBox="0 0 20 20" fill="currentColor">
+                              <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                            </svg>
+                          </div>
+                          <p className="text-red-800 font-medium">{treatmentAmountError}</p>
+                        </div>
+                      </div>
+                    )}
+                    
+                    <div className={`rounded-xl p-4 ${treatmentAmountError ? 'border-2 border-red-300' : ''}`} style={{ backgroundColor: '#f3f2ff' }}>
+                      <div className="flex items-center">
+                        <span className="text-2xl font-bold text-gray-900 mr-2">₹</span>
+                        <input
+                          type="number"
+                          value={treatmentAmount}
+                          onChange={(e) => handleTreatmentAmountChange(parseFloat(e.target.value) || 0)}
+                          className={`flex-1 text-left text-2xl font-bold bg-transparent border-none outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none ${treatmentAmountError ? 'text-red-600' : 'text-gray-900'}`}
+                          placeholder="Enter amount"
+                        />
+                      </div>
                     </div>
                   </div>
                 )}
@@ -655,14 +790,14 @@ Loan Amount: ${selectedPlan.netLoanAmount}\n\n
                   <div className="text-center">
                     <button
                       onClick={handleCheckEmiPlans}
-                      disabled={isCheckingEmiPlans || !loanDetails}
+                      disabled={isCheckingEmiPlans || !loanDetails || treatmentAmountError !== null}
                       className={`w-full px-6 py-3 rounded-xl font-medium text-white transition-colors ${
-                        isCheckingEmiPlans || !loanDetails
+                        isCheckingEmiPlans || !loanDetails || treatmentAmountError !== null
                           ? 'bg-gray-400 cursor-not-allowed'
                           : 'hover:opacity-90'
                       }`}
                       style={{
-                        backgroundColor: isCheckingEmiPlans || !loanDetails ? undefined : '#514c9f'
+                        backgroundColor: isCheckingEmiPlans || !loanDetails || treatmentAmountError !== null ? undefined : '#514c9f'
                       }}
                     >
                       {isCheckingEmiPlans ? (
@@ -975,6 +1110,54 @@ Loan Amount: ${selectedPlan.netLoanAmount}\n\n
                     </div>
                   </div>
                 )}
+
+                {/* Enhance Credit Limit Section - Only for Findoc - Always Show */}
+                {lenderType === 'findoc' && (
+                  <div className="bg-gradient-to-r from-green-50 to-emerald-50 rounded-xl p-4 border border-green-200">
+                    <div className="flex items-start space-x-3">
+                      <div className="flex-shrink-0 mt-1">
+                        <svg className="h-6 w-6 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
+                        </svg>
+                      </div>
+                      <div className="flex-1">
+                        <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                          📈 Enhance credit limit
+                        </h3>
+                        <p className="text-gray-700 mb-4">
+                          Quickly verify your income and unlock credit limit up to Rs. 2,20,000.
+                        </p>
+                        <button
+                          onClick={handleEnhanceCreditLimit}
+                          disabled={isEnhancingLimit}
+                          className={`w-full px-6 py-3 rounded-xl font-medium text-white transition-all duration-200 flex items-center justify-center space-x-2 ${
+                            isEnhancingLimit
+                              ? 'bg-gray-400 cursor-not-allowed'
+                              : 'bg-green-600 hover:bg-green-700 active:bg-green-800 shadow-lg hover:shadow-xl'
+                          }`}
+                        >
+                          {isEnhancingLimit ? (
+                            <>
+                              <Loader2 className="h-5 w-5 animate-spin" />
+                              <span>Processing...</span>
+                            </>
+                          ) : (
+                            <>
+                              <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                              </svg>
+                              <span>Share bank statement</span>
+                            </>
+                          )}
+                        </button>
+                        <div className="flex items-center mt-3 text-sm text-gray-600">
+                          <CheckCircle className="h-4 w-4 text-green-500 mr-2" />
+                          <span>Data sharing via RBI's trusted sources.</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -995,8 +1178,15 @@ Loan Amount: ${selectedPlan.netLoanAmount}\n\n
                 ) : (
                   <button
                     onClick={handleContinue}
-                    className="px-6 py-2 text-white rounded-lg hover:opacity-90 transition-colors font-medium"
-                    style={{ backgroundColor: '#514c9f' }}
+                    disabled={treatmentAmountError !== null}
+                    className={`px-6 py-2 text-white rounded-lg font-medium transition-colors ${
+                      treatmentAmountError !== null
+                        ? 'bg-gray-400 cursor-not-allowed'
+                        : 'hover:opacity-90'
+                    }`}
+                    style={{
+                      backgroundColor: treatmentAmountError !== null ? undefined : '#514c9f'
+                    }}
                   >
                     Continue with Payment Plan
                   </button>

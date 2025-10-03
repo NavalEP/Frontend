@@ -441,10 +441,12 @@ const PaymentStepsMessage: React.FC<PaymentStepsMessageProps> = ({ steps, onLink
       )}
 
       {/* Aadhaar Verification Popup */}
-      <AadhaarVerificationPopup
+      {loanId && (
+        <AadhaarVerificationPopup
         isOpen={showAadhaarVerificationPopup}
         onClose={() => setShowAadhaarVerificationPopup(false)}
         userId={localStorage.getItem('userId') || ''}
+        loanId={loanId}
         fallbackUrl={fallbackUrl}
         onSuccess={() => {
           // Refresh the post-approval status after successful Aadhaar verification
@@ -462,7 +464,8 @@ const PaymentStepsMessage: React.FC<PaymentStepsMessageProps> = ({ steps, onLink
           fetchPostApprovalStatus();
           
         }}
-      />
+        />
+      )}
     </div>
   );
 };

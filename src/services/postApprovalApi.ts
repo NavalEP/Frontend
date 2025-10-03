@@ -437,7 +437,8 @@ export interface AadhaarOtpSubmitResponse {
 // Interface for Aadhaar OTP submit API function return type
 export interface AadhaarOtpSubmitResult {
   success: boolean;
-  data?: object;
+  status?: number;
+  data?: any;
   message: string;
 }
 
@@ -853,6 +854,21 @@ export interface VerifyOtpResponse {
 
 // Interface for verify OTP API function return type
 export interface VerifyOtpResult {
+  success: boolean;
+  data?: string;
+  message: string;
+}
+
+// Interface for DigiLocker URL creation API response
+export interface DigiLockerUrlResponse {
+  status: number;
+  data: string;
+  attachment: null;
+  message: string;
+}
+
+// Interface for DigiLocker URL creation API function return type
+export interface DigiLockerUrlResult {
   success: boolean;
   data?: string;
   message: string;
@@ -1933,7 +1949,9 @@ export const submitAadhaarOtp = async (userId: string, otp: string): Promise<Aad
     // Handle non-200 status responses
     return {
       success: false,
-      message: response.data.message || 'Failed to verify Aadhaar OTP'
+      status: response.data.status,
+      message: response.data.message || 'Failed to verify Aadhaar OTP',
+      data: response.data.data || response.data
     };
 
   } catch (error: any) {
@@ -1963,13 +1981,21 @@ export const submitAadhaarOtp = async (userId: string, otp: string): Promise<Aad
       }
       
       if (error.response.status === 500) {
-        const errorMessage = error.response.data?.message || 'Internal server error';
-        throw new Error(`Server Error: ${errorMessage}`);
+        return {
+          success: false,
+          status: error.response.status,
+          message: error.response.data?.message || 'Internal server error',
+          data: error.response.data?.data || error.response.data
+        };
       }
       
       // Handle other status codes
-      const errorMessage = error.response.data?.message || error.message;
-      throw new Error(`API Error (${error.response.status}): ${errorMessage}`);
+      return {
+        success: false,
+        status: error.response.status,
+        message: error.response.data?.message || error.message,
+        data: error.response.data?.data || error.response.data
+      };
     }
     
     // Handle non-axios errors
@@ -3286,7 +3312,81 @@ export const getCompletedPostApprovalRequirements = (statusData: PostApprovalSta
     completed.push('Aadhaar Verification');
   }
   
-  return completed
+  return completed;
+};
+
+/**
+ * Create DigiLocker URL for KYC verification
+ * @param loanId - The loan ID for which to create DigiLocker URL
+ * @returns Promise with the DigiLocker URL result
+ */
+export const createDigiLockerUrl = async (loanId: string): Promise<DigiLockerUrlResult> => {
+  try {
+    console.log('Creating DigiLocker URL for loan ID:', loanId);
+
+    const response = await carePayApi.get<DigiLockerUrlResponse>('/signzy/digilocker/createUrl', {
+      params: { loanId },
+      headers: {
+        'Accept': 'application/json'
+      }
+    });
+
+    console.log('DigiLocker URL creation response:', response.data);
+
+    // Check if the response is successful
+    if (response.data.status === 200 && response.data.data) {
+      return {
+        success: true,
+        data: response.data.data,
+        message: response.data.message || 'DigiLocker URL created successfully'
+      };
+    }
+
+    // Handle non-200 status responses
+    return {
+      success: false,
+      message: response.data.message || 'Failed to create DigiLocker URL'
+    };
+
+  } catch (error: any) {
+    console.error('Error creating DigiLocker URL:', error);
+    
+    if (axios.isAxiosError(error)) {
+      if (error.code === 'ECONNABORTED') {
+        throw new Error('Request timed out. Please try again.');
+      }
+      
+      if (!error.response) {
+        throw new Error('Unable to connect to the CarePay backend server. Please check your internet connection.');
+      }
+      
+      // Handle specific HTTP status codes
+      if (error.response.status === 400) {
+        const errorMessage = error.response.data?.message || 'Invalid loan ID provided';
+        throw new Error(`Bad Request: ${errorMessage}`);
+      }
+      
+      if (error.response.status === 401) {
+        throw new Error('Authentication required. Please login again.');
+      }
+      
+      if (error.response.status === 404) {
+        throw new Error('DigiLocker URL creation service not found.');
+      }
+      
+      if (error.response.status === 500) {
+        const errorMessage = error.response.data?.message || 'Internal server error';
+        throw new Error(`Server Error: ${errorMessage}`);
+      }
+      
+      // Handle other status codes
+      const errorMessage = error.response.data?.message || error.message;
+      throw new Error(`API Error (${error.response.status}): ${errorMessage}`);
+    }
+    
+    // Handle non-axios errors
+    throw new Error(`Unexpected error: ${error.message || 'Unknown error occurred'}`);
+  }
 };
 
 export default carePayApi;

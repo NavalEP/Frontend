@@ -1,18 +1,20 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { getUserDetailsByUserId, getUserBasicDetail, sendAadhaarOtp, submitAadhaarOtp } from '../services/postApprovalApi';
+import { getUserDetailsByUserId, getUserBasicDetail, sendAadhaarOtp, submitAadhaarOtp, createDigiLockerUrl } from '../services/postApprovalApi';
 
 interface AadhaarVerificationPopupProps {
   isOpen: boolean;
   onClose: () => void;
   userId: string;
+  loanId?: string; // Loan ID for creating DigiLocker URL
   onSuccess?: () => void;
-  fallbackUrl?: string; // DigiLocker or alternative verification URL
+  fallbackUrl?: string; // DigiLocker or alternative verification URL from chat message
 }
 
 const AadhaarVerificationPopup: React.FC<AadhaarVerificationPopupProps> = ({
   isOpen,
   onClose,
   userId,
+  loanId,
   onSuccess,
   fallbackUrl
 }) => {
@@ -25,6 +27,7 @@ const AadhaarVerificationPopup: React.FC<AadhaarVerificationPopupProps> = ({
   const [userMobileNumber, setUserMobileNumber] = useState<number | null>(null);
   const [showFallback, setShowFallback] = useState(false);
   const [isAutoSubmitting, setIsAutoSubmitting] = useState(false);
+  const [dynamicFallbackUrl, setDynamicFallbackUrl] = useState<string>('');
 
   // Timer for OTP resend
   useEffect(() => {
@@ -55,54 +58,43 @@ const AadhaarVerificationPopup: React.FC<AadhaarVerificationPopupProps> = ({
     }
   };
 
-  // Helper function to check if error indicates system unavailability
-  const isSystemUnavailableError = (result: any) => {
-    const errorChecks = [
-      result?.message === "failure",
-      result?.message === "something went wrong",
-      result?.status === 500,
-      result?.data?.includes('verification_failed'),
-      result?.data?.includes('Authorised source is temporarily unavailable'),
-      result?.data?.includes('internal_error')
-    ];
-    
-    // Special check for the specific error pattern from the API response
-    if (result?.status === 500 && 
-        result?.message === "something went wrong" && 
-        result?.data && 
-        typeof result.data === 'string') {
-      return result.data.includes('verification_failed') && 
-             result.data.includes('internal_error') &&
-             result.data.includes('Authorised source is temporarily unavailable');
+  // Function to get or create fallback URL
+  const getFallbackUrl = useCallback(async (): Promise<string> => {
+    // First priority: Use fallback URL from chat message if available
+    if (fallbackUrl) {
+      console.log('Using fallback URL from chat message:', fallbackUrl);
+      return fallbackUrl;
     }
-    
-    return errorChecks.some(check => check);
-  };
 
-  // Helper function to check if this is an invalid OTP error from submitAadhaarOtp
-  const isInvalidOtpError = (result: any) => {
-    if (result?.status === 500 && 
-        result?.message === "something went wrong" && 
-        result?.data && 
-        typeof result.data === 'string') {
-      
-      // First check if this is a system unavailability error (should show fallback)
-      if (result.data.includes('verification_failed') && 
-          result.data.includes('internal_error') &&
-          result.data.includes('Authorised source is temporarily unavailable')) {
-        return false; // This is not an invalid OTP, it's a system issue
-      }
-      
-      // Check for various patterns that indicate invalid OTP
-      const dataString = result.data.toLowerCase();
-      return dataString.includes('otp entered is invalid') ||
-             dataString.includes('invalid otp') ||
-             dataString.includes('otp is invalid') ||
-             dataString.includes('wrong otp') ||
-             dataString.includes('incorrect otp');
+    // Second priority: Use already created dynamic fallback URL
+    if (dynamicFallbackUrl) {
+      console.log('Using existing dynamic fallback URL:', dynamicFallbackUrl);
+      return dynamicFallbackUrl;
     }
-    return false;
-  };
+
+    // Third priority: Create new DigiLocker URL if loanId is available
+    if (loanId) {
+      try {
+        console.log('Creating new DigiLocker URL for loanId:', loanId);
+        const result = await createDigiLockerUrl(loanId);
+        
+        if (result.success && result.data) {
+          console.log('Successfully created DigiLocker URL:', result.data);
+          setDynamicFallbackUrl(result.data);
+          return result.data;
+        } else {
+          console.error('Failed to create DigiLocker URL:', result.message);
+        }
+      } catch (error: any) {
+        console.error('Error creating DigiLocker URL:', error.message);
+      }
+    }
+
+    // Fallback: Return empty string if no URL can be obtained
+    console.log('No fallback URL available - neither from chat message nor from API');
+    return '';
+  }, [fallbackUrl, dynamicFallbackUrl, loanId]);
+
 
   const handleAadhaarSubmit = async () => {
     // Remove any non-digit characters for validation
@@ -131,7 +123,11 @@ const AadhaarVerificationPopup: React.FC<AadhaarVerificationPopupProps> = ({
       });
 
       if (!saveResult.success) {
-        setError(saveResult.message || 'Failed to save Aadhaar number');
+        // Always show fallback method for any failure
+        const fallbackUrlToUse = await getFallbackUrl();
+        setDynamicFallbackUrl(fallbackUrlToUse);
+        setShowFallback(true);
+        setError(''); // Clear any existing error when showing fallback
         return;
       }
 
@@ -143,20 +139,14 @@ const AadhaarVerificationPopup: React.FC<AadhaarVerificationPopupProps> = ({
         setOtpTimer(50); // 50 seconds timer
         setError('');
       } else {
-        // Check if this is a system unavailability error
-        if (isSystemUnavailableError(otpResult) && fallbackUrl) {
-          setShowFallback(true);
-        } else {
-          setError(otpResult.message || 'Failed to send OTP');
-        }
+        // Always show fallback method for any failure
+        setShowFallback(true);
+        setError(''); // Clear any existing error when showing fallback
       }
     } catch (error: any) {
-      // Check if this is a system unavailability error
-      if (isSystemUnavailableError(error) && fallbackUrl) {
-        setShowFallback(true);
-      } else {
-        setError(error.message || 'An error occurred while processing Aadhaar verification');
-      }
+      // Always show fallback method for any failure
+      setShowFallback(true);
+      setError(''); // Clear any existing error when showing fallback
     } finally {
       setLoading(false);
     }
@@ -191,133 +181,35 @@ const AadhaarVerificationPopup: React.FC<AadhaarVerificationPopupProps> = ({
         setError('');
         setIsAutoSubmitting(false);
       } else {
-        // Check if this is specifically an invalid OTP error
-        if (isInvalidOtpError(result)) {
-          setError('Invalid OTP. Please try again.');
-          setOtp(''); // Clear OTP to allow user to enter new one
-          // Also show fallback if available for invalid OTP
-          if (fallbackUrl) {
-            setShowFallback(true);
-          }
-        } else if (isSystemUnavailableError(result) && fallbackUrl) {
-          setShowFallback(true);
-        } else {
-          // For other errors, show the actual API error message
-          let errorMessage = result.message || 'An error occurred while verifying OTP';
-          
-          // Parse the error response for OTP validation errors
-          if (result.data && typeof result.data === 'string') {
-            try {
-              // Check if this is a system unavailability error first
-              if ((result.data as string).includes('verification_failed') && 
-                  (result.data as string).includes('internal_error') &&
-                  (result.data as string).includes('Authorised source is temporarily unavailable')) {
-                // This is a system issue, not an invalid OTP
-                if (fallbackUrl) {
-                  setShowFallback(true);
-                }
-                return; // Exit early to show fallback
-              }
-              
-              // Try to extract meaningful error from the response
-              const dataString = (result.data as string).toLowerCase();
-              if (dataString.includes('otp entered is invalid') ||
-                  dataString.includes('invalid otp') ||
-                  dataString.includes('otp is invalid') ||
-                  dataString.includes('wrong otp') ||
-                  dataString.includes('incorrect otp')) {
-                errorMessage = 'Invalid OTP. Please try again.';
-                setOtp(''); // Clear OTP to allow user to enter new one
-                // Show fallback for invalid OTP errors
-                if (fallbackUrl) {
-                  setShowFallback(true);
-                }
-              }
-            } catch (parseError) {
-              // If parsing fails, use the original message
-              console.error('Error parsing API response:', parseError);
-            }
-          }
-          
-          // If the message is "something went wrong" and we're in OTP verification context,
-          // it's most likely an invalid OTP
-          if (result.message === "something went wrong" && !errorMessage.includes('Invalid OTP')) {
-            errorMessage = 'Invalid OTP. Please try again.';
-            setOtp(''); // Clear OTP to allow user to enter new one
-            // Show fallback for invalid OTP errors
-            if (fallbackUrl) {
-              setShowFallback(true);
-            }
-          }
-          
-          setError(errorMessage);
-        }
+        // Always show fallback method for any failure
+        const fallbackUrlToUse = await getFallbackUrl();
+        setDynamicFallbackUrl(fallbackUrlToUse);
+        setShowFallback(true);
+        setError(''); // Clear any existing error when showing fallback
       }
     } catch (error: any) {
-      // Check if this is specifically an invalid OTP error
-      if (isInvalidOtpError(error)) {
-        setError('Invalid OTP. Please try again.');
-        setOtp(''); // Clear OTP to allow user to enter new one
-        // Also show fallback if available for invalid OTP
-        if (fallbackUrl) {
-          setShowFallback(true);
-        }
-      } else if (isSystemUnavailableError(error) && fallbackUrl) {
-        setShowFallback(true);
-      } else {
-        // Handle network or other errors - show the actual error message
-        let errorMessage = 'An error occurred while verifying OTP';
-        
-        // Check if the error contains OTP validation failure information
-        if (error.message) {
-          const errorMsgLower = error.message.toLowerCase();
-          
-          // Check if this is a system unavailability error first
-          if (error.message.includes('verification_failed') && 
-              error.message.includes('internal_error') &&
-              error.message.includes('Authorised source is temporarily unavailable')) {
-            // This is a system issue, not an invalid OTP
-            if (fallbackUrl) {
-              setShowFallback(true);
-            }
-            return; // Exit early to show fallback
-          }
-          
-          if (errorMsgLower.includes('otp entered is invalid') ||
-              errorMsgLower.includes('invalid otp') ||
-              errorMsgLower.includes('otp is invalid') ||
-              errorMsgLower.includes('wrong otp') ||
-              errorMsgLower.includes('incorrect otp')) {
-            errorMessage = 'Invalid OTP. Please try again.';
-            setOtp(''); // Clear OTP to allow user to enter new one
-            // Show fallback for invalid OTP errors
-            if (fallbackUrl) {
-              setShowFallback(true);
-            }
-          } else {
-            errorMessage = error.message;
-          }
-        }
-        
-        setError(errorMessage);
-      }
+      // Always show fallback method for any failure
+      const fallbackUrlToUse = await getFallbackUrl();
+      setDynamicFallbackUrl(fallbackUrlToUse);
+      setShowFallback(true);
+      setError(''); // Clear any existing error when showing fallback
     } finally {
       setLoading(false);
       setIsAutoSubmitting(false);
     }
-  }, [otp, userId, onSuccess, onClose, fallbackUrl, isInvalidOtpError, isSystemUnavailableError]);
+  }, [otp, userId, onSuccess, onClose, fallbackUrl, loanId, getFallbackUrl]);
 
   // Auto-verify OTP when 6 digits are entered
   useEffect(() => {
-    console.log('OTP useEffect triggered:', { otpLength: otp.length, loading, isAutoSubmitting, step, error });
-    if (otp.length === 6 && !loading && !isAutoSubmitting && step === 'otp' && !error) {
+    console.log('OTP useEffect triggered:', { otpLength: otp.length, loading, isAutoSubmitting, step, error, showFallback });
+    if (otp.length === 6 && !loading && !isAutoSubmitting && step === 'otp' && !error && !showFallback) {
       console.log('Auto-verifying OTP...');
       const timer = setTimeout(() => {
         handleOtpSubmit();
       }, 100);
       return () => clearTimeout(timer);
     }
-  }, [otp, loading, isAutoSubmitting, step, error, handleOtpSubmit]);
+  }, [otp, loading, isAutoSubmitting, step, error, showFallback, handleOtpSubmit]);
 
   const handleResendOtp = async () => {
     if (otpTimer > 0) return;
@@ -332,20 +224,14 @@ const AadhaarVerificationPopup: React.FC<AadhaarVerificationPopupProps> = ({
         setOtpTimer(50);
         setError('');
       } else {
-        // Check if this is a system unavailability error
-        if (isSystemUnavailableError(result) && fallbackUrl) {
-          setShowFallback(true);
-        } else {
-          setError(result.message || 'Failed to resend OTP');
-        }
+        // Always show fallback method for any failure
+        setShowFallback(true);
+        setError(''); // Clear any existing error when showing fallback
       }
     } catch (error: any) {
-      // Check if this is a system unavailability error
-      if (isSystemUnavailableError(error) && fallbackUrl) {
-        setShowFallback(true);
-      } else {
-        setError(error.message || 'An error occurred while resending OTP');
-      }
+      // Always show fallback method for any failure
+      setShowFallback(true);
+      setError(''); // Clear any existing error when showing fallback
     } finally {
       setLoading(false);
     }
@@ -359,9 +245,10 @@ const AadhaarVerificationPopup: React.FC<AadhaarVerificationPopupProps> = ({
     setAadhaarNumber(limited);
   };
 
-  const handleFallbackRedirect = () => {
-    if (fallbackUrl) {
-      window.open(fallbackUrl, '_blank');
+  const handleFallbackRedirect = async () => {
+    const urlToUse = await getFallbackUrl();
+    if (urlToUse) {
+      window.open(urlToUse, '_blank');
       onClose();
     }
   };
@@ -370,7 +257,7 @@ const AadhaarVerificationPopup: React.FC<AadhaarVerificationPopupProps> = ({
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg p-6 max-w-sm w-full mx-4">
+      <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4 max-h-[90vh] overflow-y-auto">
         <h2 className="text-lg font-semibold text-gray-900 mb-6">Aadhaar Verification</h2>
         
         {step === 'aadhaar' ? (
@@ -399,31 +286,86 @@ const AadhaarVerificationPopup: React.FC<AadhaarVerificationPopupProps> = ({
               <div className="text-red-600 text-sm">{error}</div>
             )}
             
-            {/* Fallback Option */}
-            {showFallback && fallbackUrl && (
-              <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
-                <div className="flex items-center mb-2">
-                  <div className="flex-shrink-0">
-                    <svg className="h-5 w-5 text-blue-400" viewBox="0 0 20 20" fill="currentColor">
-                      <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
-                    </svg>
-                  </div>
-                  <div className="ml-3">
-                    <h3 className="text-sm font-medium text-blue-800">
-                      System Temporarily Unavailable
-                    </h3>
+            {/* Fallback Option - New Digilocker Instructions */}
+            {showFallback && (
+              <div className="mt-4 space-y-6">
+                {/* Instructions Header */}
+                <div className="bg-gray-50 p-4 rounded-lg">
+                  <p className="text-sm text-gray-700 mb-4">
+                    Follow these steps on the Digilocker website to verify your Aadhaar.
+                  </p>
+                  
+                  {/* Step-by-step instructions */}
+                  <div className="space-y-4">
+                    {/* Step 1 */}
+                    <div className="flex items-start space-x-3">
+                      <div className="flex-shrink-0 w-8 h-8 bg-purple-100 rounded-full flex items-center justify-center">
+                        <span className="text-sm font-semibold text-purple-600">1</span>
+                      </div>
+                      <div className="flex-1">
+                        <p className="text-sm text-gray-800">
+                          Enter the <span className="font-semibold">number linked with your Aadhaar.</span>
+                        </p>
+                      </div>
+                    </div>
+                    
+                    {/* Step 2 */}
+                    <div className="flex items-start space-x-3">
+                      <div className="flex-shrink-0 w-8 h-8 bg-purple-100 rounded-full flex items-center justify-center">
+                        <span className="text-sm font-semibold text-purple-600">2</span>
+                      </div>
+                      <div className="flex-1">
+                        <p className="text-sm text-gray-800">
+                          Enter the OTP received.
+                        </p>
+                      </div>
+                    </div>
+                    
+                    {/* Step 3 */}
+                    <div className="flex items-start space-x-3">
+                      <div className="flex-shrink-0 w-8 h-8 bg-purple-100 rounded-full flex items-center justify-center">
+                        <span className="text-sm font-semibold text-purple-600">3</span>
+                      </div>
+                      <div className="flex-1">
+                        <p className="text-sm text-gray-800">
+                          Then select <span className="font-semibold">Aadhaar</span> in the issued documents list 
+                          <span className="inline-block mx-1">👆</span> and click on '<span className="font-semibold">Allow</span>'.
+                        </p>
+                      </div>
+                    </div>
                   </div>
                 </div>
-                <p className="text-sm text-blue-700 mb-3">
-                  The verification system is temporarily unavailable. Please use the alternative method below to complete your Aadhaar verification.
-                </p>
+                
+                {/* Consent Section - SVG Image */}
+                <div className="bg-gray-50 p-4 rounded-lg border border-gray-200">
+                  <img 
+                    src="https://carepay.money/static/media/Group%20113496.e6907ece85f45692f4c557da45def8ae.svg" 
+                    alt="Consent and Document Selection Interface"
+                    className="w-full h-auto"
+                  />
+                </div>
+                
+                {/* Action Buttons */}
                 <div className="space-y-2">
-                  <button
-                    onClick={handleFallbackRedirect}
-                    className="w-full px-4 py-2 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1"
-                  >
-                    Complete Verification via Alternative Method
-                  </button>
+                  {(fallbackUrl || loanId) ? (
+                    <button
+                      onClick={handleFallbackRedirect}
+                      className="w-full px-6 py-3 text-white font-semibold rounded-lg transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-1 flex items-center justify-center space-x-2"
+                      style={{
+                        background: 'linear-gradient(135deg, rgb(81, 76, 159) 0%, rgb(61, 58, 122) 100%)',
+                        boxShadow: 'rgba(81, 76, 159, 0.3) 0px 4px 6px'
+                      }}
+                    >
+                      <span>Continue to verify Aadhaar</span>
+                      <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M10.293 3.293a1 1 0 011.414 0l6 6a1 1 0 010 1.414l-6 6a1 1 0 01-1.414-1.414L14.586 11H3a1 1 0 110-2h11.586l-4.293-4.293a1 1 0 010-1.414z" clipRule="evenodd" />
+                      </svg>
+                    </button>
+                  ) : (
+                    <div className="w-full px-4 py-2 bg-gray-100 text-gray-700 font-medium rounded-lg text-center">
+                      Please contact support for alternative verification
+                    </div>
+                  )}
                   <button
                     onClick={() => {
                       setShowFallback(false);
@@ -531,31 +473,86 @@ const AadhaarVerificationPopup: React.FC<AadhaarVerificationPopupProps> = ({
               </div>
             )}
         
-            {/* Fallback Option for OTP step */}
-            {showFallback && fallbackUrl && (
-              <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
-                <div className="flex items-center mb-2">
-                  <div className="flex-shrink-0">
-                    <svg className="h-5 w-5 text-blue-400" viewBox="0 0 20 20" fill="currentColor">
-                      <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
-                    </svg>
-                  </div>
-                  <div className="ml-3">
-                    <h3 className="text-sm font-medium text-blue-800">
-                      Alternative Verification Method
-                    </h3>
+            {/* Fallback Option for OTP step - New Digilocker Instructions */}
+            {showFallback && (
+              <div className="mt-4 space-y-6">
+                {/* Instructions Header */}
+                <div className="bg-gray-50 p-4 rounded-lg">
+                  <p className="text-sm text-gray-700 mb-4">
+                    Follow these steps on the Digilocker website to verify your Aadhaar.
+                  </p>
+                  
+                  {/* Step-by-step instructions */}
+                  <div className="space-y-4">
+                    {/* Step 1 */}
+                    <div className="flex items-start space-x-3">
+                      <div className="flex-shrink-0 w-8 h-8 bg-purple-100 rounded-full flex items-center justify-center">
+                        <span className="text-sm font-semibold text-purple-600">1</span>
+                      </div>
+                      <div className="flex-1">
+                        <p className="text-sm text-gray-800">
+                          Enter the <span className="font-semibold">number linked with your Aadhaar.</span>
+                        </p>
+                      </div>
+                    </div>
+                    
+                    {/* Step 2 */}
+                    <div className="flex items-start space-x-3">
+                      <div className="flex-shrink-0 w-8 h-8 bg-purple-100 rounded-full flex items-center justify-center">
+                        <span className="text-sm font-semibold text-purple-600">2</span>
+                      </div>
+                      <div className="flex-1">
+                        <p className="text-sm text-gray-800">
+                          Enter the OTP received.
+                        </p>
+                      </div>
+                    </div>
+                    
+                    {/* Step 3 */}
+                    <div className="flex items-start space-x-3">
+                      <div className="flex-shrink-0 w-8 h-8 bg-purple-100 rounded-full flex items-center justify-center">
+                        <span className="text-sm font-semibold text-purple-600">3</span>
+                      </div>
+                      <div className="flex-1">
+                        <p className="text-sm text-gray-800">
+                          Then select <span className="font-semibold">Aadhaar</span> in the issued documents list 
+                          <span className="inline-block mx-1">👆</span> and click on '<span className="font-semibold">Allow</span>'.
+                        </p>
+                      </div>
+                    </div>
                   </div>
                 </div>
-                <p className="text-sm text-blue-700 mb-3">
-                  You can complete your Aadhaar verification using the alternative method below.
-                </p>
+                
+                {/* Consent Section - SVG Image */}
+                <div className="bg-gray-50 p-4 rounded-lg border border-gray-200">
+                  <img 
+                    src="https://carepay.money/static/media/Group%20113496.e6907ece85f45692f4c557da45def8ae.svg" 
+                    alt="Consent and Document Selection Interface"
+                    className="w-full h-auto"
+                  />
+                </div>
+                
+                {/* Action Buttons */}
                 <div className="space-y-2">
-                  <button
-                    onClick={handleFallbackRedirect}
-                    className="w-full px-4 py-2 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1"
-                  >
-                    Complete Verification via Alternative Method
-                  </button>
+                  {(fallbackUrl || loanId) ? (
+                    <button
+                      onClick={handleFallbackRedirect}
+                      className="w-full px-6 py-3 text-white font-semibold rounded-lg transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-1 flex items-center justify-center space-x-2"
+                      style={{
+                        background: 'linear-gradient(135deg, rgb(81, 76, 159) 0%, rgb(61, 58, 122) 100%)',
+                        boxShadow: 'rgba(81, 76, 159, 0.3) 0px 4px 6px'
+                      }}
+                    >
+                      <span>Continue to verify Aadhaar</span>
+                      <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M10.293 3.293a1 1 0 011.414 0l6 6a1 1 0 010 1.414l-6 6a1 1 0 01-1.414-1.414L14.586 11H3a1 1 0 110-2h11.586l-4.293-4.293a1 1 0 010-1.414z" clipRule="evenodd" />
+                      </svg>
+                    </button>
+                  ) : (
+                    <div className="w-full px-4 py-2 bg-gray-100 text-gray-700 font-medium rounded-lg text-center">
+                      Please contact support for alternative verification
+                    </div>
+                  )}
                   <button
                     onClick={() => {
                       setShowFallback(false);

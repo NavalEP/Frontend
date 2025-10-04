@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { X, MapPin, Home, Loader2, Search } from 'lucide-react';
+import { MapPin, Home, Loader2, Search } from 'lucide-react';
 import { getUserAddress, getAllFinDocDistricts, saveAddressDetails, SaveAddressDetailsRequest } from '../services/loanApi';
 import { getZipCodeDetails } from '../services/postApprovalApi';
+import AnimatedPopup from './AnimatedPopup';
 
 interface AddressDetailsPopupProps {
   isOpen: boolean;
@@ -393,30 +394,15 @@ const AddressDetailsPopup: React.FC<AddressDetailsPopupProps> = ({
           }
         `}
       </style>
-      {/* Backdrop */}
-      <div 
-        className="fixed inset-0 bg-black bg-opacity-50 z-40 transition-opacity duration-300"
-        onClick={onClose}
-      />
       
-      {/* Modal */}
-      <div className="fixed inset-0 flex items-center justify-center z-50 transition-all duration-300 ease-out">
-        <div className="bg-white rounded-3xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-hidden">
-          {/* Header */}
-          <div className="text-white px-6 py-4 rounded-t-3xl" style={{ background: 'linear-gradient(to right, #514c9f, #514c9f)' }}>
-            <div className="flex items-center justify-between">
-              <h2 className="text-xl font-bold">Address Details</h2>
-              <button
-                onClick={onClose}
-                className="text-white hover:opacity-70 transition-colors"
-              >
-                <X className="h-6 w-6" />
-              </button>
-            </div>
-          </div>
-
-          {/* Content */}
-          <div className="p-6 overflow-y-auto max-h-[calc(90vh-120px)]">
+      <AnimatedPopup
+        isOpen={isOpen}
+        onClose={onClose}
+        title="Address Details"
+        headerClassName="text-white px-6 py-4 rounded-t-3xl"
+        contentClassName="p-6 max-h-[calc(100vh-120px)]"
+        className="bg-white rounded-3xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-hidden"
+      >
             {isLoading ? (
               <div className="flex items-center justify-center py-12">
                 <Loader2 className="h-8 w-8 animate-spin" style={{ color: '#514c9f' }} />
@@ -658,9 +644,7 @@ const AddressDetailsPopup: React.FC<AddressDetailsPopupProps> = ({
                 </div>
               </div>
             )}
-          </div>
-        </div>
-      </div>
+      </AnimatedPopup>
     </>
   );
 };

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, CheckCircle } from 'lucide-react';
+import { CheckCircle } from 'lucide-react';
 import { 
   initiateAgreement, 
   getAgreementUrl, 
@@ -14,6 +14,7 @@ import {
   VerifyOtpResult,
   UserDetailsByUserIdResult
 } from '../services/postApprovalApi';
+import AnimatedPopup from './AnimatedPopup';
 
 interface AgreementSigningPopupProps {
   isOpen: boolean;
@@ -55,7 +56,6 @@ const AgreementSigningPopup: React.FC<AgreementSigningPopupProps> = ({
   const [consentChecked, setConsentChecked] = useState(false);
   const [location, setLocation] = useState<LocationData | null>(null);
   const [otp, setOtp] = useState('');
-  const [otpSent, setOtpSent] = useState(false);
   const [otpTimer, setOtpTimer] = useState(0);
   const [userPhone, setUserPhone] = useState<string>('');
   const [isRequestingLocation, setIsRequestingLocation] = useState(false);
@@ -74,7 +74,6 @@ const AgreementSigningPopup: React.FC<AgreementSigningPopupProps> = ({
       setConsentChecked(false);
       setLocation(null);
       setOtp('');
-      setOtpSent(false);
       setOtpTimer(0);
       setUserPhone('');
       setIsRequestingLocation(false);
@@ -142,7 +141,7 @@ const AgreementSigningPopup: React.FC<AgreementSigningPopupProps> = ({
             longitude: position.coords.longitude.toString()
           });
         },
-        (error) => {
+        () => {
           reject(new Error('Unable to retrieve your location. Please enable location services.'));
         },
         {
@@ -241,7 +240,6 @@ const AgreementSigningPopup: React.FC<AgreementSigningPopupProps> = ({
         throw new Error(otpResult.message || 'Failed to send OTP');
       }
 
-      setOtpSent(true);
       setOtpTimer(30); // 30 seconds timer
       setCurrentStep('otp');
     } catch (error: any) {
@@ -370,21 +368,12 @@ const AgreementSigningPopup: React.FC<AgreementSigningPopupProps> = ({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto mx-4 my-0">
-        {/* Header */}
-        <div className="flex items-center justify-between p-10 border-b border-gray-400">
-          <h2 className="text-xl font-bold text-gray-900">Authorise payment</h2>
-          <button
-            onClick={onClose}
-            className="text-gray-400 hover:text-gray-600 transition-colors"
-          >
-            <X className="h-6 w-6" />
-          </button>
-        </div>
-
-        {/* Content */}
-        <div className="p-12">
+    <AnimatedPopup
+      isOpen={isOpen}
+      onClose={onClose}
+      title="Authorise payment"
+      contentClassName="p-12 max-h-[calc(100vh-120px)]"
+    >
           {error && currentStep !== 'otp' && (
             <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg">
               <p className="text-sm text-red-800">{error}</p>
@@ -679,9 +668,7 @@ const AgreementSigningPopup: React.FC<AgreementSigningPopupProps> = ({
               </div>
             </div>
           )}
-        </div>
-      </div>
-    </div>
+    </AnimatedPopup>
   );
 };
 

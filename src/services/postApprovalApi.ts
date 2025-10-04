@@ -269,18 +269,16 @@ export interface OtpSendResult {
 
 // Interface for OTP verify API response
 export interface OtpVerifyResponse {
+  status: number;
+  data: string; // userId as string
+  attachment: string | null;
   message: string;
-  token: string;
-  phone_number: string;
-  doctor_id: string;
-  doctor_name: string;
-  userId: string;
 }
 
 // Interface for OTP verify API function return type
 export interface OtpVerifyResult {
   success: boolean;
-  data?: OtpVerifyResponse;
+  data?: string; // userId as string
   message: string;
 }
 
@@ -1603,11 +1601,11 @@ export const verifyOtp = async (mobile: string, otp: string): Promise<OtpVerifyR
 
     console.log('OTP verify response:', response.data);
 
-    // Check if the response is successful and contains required fields
-    if (response.data && response.data.userId && response.data.token) {
+    // Check if the response is successful and contains userId
+    if (response.data && response.data.data) {
       return {
         success: true,
-        data: response.data,
+        data: response.data.data, // The userId is directly in the data field
         message: response.data.message || 'OTP verified successfully'
       };
     }

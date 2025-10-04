@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { getUserDetailsByUserId, getUserBasicDetail, sendAadhaarOtp, submitAadhaarOtp, createDigiLockerUrl } from '../services/postApprovalApi';
+import AnimatedPopup from './AnimatedPopup';
 
 interface AadhaarVerificationPopupProps {
   isOpen: boolean;
@@ -256,9 +257,12 @@ const AadhaarVerificationPopup: React.FC<AadhaarVerificationPopupProps> = ({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4 max-h-[90vh] overflow-y-auto">
-        <h2 className="text-lg font-semibold text-gray-900 mb-6">Aadhaar Verification</h2>
+    <AnimatedPopup
+      isOpen={isOpen}
+      onClose={onClose}
+      title="Aadhaar Verification"
+      contentClassName="p-6 max-h-[calc(100vh-120px)]"
+    >
         
         {step === 'aadhaar' ? (
           <div className="space-y-4">
@@ -581,15 +585,7 @@ const AadhaarVerificationPopup: React.FC<AadhaarVerificationPopupProps> = ({
             )}
           </div>
         )}
-        
-        <button
-          onClick={onClose}
-          className="w-full mt-4 text-gray-600 hover:text-gray-800 text-sm"
-        >
-          Cancel
-        </button>
-      </div>
-    </div>
+    </AnimatedPopup>
   );
 };
 

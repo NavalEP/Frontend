@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { savePhotograph, checkAdvanceLiveliness, checkFaceMatch } from '../services/postApprovalApi';
+import AnimatedPopup from './AnimatedPopup';
 
 interface FaceVerificationPopupProps {
   isOpen: boolean;
@@ -18,7 +19,6 @@ const FaceVerificationPopup: React.FC<FaceVerificationPopupProps> = ({
   const [capturedImage, setCapturedImage] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const [verificationResult, setVerificationResult] = useState<any>(null);
   const [cameraPermission, setCameraPermission] = useState<boolean | null>(null);
   const [isCapturing, setIsCapturing] = useState(false);
   
@@ -32,7 +32,6 @@ const FaceVerificationPopup: React.FC<FaceVerificationPopupProps> = ({
       setStep('instructions');
       setCapturedImage(null);
       setError('');
-      setVerificationResult(null);
       setCameraPermission(null);
       setIsCapturing(false);
     } else {
@@ -288,13 +287,6 @@ const FaceVerificationPopup: React.FC<FaceVerificationPopupProps> = ({
       const livelinessScore = livelinessResult.data?.liveliness?.score || 0;
       const isLivelinessValid = livelinessResult.data?.liveliness?.liveliness === true && livelinessScore > 0.90;
       const isFaceMatchValid = faceMatchResult.data?.result?.verified === true;
-      
-      setVerificationResult({
-        liveliness: livelinessResult.data,
-        faceMatch: faceMatchResult.data,
-        isLivelinessValid,
-        isFaceMatchValid
-      });
       
       if (isLivelinessValid && isFaceMatchValid) {
         // Verification successful
@@ -572,27 +564,17 @@ const FaceVerificationPopup: React.FC<FaceVerificationPopupProps> = ({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-lg max-w-md w-full max-h-[90vh] overflow-y-auto">
-        <div className="p-6">
-          {step === 'instructions' && renderInstructions()}
-          {step === 'camera' && renderCamera()}
-          {step === 'preview' && renderPreview()}
-          {step === 'verification' && renderVerification()}
-        </div>
-        
-        {step !== 'verification' && (
-          <div className="px-6 pb-6">
-            <button
-              onClick={onClose}
-              className="w-full px-4 py-2 text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
-            >
-              Cancel
-            </button>
-          </div>
-        )}
-      </div>
-    </div>
+    <AnimatedPopup
+      isOpen={isOpen}
+      onClose={onClose}
+      title="Face Verification"
+      contentClassName="p-6 max-h-[calc(100vh-120px)]"
+    >
+      {step === 'instructions' && renderInstructions()}
+      {step === 'camera' && renderCamera()}
+      {step === 'preview' && renderPreview()}
+      {step === 'verification' && renderVerification()}
+    </AnimatedPopup>
   );
 };
 

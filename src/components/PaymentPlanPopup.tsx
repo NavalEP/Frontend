@@ -1,8 +1,9 @@
 import React, { useEffect, useState } from 'react';
-import { Loader2, CheckCircle, X } from 'lucide-react';
+import { Loader2, CheckCircle } from 'lucide-react';
 import { getLoanDetailsByUserId, getBureauDecisionData, updateTreatmentAndLoanAmount, updateProductDetail, BureauDecisionData, BureauEmiPlan, LoanDetailsByUserId } from '../services/loanApi';
-import { getFibeResponseDetail, calculateEmi, lockTenure, getBreDecision, FibeResponseDetailData, EmiCalculationData, BreDecisionData, addActivity } from '../services/postApprovalApi';
+import { getFibeResponseDetail, calculateEmi, lockTenure, getBreDecision, FibeResponseDetailData, EmiCalculationData, BreDecisionData, addActivity, getPostApprovalStatus, PostApprovalStatusData } from '../services/postApprovalApi';
 import { createSession, sendMessage } from '../services/api';
+import AnimatedPopup from './AnimatedPopup';
 
 interface PaymentPlanPopupProps {
   isOpen: boolean;
@@ -39,9 +40,9 @@ const PaymentPlanPopup: React.FC<PaymentPlanPopupProps> = ({
   const [fibeResponseDetail, setFibeResponseDetail] = useState<FibeResponseDetailData | null>(null);
   const [fibeEmiCalculations, setFibeEmiCalculations] = useState<EmiCalculationData[]>([]);
   const [selectedFibePlan, setSelectedFibePlan] = useState<EmiCalculationData | null>(null);
-  const [isPaymentPlanCompleted, setIsPaymentPlanCompleted] = useState(false);
   const [treatmentAmountError, setTreatmentAmountError] = useState<string | null>(null);
   const [isEnhancingLimit, setIsEnhancingLimit] = useState(false);
+  const [postApprovalStatus, setPostApprovalStatus] = useState<PostApprovalStatusData | null>(null);
 
   // Create session when popup opens (only if no sessionId provided)
   useEffect(() => {
@@ -101,8 +102,30 @@ const PaymentPlanPopup: React.FC<PaymentPlanPopupProps> = ({
   useEffect(() => {
     if (isOpen) {
       initializeData();
+      // Reset postapproval status when popup opens to fetch fresh data
+      setPostApprovalStatus(null);
     }
   }, [isOpen]);
+
+  // Refresh postapproval status when popup opens (to get latest status)
+  useEffect(() => {
+    const refreshPostApprovalStatus = async () => {
+      if (isOpen && extractedLoanId) {
+        try {
+          console.log('Refreshing post-approval status for loanId:', extractedLoanId);
+          const result = await getPostApprovalStatus(extractedLoanId);
+          if (result.success && result.data) {
+            console.log('Post-approval status updated:', result.data);
+            setPostApprovalStatus(result.data);
+          }
+        } catch (error) {
+          console.error('Error refreshing post-approval status:', error);
+        }
+      }
+    };
+
+    refreshPostApprovalStatus();
+  }, [isOpen, extractedLoanId]);
 
   // Initialize treatment amount when loan details are loaded
   useEffect(() => {
@@ -118,6 +141,24 @@ const PaymentPlanPopup: React.FC<PaymentPlanPopupProps> = ({
       validateTreatmentAmount(treatmentAmount);
     }
   }, [bureauDecision, fibeResponseDetail, lenderType]);
+
+  // Fetch postapproval status when loanId is available
+  useEffect(() => {
+    const fetchPostApprovalStatus = async () => {
+      if (extractedLoanId) {
+        try {
+          const result = await getPostApprovalStatus(extractedLoanId);
+          if (result.success && result.data) {
+            setPostApprovalStatus(result.data);
+          }
+        } catch (error) {
+          console.error('Error fetching post-approval status:', error);
+        }
+      }
+    };
+
+    fetchPostApprovalStatus();
+  }, [extractedLoanId]);
 
   // Initialize data when popup opens - prioritize localStorage for userId
   const initializeData = () => {
@@ -442,9 +483,6 @@ Loan Amount: ${selectedPlan.netLoanAmount}\n\n
       
       console.log('Agent message:', agentMessage);
       
-      // Mark payment plan as completed
-      setIsPaymentPlanCompleted(true);
-      
       // Call the completion callback
       if (onPaymentPlanCompleted) {
         onPaymentPlanCompleted();
@@ -485,7 +523,6 @@ Loan Amount: ${selectedPlan.netLoanAmount}\n\n
       console.error('Error processing payment plan:', error);
       // Don't show error to user, just log it and mark as completed
       console.log('Error processing payment plan, but marking as completed');
-      setIsPaymentPlanCompleted(true);
       if (onPaymentPlanCompleted) {
         onPaymentPlanCompleted();
       }
@@ -627,7 +664,7 @@ Loan Amount: ${selectedPlan.netLoanAmount}\n\n
 
   if (!isOpen) return null;
 
-    return (
+  return (
     <>
       <style>
         {`
@@ -637,29 +674,12 @@ Loan Amount: ${selectedPlan.netLoanAmount}\n\n
         `}
       </style>
         
-      {/* Backdrop */}
-      <div 
-        className="fixed inset-0 bg-black bg-opacity-50 z-40 transition-opacity duration-300"
-      />
-      
-      {/* Modal */}
-      <div className="fixed inset-0 flex items-center justify-center z-50 transition-all duration-300 ease-out">
-        <div className="bg-white rounded-3xl shadow-2xl w-full max-w-full max-h-[95vh] overflow-hidden">
-          
-          {/* Header with Close Button */}
-          <div className="flex justify-between items-center p-4 border-b border-gray-200">
-            <h2 className="text-xl font-bold text-gray-900">Payment Plan Selection</h2>
-            <button
-              onClick={onClose}
-              className="p-2 hover:bg-gray-100 rounded-full transition-colors duration-200"
-              aria-label="Close payment plan popup"
-            >
-              <X className="h-6 w-6 text-gray-600" />
-            </button>
-          </div>
-
-          {/* Content */}
-          <div className="p-6 overflow-y-auto max-h-[calc(90vh-180px)]">
+      <AnimatedPopup
+        isOpen={isOpen}
+        onClose={onClose}
+        title="Payment Plan Selection"
+        contentClassName="p-6 max-h-[calc(100vh-120px)]"
+      >
             {isLoading ? (
               <div className="flex flex-col items-center justify-center py-12">
                 <Loader2 className="h-12 w-12 text-blue-600 animate-spin mb-4" />
@@ -1072,6 +1092,39 @@ Loan Amount: ${selectedPlan.netLoanAmount}\n\n
                   </div>
                 )}
 
+                {/* Footer */}
+                {!isLoading && ((lenderType === 'findoc') || (lenderType === 'fibe')) && (
+                  <div className="bg-gray-50 px-6 py-4 mb-4 rounded-b-3xl border-t">
+                    <div className="flex justify-center">
+                      {(postApprovalStatus && (postApprovalStatus.auto_pay || postApprovalStatus.agreement_setup)) ? (
+                        <button
+                          disabled
+                          className="px-6 py-2 text-white rounded-lg font-medium flex items-center space-x-2"
+                          style={{ backgroundColor: '#10b981' }}
+                        >
+                          <CheckCircle className="h-5 w-5" />
+                          <span>Completed the payment plan selection</span>
+                        </button>
+                      ) : (
+                          <button
+                            onClick={handleContinue}
+                            disabled={treatmentAmountError !== null}
+                            className={`px-6 py-2 text-white rounded-lg font-medium transition-colors ${
+                              treatmentAmountError !== null
+                                ? 'bg-gray-400 cursor-not-allowed'
+                                : 'hover:opacity-90'
+                            }`}
+                            style={{
+                              backgroundColor: treatmentAmountError !== null ? undefined : '#514c9f'
+                            }}
+                          >
+                            Continue with Payment Plan
+                          </button>
+                        )}
+                    </div>
+                  </div>
+                )}
+
                 {/* Enhance Credit Limit Section - Only for Findoc - Always Show */}
                 {lenderType === 'findoc' && (
                   <div className="bg-gradient-to-r from-green-50 to-emerald-50 rounded-xl p-4 border border-green-200">
@@ -1120,43 +1173,8 @@ Loan Amount: ${selectedPlan.netLoanAmount}\n\n
                   </div>
                 )}
               </div>
-            )}
-          </div>
-
-          {/* Footer */}
-          {!isLoading && ((lenderType === 'findoc' && selectedPlan) || (lenderType === 'fibe' && selectedFibePlan)) && (
-            <div className="bg-gray-50 px-6 py-4 mb-4 rounded-b-3xl border-t">
-              <div className="flex justify-center">
-                {isPaymentPlanCompleted ? (
-                  <button
-                    disabled
-                    className="px-6 py-2 text-white rounded-lg font-medium flex items-center space-x-2"
-                    style={{ backgroundColor: '#10b981' }}
-                  >
-                    <CheckCircle className="h-5 w-5" />
-                    <span>Completed the payment plan selection</span>
-                  </button>
-                ) : (
-                  <button
-                    onClick={handleContinue}
-                    disabled={treatmentAmountError !== null}
-                    className={`px-6 py-2 text-white rounded-lg font-medium transition-colors ${
-                      treatmentAmountError !== null
-                        ? 'bg-gray-400 cursor-not-allowed'
-                        : 'hover:opacity-90'
-                    }`}
-                    style={{
-                      backgroundColor: treatmentAmountError !== null ? undefined : '#514c9f'
-                    }}
-                  >
-                    Continue with Payment Plan
-                  </button>
                 )}
-              </div>
-            </div>
-          )}
-        </div>
-      </div>
+      </AnimatedPopup>
     </>
   );
 };

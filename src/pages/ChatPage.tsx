@@ -90,6 +90,7 @@ const ChatPage: React.FC = () => {
     });
   }, [doctorId, doctorName, loginRoute]);
 
+
   // Load Razorpay script
   useEffect(() => {
     const loadRazorpayScript = () => {
@@ -143,6 +144,14 @@ const ChatPage: React.FC = () => {
   
   const [showShareButton, setShowShareButton] = useState(false);
 
+  // Debug logging for treatment amount screen state
+  useEffect(() => {
+    console.log('Treatment Amount Screen State Changed:', {
+      showTreatmentAmountScreen,
+      verifiedUserId,
+      inputTreatmentAmount
+    });
+  }, [showTreatmentAmountScreen, verifiedUserId, inputTreatmentAmount]);
 
   // Utility function to create image preview
   const createImagePreview = (file: File): Promise<string> => {
@@ -1618,7 +1627,9 @@ const ChatPage: React.FC = () => {
       const result = await verifyOtp(mobileNumber, otp);
       
       if (result.success && result.data) {
-        const { userId, phone_number } = result.data;
+        // The API now returns userId directly as a string in result.data
+        const userId = result.data;
+        const phone_number = mobileNumber; // Use the mobile number from the form
         
         // Store the verified userId and phone number in localStorage for future use
         localStorage.setItem('userId', userId);
@@ -1630,12 +1641,19 @@ const ChatPage: React.FC = () => {
         setVerifiedUserId(userId);
         setShowTreatmentAmountScreen(true);
         
-        // Close OTP popup and reset form
+        // Close OTP popup and reset form first
         setShowOtpPopup(false);
         setMobileNumber('');
         setOtp('');
         setOtpSent(false);
         setOtpError(null);
+        
+        // Add a small delay to ensure OTP popup is closed before showing treatment amount screen
+        setTimeout(() => {
+          setShowTreatmentAmountScreen(true);
+          console.log('Treatment amount screen should now be visible');
+        }, 100);
+        
       } else {
         setOtpError(result.message || 'Invalid OTP. Please try again.');
       }
@@ -3061,7 +3079,7 @@ const ChatPage: React.FC = () => {
 
       {/* Treatment Amount Input Screen */}
       {showTreatmentAmountScreen && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[60] p-4">
           <div className="bg-white rounded-lg shadow-xl max-w-md w-full p-6">
             <div className="flex justify-between items-center mb-4">
               <h3 className="text-lg font-semibold text-gray-900">Enter Treatment Amount</h3>

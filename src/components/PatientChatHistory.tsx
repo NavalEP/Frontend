@@ -154,7 +154,7 @@ const PatientChatHistory: React.FC<PatientChatHistoryProps> = ({
               </button>
               <div>
                 <h3 className="font-semibold">Chat History</h3>
-                <p className="text-sm opacity-90">Session: {sessionDetails.session_id}</p>
+                <p className="text-sm opacity-90">Session: {sessionDetails.phoneNumber}</p>
               </div>
             </div>
             <div className="text-sm opacity-90">
@@ -270,7 +270,7 @@ const PatientChatHistory: React.FC<PatientChatHistoryProps> = ({
                     <div className="flex-1">
                       <div className="flex items-center space-x-2 mb-2">
                         <MessageCircle className="h-4 w-4 text-gray-400" />
-                        <h4 className="font-medium text-gray-900">Session {session.session_id}</h4>
+                        <h4 className="font-medium text-gray-900">{session.phone_number}</h4>
                         <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(session.status)}`}>
                           {formatStatus(session.status)}
                         </span>

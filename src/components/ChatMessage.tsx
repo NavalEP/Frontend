@@ -1,7 +1,16 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Copy, ExternalLink, Share2, Search, ArrowDown, Upload, CheckCircle } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
+
+// Declare Razorpay type for TypeScript
+declare global {
+  interface Window {
+    Razorpay: any;
+  }
+}
 import { getShortlink, searchTreatments } from '../services/api';
+import { getLoanDetailsByUserId } from '../services/loanApi';
+import { getDataForCheckoutApi } from '../services/postApprovalApi';
 import { smartShare, isNativeSharingSupported } from '../utils/shareUtils';
 import ShareButton from './ShareButton';
 import PaymentStepsMessage from './PaymentStepsMessage';
@@ -30,6 +39,7 @@ interface ChatMessageProps {
   isPaymentPlanCompleted?: boolean;
   isAddressDetailsCompleted?: boolean;
   onAadhaarVerificationClick?: () => void;
+  loginRoute?: string | null;
 }
 
 // Component for styled treatment amount display
@@ -97,7 +107,7 @@ const TreatmentAmountDisplay: React.FC<{ text: string }> = ({ text }) => {
   return <span>{parts}</span>;
 };
 
-const ChatMessage: React.FC<ChatMessageProps> = ({ message, onButtonClick, selectedOption, disabledOptions, onLinkClick, onTreatmentSelect, selectedTreatment, onUploadClick, onPaymentPlanPopupOpen, onAddressDetailsPopupOpen, loanId, isPaymentPlanCompleted, isAddressDetailsCompleted, onAadhaarVerificationClick }) => {
+const ChatMessage: React.FC<ChatMessageProps> = ({ message, onButtonClick, selectedOption, disabledOptions, onLinkClick, onTreatmentSelect, selectedTreatment, onUploadClick, onPaymentPlanPopupOpen, onAddressDetailsPopupOpen, loanId, isPaymentPlanCompleted, isAddressDetailsCompleted, onAadhaarVerificationClick, loginRoute }) => {
   const isUser = message.sender === 'user';
   const [resolvedUrls, setResolvedUrls] = useState<Record<string, string>>({});
   const [loadingUrls, setLoadingUrls] = useState<Set<string>>(new Set());
@@ -107,7 +117,66 @@ const ChatMessage: React.FC<ChatMessageProps> = ({ message, onButtonClick, selec
   const [isSearchingTreatments, setIsSearchingTreatments] = useState(false);
   const treatmentSearchRef = useRef<HTMLDivElement>(null);
   const [aadhaarVerificationUrl, setAadhaarVerificationUrl] = useState<string>('');
+  const [scriptLoaded, setScriptLoaded] = useState(false);
   
+  // Load Razorpay script
+  useEffect(() => {
+    const loadRazorpayScript = () => {
+      if (window.Razorpay) {
+        setScriptLoaded(true);
+        return;
+      }
+
+      const script = document.createElement('script');
+      script.src = 'https://checkout.razorpay.com/v1/checkout.js';
+      script.async = true;
+      script.onload = () => {
+        setScriptLoaded(true);
+      };
+      script.onerror = () => {
+        console.error('Failed to load Razorpay script');
+      };
+      document.body.appendChild(script);
+    };
+
+    loadRazorpayScript();
+  }, []);
+
+  // Payment handler for Razorpay widget
+  const paymentHandler = (orderData: any) => {
+    console.log('Opening Razorpay widget with data:', orderData);
+    if (!scriptLoaded) {
+      console.error("Razorpay script not loaded yet.");
+      return;
+    }
+    
+    if (orderData.key) {
+      const options = {
+        "key": orderData.key,
+        "amount": orderData.amount,
+        "currency": "INR",
+        "name": orderData.userName,
+        "description": "",
+        "image": "https://carepay.money/static/media/CarepayLogo1.9e97fd1b1ac4690ac40e.webp",
+        "order_id": orderData.orderId,
+        "callback_url": orderData.callback_url,
+        "redirect": "false",
+        "prefill": {
+          "name": orderData.userName,
+          "email": "",
+          "contact": orderData.userMobileNo
+        },
+        "notes": {
+          "address": "Gurugram"
+        },
+        "theme": {
+          "color": "#514C9F"
+        }
+      };
+      const rzp1 = new (window as any).Razorpay(options);
+      rzp1.open();
+    }
+  };
   
   // Check if this is an OCR result message
   const isOcrResult = message.text.includes('📋 **Aadhaar Card Details Extracted Successfully!**') || 
@@ -1265,10 +1334,33 @@ const ChatMessage: React.FC<ChatMessageProps> = ({ message, onButtonClick, selec
             <div className="mt-3">
               <div className="flex space-x-2">
                 <button
-                  onClick={() => {
+                  onClick={async () => {
                     const userId = localStorage.getItem('userId');
                     if (userId) {
-                      window.open(`https://carepay.money/patient/razorpayoffer/${userId}`, '_blank');
+                      try {
+                        // Get loan details to get the loanId
+                        const loanDetailsResult = await getLoanDetailsByUserId(userId);
+                        if (loanDetailsResult && loanDetailsResult.loanId) {
+                          // Get checkout data for Razorpay using the loanId
+                          const checkoutResult = await getDataForCheckoutApi(loanDetailsResult.loanId);
+                          if (checkoutResult.success && checkoutResult.data) {
+                            // Open Razorpay widget directly
+                            paymentHandler(checkoutResult.data);
+                          } else {
+                            console.error('Failed to get checkout data:', checkoutResult.message);
+                            // Fallback to opening URL in new tab
+                            window.open(`https://carepay.money/patient/razorpayoffer/${userId}`, '_blank');
+                          }
+                        } else {
+                          console.error('Could not get loanId for user');
+                          // Fallback to opening URL in new tab
+                          window.open(`https://carepay.money/patient/razorpayoffer/${userId}`, '_blank');
+                        }
+                      } catch (error) {
+                        console.error('Error getting checkout data:', error);
+                        // Fallback to opening URL in new tab
+                        window.open(`https://carepay.money/patient/razorpayoffer/${userId}`, '_blank');
+                      }
                     }
                   }}
                   className="flex-1 px-4 py-2.5 bg-green-500 hover:bg-green-600 text-white font-medium rounded-lg transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-1 flex items-center justify-center space-x-2 shadow-lg"
@@ -1281,13 +1373,15 @@ const ChatMessage: React.FC<ChatMessageProps> = ({ message, onButtonClick, selec
                   <span className="text-sm md:text-base">No-cost Credit & Debit Card EMI</span>
                   <span className="ml-2 text-xs bg-green-600 px-2 py-1 rounded-full">⚡ Quick</span>
                 </button>
-                <ShareButton
-                  type="text"
-                  title="No-cost EMI Offer"
-                  text="Check out this amazing no-cost EMI offer for medical treatments!"
-                  url={`https://carepay.money/patient/razorpayoffer/${localStorage.getItem('userId')}`}
-                  className="px-3 py-2.5 hover:opacity-90 text-white font-medium rounded-lg transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-offset-1 shadow-lg"
-                />
+                {loginRoute === '/doctor-login' && (
+                  <ShareButton
+                    type="text"
+                    title="No-cost EMI Offer"
+                    text="Check out this amazing no-cost EMI offer for medical treatments!"
+                    url={`https://carepay.money/patient/razorpayoffer/${localStorage.getItem('userId')}`}
+                    className="px-3 py-2.5 hover:opacity-90 text-white font-medium rounded-lg transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-offset-1 shadow-lg"
+                  />
+                )}
               </div>
               <p className="text-xs text-gray-500 text-center mt-1">Click here to apply for no-cost EMI or share the offer</p>
             </div>
@@ -1391,6 +1485,7 @@ const ChatMessage: React.FC<ChatMessageProps> = ({ message, onButtonClick, selec
                 loanId={loanId}
                 onAadhaarVerificationClick={onAadhaarVerificationClick}
                 fallbackUrl={aadhaarVerificationUrl}
+                loginRoute={loginRoute}
               />
             </div>
           )}

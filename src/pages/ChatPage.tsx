@@ -15,10 +15,11 @@ import PaymentPlanPopup from '../components/PaymentPlanPopup';
 import AddressDetailsPopup from '../components/AddressDetailsPopup';
 import ProgressBar from '../components/ProgressBar';
 import DisbursalOrderOverlay from '../components/DisbursalOrderOverlay';
+import ShareButton from '../components/ShareButton';
 
 
 import { useProgressBarState } from '../utils/progressUtils';
-import { PostApprovalStatusData, callFinDocApis, getDoctorCategory, sendOtpToMobile, verifyOtp, getPostApprovalStatus } from '../services/postApprovalApi';
+import { PostApprovalStatusData, callFinDocApis, getDoctorCategory, sendOtpToMobile, verifyOtp, getPostApprovalStatus, getDataForCheckoutApi, saveLoanDetailsForOffer } from '../services/postApprovalApi';
 import { SendHorizonal, Plus, Notebook as Robot, History, ArrowLeft, Search, LogOut, User, MapPin, Briefcase, Calendar, Mail, GraduationCap, Heart, Edit3, Phone, Menu, TrendingUp } from 'lucide-react';
 import LoanTransactionsPage from './LoanTransactionsPage';
 import BusinessOverviewPage from './BusinessOverviewPage';
@@ -66,7 +67,7 @@ const ChatPage: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [userStatuses, setUserStatuses] = useState<string[]>([]);
   const [loanId, setLoanId] = useState<string | null>(null);
-  const [postApprovalData, setPostApprovalData] = useState<PostApprovalStatusData | null>(null);
+  const [, setPostApprovalData] = useState<PostApprovalStatusData | null>(null);
   const [stepCompletion, setStepCompletion] = useState<{
     eligibility: boolean;
     selectPlan: boolean;
@@ -88,7 +89,31 @@ const ChatPage: React.FC = () => {
       userType: loginRoute === '/doctor-login' ? 'Doctor' : 'Patient'
     });
   }, [doctorId, doctorName, loginRoute]);
-  const [showOfferButton, setShowOfferButton] = useState(false);
+
+  // Load Razorpay script
+  useEffect(() => {
+    const loadRazorpayScript = () => {
+      return new Promise((resolve) => {
+        if ((window as any).Razorpay) {
+          setScriptLoaded(true);
+          resolve(true);
+          return;
+        }
+        const script = document.createElement('script');
+        script.src = 'https://checkout.razorpay.com/v1/checkout.js';
+        script.onload = () => {
+          setScriptLoaded(true);
+          resolve(true);
+        };
+        script.onerror = () => {
+          resolve(false);
+        };
+        document.body.appendChild(script);
+      });
+    };
+
+    loadRazorpayScript();
+  }, []);
   const [showLoanTransactionsOverlay, setShowLoanTransactionsOverlay] = useState(false);
   const [showBusinessOverviewOverlay, setShowBusinessOverviewOverlay] = useState(false);
   
@@ -99,8 +124,24 @@ const ChatPage: React.FC = () => {
   const [otpSent, setOtpSent] = useState(false);
   const [otpLoading, setOtpLoading] = useState(false);
   const [otpError, setOtpError] = useState<string | null>(null);
-  const [showRazorpayIframe, setShowRazorpayIframe] = useState(false);
-  const [razorpayUserId, setRazorpayUserId] = useState<string | null>(null);
+  
+  // Loan details and Razorpay states
+  const [loanDetails, setLoanDetails] = useState<{
+    loanAmount: number;
+    treatmentAmount: number;
+    loanReason: string;
+    userName: string;
+  } | null>(null);
+  const [scriptLoaded, setScriptLoaded] = useState(false);
+  const [, setCheckoutData] = useState<any>(null);
+  
+  // Treatment amount input screen states
+  const [showTreatmentAmountScreen, setShowTreatmentAmountScreen] = useState(false);
+  const [inputTreatmentAmount, setInputTreatmentAmount] = useState('');
+  const [treatmentAmountError, setTreatmentAmountError] = useState<string | null>(null);
+  const [verifiedUserId, setVerifiedUserId] = useState<string | null>(null);
+  
+  const [showShareButton, setShowShareButton] = useState(false);
 
 
   // Utility function to create image preview
@@ -948,6 +989,7 @@ const ChatPage: React.FC = () => {
     // Clear all existing session data to ensure fresh start
     localStorage.removeItem('current_session_id');
     localStorage.removeItem('userId'); // Clear user ID for new inquiry
+    localStorage.removeItem('verifiedPhoneNumber'); // Clear verified phone number for new inquiry
     
     if (doctorId) {
       localStorage.removeItem(`session_id_doctor_${doctorId}`);
@@ -1011,6 +1053,7 @@ const ChatPage: React.FC = () => {
   const clearSessionData = () => {
     localStorage.removeItem('current_session_id');
     localStorage.removeItem('userId'); // Clear user ID
+    localStorage.removeItem('verifiedPhoneNumber'); // Clear verified phone number
     if (doctorId) {
       localStorage.removeItem(`session_id_doctor_${doctorId}`);
       // Clear disabled options, selected options, and selected treatments for the current session
@@ -1069,7 +1112,7 @@ const ChatPage: React.FC = () => {
 
   // Function to handle payment plan completion
   const handlePaymentPlanCompleted = () => {
-    setIsPaymentPlanCompleted(true);
+    // setIsPaymentPlanCompleted(true);
   };
 
   // Monitor messages for "Preferred EMI plan" to auto-complete payment plan
@@ -1144,16 +1187,29 @@ const ChatPage: React.FC = () => {
     startNewSession(); // Start fresh new session
   };
 
+  // Check if share button should be shown (userId exists and treatment amount is filled)
   useEffect(() => {
-    // Show offer button if patient info has been submitted and the last message is from the agent
-    if (patientInfoSubmitted && messages.length > 0 && messages[messages.length - 1].sender === 'agent') {
-      setShowOfferButton(true);
-    } else {
-      setShowOfferButton(false);
-    }
-  }, [messages, patientInfoSubmitted]);
+    const checkShareButtonVisibility = async () => {
+      const userIdFromStorage = localStorage.getItem('userId');
+      if (userIdFromStorage) {
+        try {
+          const existingLoanDetails = await getLoanDetailsByUserId(userIdFromStorage);
+          if (existingLoanDetails && existingLoanDetails.loanAmount > 0) {
+            setShowShareButton(true);
+          } else {
+            setShowShareButton(false);
+          }
+        } catch (error) {
+          console.log('Could not fetch loan details for share button visibility:', error);
+          setShowShareButton(false);
+        }
+      } else {
+        setShowShareButton(false);
+      }
+    };
 
-  
+    checkShareButtonVisibility();
+  }, [sessionDetails, verifiedUserId, inputTreatmentAmount]);
 
   // Handle file upload
   const handleFileUpload = async (file: File) => {
@@ -1445,7 +1501,7 @@ const ChatPage: React.FC = () => {
 
   // Helper function to check if edit profile should be disabled
   const isEditProfileDisabled = (): boolean => {
-    return sessionDetails?.status === 'additional_details_completed';
+    return true; // Always disable edit profile
   };
 
   // Load disabled options, selected options, and selected treatments from localStorage on component mount
@@ -1562,12 +1618,20 @@ const ChatPage: React.FC = () => {
       const result = await verifyOtp(mobileNumber, otp);
       
       if (result.success && result.data) {
-        // Store the userId from OTP verification response
-        setRazorpayUserId(result.data);
-        setShowOtpPopup(false);
-        setShowRazorpayIframe(true);
+        const { userId, phone_number } = result.data;
         
-        // Reset OTP form
+        // Store the verified userId and phone number in localStorage for future use
+        localStorage.setItem('userId', userId);
+        localStorage.setItem('verifiedPhoneNumber', phone_number);
+        console.log('UserId stored in localStorage:', userId);
+        console.log('Phone number stored in localStorage:', phone_number);
+        
+        // Store the verified userId and show treatment amount input screen
+        setVerifiedUserId(userId);
+        setShowTreatmentAmountScreen(true);
+        
+        // Close OTP popup and reset form
+        setShowOtpPopup(false);
         setMobileNumber('');
         setOtp('');
         setOtpSent(false);
@@ -1591,9 +1655,124 @@ const ChatPage: React.FC = () => {
     setOtpError(null);
   };
 
-  const handleCloseRazorpayIframe = () => {
-    setShowRazorpayIframe(false);
-    setRazorpayUserId(null);
+
+  // Handler for treatment amount input screen
+  const handleTreatmentAmountSubmit = async () => {
+    if (!inputTreatmentAmount.trim()) {
+      setTreatmentAmountError('Please enter the treatment amount');
+      return;
+    }
+
+    const amount = parseFloat(inputTreatmentAmount);
+    if (isNaN(amount) || amount <= 0) {
+      setTreatmentAmountError('Please enter a valid treatment amount');
+      return;
+    }
+
+    if (!verifiedUserId || !doctorId || !doctorName || !loanDetails) {
+      setTreatmentAmountError('Missing required information. Please try again.');
+      return;
+    }
+
+    try {
+      setTreatmentAmountError(null);
+      
+      // Save loan details with the entered treatment amount
+      const saveResult = await saveLoanDetailsForOffer({
+        userId: verifiedUserId,
+        doctorId: doctorId,
+        doctorName: doctorName,
+        formStatus: "completed",
+        treatmentAmount: amount.toString(),
+        loanAmount: amount.toString(), // Use same amount for loan amount
+        loanReason: loanDetails.loanReason,
+        Name: loanDetails.userName
+      });
+      
+      if (saveResult.success) {
+        console.log('Loan details saved successfully');
+        
+        // Update share button visibility since treatment amount is now filled
+        setShowShareButton(true);
+        
+        // First, get the loan details to get the loanId
+        try {
+          const loanDetailsResult = await getLoanDetailsByUserId(verifiedUserId);
+          if (loanDetailsResult && loanDetailsResult.loanId) {
+            // Get checkout data for Razorpay using the loanId
+            const checkoutResult = await getDataForCheckoutApi(loanDetailsResult.loanId);
+            if (checkoutResult.success && checkoutResult.data) {
+              setCheckoutData(checkoutResult.data);
+              // Open Razorpay widget directly
+              paymentHandler2(checkoutResult.data);
+              
+              // Close treatment amount screen
+              setShowTreatmentAmountScreen(false);
+              setInputTreatmentAmount('');
+              setVerifiedUserId(null);
+            } else {
+              console.error('Failed to get checkout data:', checkoutResult.message);
+              setTreatmentAmountError('Failed to initialize payment. Please try again.');
+            }
+          } else {
+            console.error('Could not get loanId after saving loan details');
+            setTreatmentAmountError('Failed to get loan information. Please try again.');
+          }
+        } catch (error: any) {
+          console.error('Error getting loan details after save:', error);
+          setTreatmentAmountError('Failed to get loan information. Please try again.');
+        }
+      } else {
+        console.error('Failed to save loan details:', saveResult.message);
+        setTreatmentAmountError('Failed to save loan details. Please try again.');
+      }
+    } catch (error: any) {
+      console.error('Error saving loan details:', error);
+      setTreatmentAmountError('Failed to save loan details. Please try again.');
+    }
+  };
+
+  const handleCloseTreatmentAmountScreen = () => {
+    setShowTreatmentAmountScreen(false);
+    setInputTreatmentAmount('');
+    setTreatmentAmountError(null);
+    setVerifiedUserId(null);
+  };
+
+  // Payment handler for Razorpay widget
+  const paymentHandler2 = (orderData: any) => {
+    console.log(orderData);
+    if (!scriptLoaded) {
+      console.error("Razorpay script not loaded yet.");
+      return;
+    }
+    console.log(orderData);
+    if (orderData.key) {
+      const options = {
+        "key": orderData.key,
+        "amount": orderData.amount,
+        "currency": "INR",
+        "name": orderData.userName,
+        "description": "",
+        "image": "https://carepay.money/static/media/CarepayLogo1.9e97fd1b1ac4690ac40e.webp",
+        "order_id": orderData.orderId,
+        "callback_url": orderData.callback_url,
+        "redirect": "false",
+        "prefill": {
+          "name": orderData.userName,
+          "email": "",
+          "contact": orderData.userMobileNo
+        },
+        "notes": {
+          "address": "Gurugram"
+        },
+        "theme": {
+          "color": "#514C9F"
+        }
+      };
+      const rzp1 = new (window as any).Razorpay(options);
+      rzp1.open();
+    }
   };
 
   // Function to determine current step based on session status
@@ -2119,16 +2298,97 @@ const ChatPage: React.FC = () => {
           )}
 
           
-          {/* Offer button - Only show when showOfferButton is true */}
-          {showOfferButton && (
-            <div className="px-4 py-3 flex justify-center flex-shrink-0 bg-gray-50">
+          {/* Offer button */}
+          {(
+            <div className="px-4 py-3 flex justify-center items-center gap-3 flex-shrink-0 bg-gray-50">
               <button
-                onClick={() => {
-                  const userId = localStorage.getItem('userId');
-                  if (userId) {
-                    // Open iframe with existing userId
-                    setRazorpayUserId(userId);
-                    setShowRazorpayIframe(true);
+                onClick={async () => {
+                  try {
+                    let loanAmount = 0;
+                    let treatmentAmount = 0;
+                    // Use verified phone number from localStorage if available, otherwise fall back to session details
+                    const verifiedPhoneNumber = localStorage.getItem('verifiedPhoneNumber');
+                    let userName = verifiedPhoneNumber || sessionDetails?.phoneNumber || "User";
+                    
+                    // Check if userId exists in localStorage first
+                    const userIdFromStorage = localStorage.getItem('userId');
+                    
+                    // Try to get existing loan details if userId is available (from session or localStorage)
+                    const userIdToCheck = sessionDetails?.userId || userIdFromStorage;
+                    if (userIdToCheck) {
+                      try {
+                        const existingLoanDetails = await getLoanDetailsByUserId(userIdToCheck);
+                        if (existingLoanDetails) {
+                          loanAmount = existingLoanDetails.loanAmount || 0;
+                          treatmentAmount = existingLoanDetails.loanAmount || 0; // Use loanAmount as treatmentAmount
+                          userName = existingLoanDetails.patientName || userName;
+                        }
+                      } catch (error) {
+                        console.log('Could not fetch existing loan details:', error);
+                      }
+                    }
+                    
+                    // Set up loan details for the offer
+                    setLoanDetails({
+                      loanAmount: loanAmount,
+                      treatmentAmount: treatmentAmount,
+                      loanReason: "Medical Treatment - No Cost EMI",
+                      userName: userName
+                    });
+                    
+                    // Check if we have userId in localStorage and treatment amount > 0
+                    if (userIdFromStorage && treatmentAmount > 0) {
+                      // Skip OTP verification and go directly to Razorpay offer
+                      console.log('User ID found in localStorage and treatment amount > 0, skipping OTP verification');
+                      
+                      // Set verified userId and proceed with checkout
+                      setVerifiedUserId(userIdFromStorage);
+                      
+                      try {
+                        // Get loan details to get the loanId
+                        const loanDetailsResult = await getLoanDetailsByUserId(userIdFromStorage);
+                        if (loanDetailsResult && loanDetailsResult.loanId) {
+                          // Get checkout data for Razorpay using the loanId
+                          const checkoutResult = await getDataForCheckoutApi(loanDetailsResult.loanId);
+                          if (checkoutResult.success && checkoutResult.data) {
+                            setCheckoutData(checkoutResult.data);
+                            // Open Razorpay widget directly
+                            paymentHandler2(checkoutResult.data);
+                          } else {
+                            console.error('Failed to get checkout data:', checkoutResult.message);
+                            // Fallback to OTP verification
+                            setShowOtpPopup(true);
+                          }
+                        } else {
+                          console.error('Could not get loanId for existing user');
+                          // Fallback to OTP verification
+                          setShowOtpPopup(true);
+                        }
+                      } catch (error) {
+                        console.error('Error getting checkout data for existing user:', error);
+                        // Fallback to OTP verification
+                        setShowOtpPopup(true);
+                      }
+                    } else if (userIdFromStorage && treatmentAmount === 0) {
+                      // User ID exists but no treatment amount, show treatment amount input screen
+                      console.log('User ID found in localStorage but no treatment amount, showing treatment amount input');
+                      setVerifiedUserId(userIdFromStorage);
+                      setShowTreatmentAmountScreen(true);
+                    } else {
+                      // No userId in localStorage, proceed with OTP verification
+                      console.log('No userId in localStorage, proceeding with OTP verification');
+                      setShowOtpPopup(true);
+                    }
+                  } catch (error) {
+                    console.error('Error setting up loan details:', error);
+                    // Fallback with zero amounts and show OTP popup
+                    setLoanDetails({
+                      loanAmount: 0,
+                      treatmentAmount: 0,
+                      loanReason: "Medical Treatment - No Cost EMI",
+                      userName: localStorage.getItem('verifiedPhoneNumber') || sessionDetails?.phoneNumber || "User"
+                    });
+                    setShowOtpPopup(true);
                   }
                 }}
                 className="bg-green-500 hover:bg-green-600 text-white font-medium py-3 px-6 rounded-full flex items-center shadow-lg transition-all duration-300 transform hover:scale-105"
@@ -2136,11 +2396,21 @@ const ChatPage: React.FC = () => {
                 <img 
                   src="https://carepay.money/static/media/Cards%202.f655246b233e2a166c74.gif" 
                   alt="Credit Card" 
-                  className="h-6 w-6 mr-2" 
+                  className="h-6 w-6 mr-2"
                 />
-                <span className="text-sm">No cost EMI on credit cards</span>
-                <span className="ml-2 text-xs bg-green-600 px-2 py-1 rounded-full">⚡ Quick</span>
+                <span className="text-sm">No cost EMI on credit cards and debit cards</span>
               </button>
+              
+              {/* Share button - only show for doctor login when userId exists and treatment amount is filled */}
+              {showShareButton && loginRoute === '/doctor-login' && (
+                <ShareButton
+                  type="text"
+                  title="No-cost EMI Offer"
+                  text="Check out this amazing no-cost EMI offer for medical treatments!"
+                  url={`https://carepay.money/patient/razorpayoffer/${localStorage.getItem('userId')}`}
+                  className="px-3 py-2.5 hover:opacity-90 text-white font-medium rounded-lg transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-offset-1 shadow-lg bg-blue-500 hover:bg-blue-600"
+                />
+              )}
             </div>
           )}
           
@@ -2171,6 +2441,7 @@ const ChatPage: React.FC = () => {
                   isPaymentPlanCompleted={isPaymentPlanCompleted}
                   isAddressDetailsCompleted={isAddressDetailsCompleted}
                   onAadhaarVerificationClick={() => {}} // This is now handled in PaymentStepsMessage
+                  loginRoute={loginRoute}
                 />
               ))}
               {isLoading && messages.some(m => m.sender === 'user') && (
@@ -2205,6 +2476,7 @@ const ChatPage: React.FC = () => {
               <StructuredInputForm 
                 onSubmit={handleStructuredFormSubmit}
                 isLoading={isLoading}
+                loginRoute={loginRoute}
               />
             ) : (
               /* Regular Message Input */
@@ -2787,69 +3059,69 @@ const ChatPage: React.FC = () => {
         </div>
       )}
 
-      {/* Iframe Popup Modal */}
-      {showRazorpayIframe && razorpayUserId && (
-        <div className="fixed inset-0 bg-white z-50">
-          <div className="absolute top-4 right-4 z-50">
-            <button
-              onClick={handleCloseRazorpayIframe}
-              className="bg-white rounded-full p-2 shadow-lg"
-              style={{
-                width: '40px',
-                height: '40px',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center'
-              }}
-            >
-              <svg 
-                className="w-6 h-6 text-gray-600" 
-                fill="none" 
-                stroke="currentColor" 
-                viewBox="0 0 24 24"
+      {/* Treatment Amount Input Screen */}
+      {showTreatmentAmountScreen && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg shadow-xl max-w-md w-full p-6">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-lg font-semibold text-gray-900">Enter Treatment Amount</h3>
+              <button
+                onClick={handleCloseTreatmentAmountScreen}
+                className="text-gray-400 hover:text-gray-600"
               >
-                <path 
-                  strokeLinecap="round" 
-                  strokeLinejoin="round" 
-                  strokeWidth={2} 
-                  d="M6 18L18 6M6 6l12 12" 
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            <div>
+              <p className="text-gray-600 mb-4">
+                Please enter the treatment amount for your No-Cost EMI Credit Card and Debit Card offer.
+              </p>
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Treatment Amount (₹)
+                </label>
+                <input
+                  type="number"
+                  value={inputTreatmentAmount}
+                  onChange={(e) => setInputTreatmentAmount(e.target.value)}
+                  placeholder="Enter treatment amount"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                  min="1"
+                  step="1"
                 />
-              </svg>
-            </button>
+              </div>
+              {treatmentAmountError && (
+                <div className="mb-4 p-3 bg-red-50 border border-red-200 text-red-700 rounded-md text-sm">
+                  {treatmentAmountError}
+                </div>
+              )}
+              <div className="flex space-x-3">
+                <button
+                  onClick={handleCloseTreatmentAmountScreen}
+                  className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleTreatmentAmountSubmit}
+                  className="flex-1 px-4 py-2 bg-green-500 text-white rounded-md hover:bg-green-600 transition-colors flex items-center justify-center"
+                >
+                  <img 
+                    src="https://carepay.money/static/media/Cards%202.f655246b233e2a166c74.gif" 
+                    alt="Credit Card" 
+                    className="h-4 w-4 mr-2" 
+                  />
+                  Continue
+                </button>
+              </div>
+            </div>
           </div>
-          <iframe
-            src={`https://carepay.money/patient/razorpayoffer/${razorpayUserId}`}
-            title="Razorpay Offer"
-            className="w-full h-full iframe-scrollbar"
-            allow="camera; microphone; geolocation; payment; clipboard-write; web-share; fullscreen; publickey-credentials-get; publickey-credentials-create; otp-credentials"
-            sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-modals allow-top-navigation allow-top-navigation-by-user-activation allow-downloads allow-storage-access-by-user-activation"
-            style={{ 
-              overflow: 'auto',
-              border: 'none',
-              WebkitOverflowScrolling: 'touch',
-              width: '100vw',
-              height: '100vh',
-              position: 'fixed',
-              top: 0,
-              left: 0,
-              right: 0,
-              bottom: 0,
-              transform: 'scale(1)',
-              transformOrigin: '0 0',
-              WebkitTransform: 'scale(1)',
-              WebkitTransformOrigin: '0 0',
-              touchAction: 'manipulation',
-              WebkitTouchCallout: 'none',
-              WebkitUserSelect: 'none',
-              userSelect: 'none',
-              scrollbarWidth: 'thin',
-              scrollbarColor: 'rgba(0, 0, 0, 0.2) rgba(0, 0, 0, 0.05)'
-            }}
-            scrolling="auto"
-            onClick={(e) => e.stopPropagation()}
-          ></iframe>
         </div>
       )}
+
     </div>
   );
 };

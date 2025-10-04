@@ -21,9 +21,10 @@ interface PaymentStepsMessageProps {
   loanId?: string;
   onAadhaarVerificationClick?: () => void;
   fallbackUrl?: string; // DigiLocker or alternative verification URL
+  loginRoute?: string | null;
 }
 
-const PaymentStepsMessage: React.FC<PaymentStepsMessageProps> = ({ steps, onLinkClick, loanId, onAadhaarVerificationClick, fallbackUrl }) => {
+const PaymentStepsMessage: React.FC<PaymentStepsMessageProps> = ({ steps, onLinkClick, loanId, onAadhaarVerificationClick, fallbackUrl, loginRoute }) => {
   const [postApprovalStatus, setPostApprovalStatus] = useState<PostApprovalStatusData | null>(null);
   const [showAadhaarMessage, setShowAadhaarMessage] = useState<number | null>(null);
   const [showAgreementPopup, setShowAgreementPopup] = useState(false);
@@ -331,43 +332,47 @@ const PaymentStepsMessage: React.FC<PaymentStepsMessageProps> = ({ steps, onLink
           
           {/* Secondary Action Buttons */}
           <div className="flex space-x-2">
-            <button
-              onClick={() => {
-                // Only check Aadhaar verification for Face verification section
-                if (step.title.includes('Face') || step.title.includes('Face verification')) {
-                  checkAadhaarBeforeShare(step.url, index);
-                } else {
-                  handleNativeShare(step.url);
-                }
-              }}
-              className="flex-1 px-3 py-2 font-medium rounded-lg transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-offset-1 flex items-center justify-center space-x-2 text-xs"
-              style={{
-                backgroundColor: '#f3f2ff',
-                color: '#514c9f'
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.backgroundColor = '#e8e5ff';
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.backgroundColor = '#f3f2ff';
-              }}
-            >
-              <Share2 className="h-3 w-3" />
-              <span>{step.secondaryButtonText}</span>
-            </button>
-            <button
-              onClick={() => {
-                // Only check Aadhaar verification for Face verification section
-                if (step.title.includes('Face') || step.title.includes('Face verification')) {
-                  checkAadhaarBeforeCopy(step.url, index);
-                } else {
-                  copyToClipboard(step.url);
-                }
-              }}
-              className="px-3 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium rounded-lg transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-1 flex items-center justify-center text-xs"
-            >
-              <Copy className="h-3 w-3" />
-            </button>
+            {loginRoute === '/doctor-login' && (
+              <button
+                onClick={() => {
+                  // Only check Aadhaar verification for Face verification section
+                  if (step.title.includes('Face') || step.title.includes('Face verification')) {
+                    checkAadhaarBeforeShare(step.url, index);
+                  } else {
+                    handleNativeShare(step.url);
+                  }
+                }}
+                className="flex-1 px-3 py-2 font-medium rounded-lg transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-offset-1 flex items-center justify-center space-x-2 text-xs"
+                style={{
+                  backgroundColor: '#f3f2ff',
+                  color: '#514c9f'
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.backgroundColor = '#e8e5ff';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.backgroundColor = '#f3f2ff';
+                }}
+              >
+                <Share2 className="h-3 w-3" />
+                <span>{step.secondaryButtonText}</span>
+              </button>
+            )}
+            {loginRoute === '/doctor-login' && (
+              <button
+                onClick={() => {
+                  // Only check Aadhaar verification for Face verification section
+                  if (step.title.includes('Face') || step.title.includes('Face verification')) {
+                    checkAadhaarBeforeCopy(step.url, index);
+                  } else {
+                    copyToClipboard(step.url);
+                  }
+                }}
+                className="px-3 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium rounded-lg transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-1 flex items-center justify-center text-xs"
+              >
+                <Copy className="h-3 w-3" />
+              </button>
+            )}
           </div>
           
           {/* Aadhaar Verification Message */}

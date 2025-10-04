@@ -269,16 +269,18 @@ export interface OtpSendResult {
 
 // Interface for OTP verify API response
 export interface OtpVerifyResponse {
-  status: number;
-  data: string;
-  attachment: null;
   message: string;
+  token: string;
+  phone_number: string;
+  doctor_id: string;
+  doctor_name: string;
+  userId: string;
 }
 
 // Interface for OTP verify API function return type
 export interface OtpVerifyResult {
   success: boolean;
-  data?: string;
+  data?: OtpVerifyResponse;
   message: string;
 }
 
@@ -889,6 +891,33 @@ export interface AddActivityResult {
   message: string;
 }
 
+// Interface for checkout data
+export interface CheckoutData {
+  callback_url: string;
+  amount: number;
+  orderId: string;
+  name: string;
+  currency: string;
+  userName: string;
+  userMobileNo: number;
+  key: string;
+}
+
+// Interface for checkout API response
+export interface CheckoutResponse {
+  status: number;
+  data: CheckoutData;
+  attachment: null;
+  message: string;
+}
+
+// Interface for checkout API function return type
+export interface CheckoutResult {
+  success: boolean;
+  data?: CheckoutData;
+  message: string;
+}
+
 /**
  * Get post-approval status for a loan
  * @param loanId - The loan ID to check post-approval status for
@@ -1121,7 +1150,7 @@ export const callFinDocApis = async (loanId: string): Promise<FinDocApiResult> =
   try {
     console.log('Calling FinDoc APIs for loan ID:', loanId);
 
-    const response = await carePayApi.get<FinDocApiResponse>('/finDoc/callFinDocApisdisable', {
+    const response = await carePayApi.get<FinDocApiResponse>('/finDoc/callFinDocApis', {
       params: { loanId },
       headers: {
         'Accept': 'application/json'
@@ -1574,19 +1603,19 @@ export const verifyOtp = async (mobile: string, otp: string): Promise<OtpVerifyR
 
     console.log('OTP verify response:', response.data);
 
-    // Check if the response is successful
-    if (response.data.status === 200 && response.data.data) {
+    // Check if the response is successful and contains required fields
+    if (response.data && response.data.userId && response.data.token) {
       return {
         success: true,
-        data: response.data.data,
+        data: response.data,
         message: response.data.message || 'OTP verified successfully'
       };
     }
 
-    // Handle non-200 status responses
+    // Handle unsuccessful responses
     return {
       success: false,
-      message: response.data.message || 'Failed to verify OTP'
+      message: response.data?.message || 'Failed to verify OTP'
     };
 
   } catch (error: any) {
@@ -3486,6 +3515,159 @@ export const addActivity = async (userId: string, activity: string, type?: strin
     
     // Handle non-axios errors
     throw new Error(`Unexpected error: ${error.message || 'Unknown error occurred'}`);
+  }
+};
+
+/**
+ * Get checkout data for payment processing
+ * @param loanId - The loan ID to get checkout data for
+ * @returns Promise with the checkout data result
+ */
+export const getDataForCheckoutApi = async (loanId: string): Promise<CheckoutResult> => {
+  try {
+    console.log('Fetching checkout data for loan ID:', loanId);
+
+    const response = await carePayApi.get<CheckoutResponse>('/getDataForCheckoutApi', {
+      params: { loanId },
+      headers: {
+        'Accept': 'application/json'
+      }
+    });
+
+    console.log('Checkout data response:', response.data);
+
+    // Check if the response is successful
+    if (response.data.status === 200 && response.data.data) {
+      return {
+        success: true,
+        data: response.data.data,
+        message: response.data.message || 'Checkout data retrieved successfully'
+      };
+    }
+
+    // Handle non-200 status responses
+    return {
+      success: false,
+      message: response.data.message || 'Failed to retrieve checkout data'
+    };
+
+  } catch (error: any) {
+    console.error('Error getting checkout data:', error);
+    
+    if (axios.isAxiosError(error)) {
+      if (error.code === 'ECONNABORTED') {
+        throw new Error('Request timed out. Please try again.');
+      }
+      
+      if (!error.response) {
+        throw new Error('Unable to connect to the CarePay backend server. Please check your internet connection.');
+      }
+      
+      // Handle specific HTTP status codes
+      if (error.response.status === 400) {
+        const errorMessage = error.response.data?.message || 'Invalid loan ID provided';
+        throw new Error(`Bad Request: ${errorMessage}`);
+      }
+      
+      if (error.response.status === 401) {
+        throw new Error('Authentication required. Please login again.');
+      }
+      
+      if (error.response.status === 404) {
+        throw new Error('Checkout data not found for this loan ID.');
+      }
+      
+      if (error.response.status === 500) {
+        const errorMessage = error.response.data?.message || 'Internal server error';
+        throw new Error(`Server Error: ${errorMessage}`);
+      }
+      
+      // Handle other status codes
+      const errorMessage = error.response.data?.message || error.message;
+      throw new Error(`API Error (${error.response.status}): ${errorMessage}`);
+    }
+    
+    // Handle non-axios errors
+    throw new Error(`Unexpected error: ${error.message || 'Unknown error occurred'}`);
+  }
+};
+
+// Interface for save loan details request (matching user's curl example)
+export interface SaveLoanDetailsRequest {
+  doctorId: string;
+  doctorName: string;
+  formStatus: string;
+  loanAmount: string;
+  treatmentAmount: string;
+  loanReason: string;
+  Name: string;
+  userId: string;
+}
+
+// Interface for save loan details response
+interface SaveLoanDetailsResponse {
+  status: number;
+  data: any;
+  attachment: null;
+  message: string;
+}
+
+// Interface for save loan details result
+export interface SaveLoanDetailsResult {
+  success: boolean;
+  data?: any;
+  message: string;
+}
+
+/**
+ * Save loan details for No-Cost EMI credit card offer
+ * @param loanDetails - The loan details to save
+ * @returns Promise with the save result
+ */
+export const saveLoanDetailsForOffer = async (loanDetails: SaveLoanDetailsRequest): Promise<SaveLoanDetailsResult> => {
+  try {
+    console.log('Saving loan details:', loanDetails);
+
+    const response = await carePayApi.post<SaveLoanDetailsResponse>('/userDetails/saveLoanDetails', loanDetails, {
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json'
+      }
+    });
+
+    console.log('Save loan details response:', response.data);
+
+    // Check if the response is successful
+    if (response.data.status === 200) {
+      return {
+        success: true,
+        data: response.data.data,
+        message: response.data.message || 'Loan details saved successfully'
+      };
+    }
+
+    // Handle non-200 status responses
+    return {
+      success: false,
+      message: response.data.message || 'Failed to save loan details'
+    };
+  } catch (error: any) {
+    console.error('Error saving loan details:', error);
+    
+    // Handle network errors
+    if (error.code === 'NETWORK_ERROR' || !error.response) {
+      return {
+        success: false,
+        message: 'Network error. Please check your internet connection and try again.'
+      };
+    }
+
+    // Handle API errors
+    const errorMessage = error.response?.data?.message || error.message || 'Failed to save loan details';
+    return {
+      success: false,
+      message: errorMessage
+    };
   }
 };
 

@@ -584,13 +584,9 @@ Loan Amount: ${selectedPlan.netLoanAmount}\n\n
       } else {
         setTreatmentAmountError(null);
       }
-    } else if (lenderType === 'fibe' && fibeResponseDetail) {
-      // For Fibe, check against sanctionMaxLimit
-      if (amount > fibeResponseDetail.sanctionMaxLimit) {
-        setTreatmentAmountError(`Please enter treatment amount under the available limit of ${formatCurrency(fibeResponseDetail.sanctionMaxLimit)}`);
-      } else {
-        setTreatmentAmountError(null);
-      }
+    } else if (lenderType === 'fibe') {
+      // For Fibe, do not check treatment amount against credit limit
+      setTreatmentAmountError(null);
     } else {
       setTreatmentAmountError(null);
     }
@@ -737,41 +733,6 @@ Loan Amount: ${selectedPlan.netLoanAmount}\n\n
                 )}
 
 
-                {/* Treatment Amount Input - For Fibe */}
-                {loanDetails && lenderType === 'fibe' && (
-                  <div className="space-y-3">
-                    <label className="block text-lg font-bold text-gray-900">
-                      Enter treatment amount
-                    </label>
-                    
-                    {/* Error Message */}
-                    {treatmentAmountError && (
-                      <div className="bg-red-50 border border-red-200 rounded-xl p-4">
-                        <div className="flex items-center space-x-2">
-                          <div className="flex-shrink-0">
-                            <svg className="h-5 w-5 text-red-400" viewBox="0 0 20 20" fill="currentColor">
-                              <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
-                            </svg>
-                          </div>
-                          <p className="text-red-800 font-medium">{treatmentAmountError}</p>
-                        </div>
-                      </div>
-                    )}
-                    
-                    <div className={`rounded-xl p-4 ${treatmentAmountError ? 'border-2 border-red-300' : ''}`} style={{ backgroundColor: '#f3f2ff' }}>
-                      <div className="flex items-center">
-                        <span className="text-2xl font-bold text-gray-900 mr-2">₹</span>
-                        <input
-                          type="number"
-                          value={treatmentAmount}
-                          onChange={(e) => handleTreatmentAmountChange(parseFloat(e.target.value) || 0)}
-                          className={`flex-1 text-left text-2xl font-bold bg-transparent border-none outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none ${treatmentAmountError ? 'text-red-600' : 'text-gray-900'}`}
-                          placeholder="Enter amount"
-                        />
-                      </div>
-                    </div>
-                  </div>
-                )}
 
                 {/* Fibe Credit Limit Display */}
                 {lenderType === 'fibe' && fibeResponseDetail && (

@@ -1,9 +1,10 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { User, Phone, Wallet, Send, IndianRupee, Check, Edit3 } from 'lucide-react';
 
 interface StructuredInputFormProps {
   onSubmit: (formattedMessage: string) => void;
   isLoading: boolean;
+  loginRoute?: string | null;
 }
 
 interface FormData {
@@ -19,10 +20,10 @@ interface AadhaarVerification {
   isSingleWord: boolean;
 }
 
-const StructuredInputForm: React.FC<StructuredInputFormProps> = ({ onSubmit, isLoading }) => {
+const StructuredInputForm: React.FC<StructuredInputFormProps> = ({ onSubmit, isLoading, loginRoute }) => {
   const [formData, setFormData] = useState<FormData>({
     patientName: '',
-    phoneNumber: '',
+    phoneNumber: loginRoute !== '/doctor-login' ? localStorage.getItem('phoneNumber') || '' : '',
     treatmentCost: '',
     monthlyIncome: ''
   });
@@ -32,6 +33,26 @@ const StructuredInputForm: React.FC<StructuredInputFormProps> = ({ onSubmit, isL
     showVerification: false,
     isSingleWord: false
   });
+
+  // Auto-fill phone number for patient logins
+  useEffect(() => {
+    if (loginRoute !== '/doctor-login') {
+      // This is a patient login, auto-fill phone number from localStorage
+      const verifiedPhoneNumber = localStorage.getItem('phoneNumber');
+      if (verifiedPhoneNumber) {
+        setFormData(prev => ({
+          ...prev,
+          phoneNumber: verifiedPhoneNumber
+        }));
+      }
+    } else {
+      // This is a doctor login, clear phone number to allow manual entry
+      setFormData(prev => ({
+        ...prev,
+        phoneNumber: ''
+      }));
+    }
+  }, [loginRoute]);
 
   const fields = [
     {
@@ -148,10 +169,11 @@ const StructuredInputForm: React.FC<StructuredInputFormProps> = ({ onSubmit, isL
         const formattedMessage = `Name: ${formData.patientName.trim()}\n\n Phone Number: ${formData.phoneNumber}\n\n Treatment Cost: ${formData.treatmentCost}\n\n Monthly Income: ${formData.monthlyIncome}`;
         onSubmit(formattedMessage);
         
-        // Reset form
+        // Reset form - preserve phone number for patient logins
+        const verifiedPhoneNumber = loginRoute !== '/doctor-login' ? localStorage.getItem('phoneNumber') || '' : '';
         setFormData({
           patientName: '',
-          phoneNumber: '',
+          phoneNumber: verifiedPhoneNumber,
           treatmentCost: '',
           monthlyIncome: ''
         });
@@ -233,10 +255,11 @@ const StructuredInputForm: React.FC<StructuredInputFormProps> = ({ onSubmit, isL
     const formattedMessage = `Name: ${formData.patientName.trim()}\n\n Phone Number: ${formData.phoneNumber}\n\n Treatment Cost: ${formData.treatmentCost}\n\n Monthly Income: ${formData.monthlyIncome}`;
     onSubmit(formattedMessage);
     
-    // Reset form
+    // Reset form - preserve phone number for patient logins
+    const verifiedPhoneNumber = loginRoute !== '/doctor-login' ? localStorage.getItem('phoneNumber') || '' : '';
     setFormData({
       patientName: '',
-      phoneNumber: '',
+      phoneNumber: verifiedPhoneNumber,
       treatmentCost: '',
       monthlyIncome: ''
     });
@@ -359,8 +382,8 @@ const StructuredInputForm: React.FC<StructuredInputFormProps> = ({ onSubmit, isL
                     placeholder={field.placeholder}
                     value={formData[field.key]}
                     onChange={(e) => handleInputChange(field.key, e.target.value)}
-                    className={`w-full px-2 py-1.5 pl-8 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-primary-500 focus:border-primary-500 ${errors[field.key] ? 'border-red-500 focus:ring-red-500 focus:border-red-500' : ''}`}
-                    disabled={isLoading}
+                    className={`w-full px-2 py-1.5 pl-8 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-primary-500 focus:border-primary-500 ${errors[field.key] ? 'border-red-500 focus:ring-red-500 focus:border-red-500' : ''} ${field.key === 'phoneNumber' && loginRoute !== '/doctor-login' ? 'bg-gray-100 cursor-not-allowed' : ''}`}
+                    disabled={isLoading || (field.key === 'phoneNumber' && loginRoute !== '/doctor-login')}
                   />
                 </div>
                 {errors[field.key] && (

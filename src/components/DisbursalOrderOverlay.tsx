@@ -374,9 +374,9 @@ const DisbursalOrderOverlay: React.FC<Props> = ({ loanId, onClose }) => {
       />
       
       {/* Bottom Sheet / Modal */}
-      <div className={`relative bg-white w-full h-full sm:h-auto sm:max-w-[800px] sm:max-h-[95vh] rounded-none sm:rounded-lg shadow-xl flex flex-col ${showSlideUp ? 'animate-slideUp' : ''}`}>
+      <div className={`relative bg-white w-full max-h-[90vh] sm:h-auto sm:max-w-[800px] sm:max-h-[95vh] rounded-t-3xl sm:rounded-lg shadow-xl flex flex-col ${showSlideUp ? 'animate-slideUp' : ''}`}>
         {/* Header */}
-        <div className="bg-primary-600 text-white px-4 py-3 rounded-none sm:rounded-t-lg flex-shrink-0">
+        <div className="bg-primary-600 text-white px-4 py-3 rounded-t-3xl sm:rounded-t-lg flex-shrink-0">
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-3">
               <h3 className="font-semibold text-base">

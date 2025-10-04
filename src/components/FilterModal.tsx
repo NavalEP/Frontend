@@ -310,7 +310,7 @@ const FilterModal: React.FC<FilterModalProps> = ({
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-end justify-center z-50">
-      <div className="bg-white rounded-t-lg shadow-xl w-full max-w-md max-h-[90vh] overflow-hidden">
+      <div className="bg-white rounded-t-3xl shadow-xl w-full max-w-md max-h-[85vh] overflow-hidden">
         {/* Header */}
         <div className="flex items-center justify-between p-4 border-b border-gray-200">
           <h2 className="text-lg font-semibold text-gray-900">
@@ -327,7 +327,7 @@ const FilterModal: React.FC<FilterModalProps> = ({
         </div>
 
         {/* Content */}
-        <div className="p-4 overflow-y-auto max-h-[calc(90vh-80px)]">
+        <div className="p-4 overflow-y-auto max-h-[calc(85vh-80px)]">
           {renderContent()}
         </div>
       </div>

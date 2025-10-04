@@ -117,10 +117,9 @@ const AnimatedPopup: React.FC<AnimatedPopupProps> = ({
           className={className}
           style={{ 
             width: '100%',
-            height: '100%',
             backgroundColor: 'white',
-            borderTopLeftRadius: '24px',
-            borderTopRightRadius: '24px',
+            borderTopLeftRadius: '32px',
+            borderTopRightRadius: '32px',
             boxShadow: '0 -10px 25px rgba(0, 0, 0, 0.1)',
             zIndex: 50,
             transform: isAnimating ? 'translateY(0)' : 'translateY(100%)',
@@ -128,13 +127,13 @@ const AnimatedPopup: React.FC<AnimatedPopupProps> = ({
             pointerEvents: 'auto',
             position: 'relative',
             display: 'block',
-            minHeight: '100vh'
+            maxHeight: '90vh'
           }}
         >
           {/* Header */}
           {(title || showCloseButton) && (
             <div 
-              className={`flex items-center justify-between p-4 border-b border-gray-200 ${headerClassName}`}
+              className={`flex items-center justify-between p-4 border-b border-gray-200 sticky top-0 z-10 bg-white rounded-t-3xl ${headerClassName}`}
               style={headerClassName.includes('text-white') ? { background: 'linear-gradient(to right, #514c9f, #514c9f)' } : {}}
             >
               {title && (
